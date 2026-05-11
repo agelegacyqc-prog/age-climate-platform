@@ -1,0 +1,1 @@
+function App(){return(<div><h1>AGE Climate Platform!!</h1></div>)}export default App
