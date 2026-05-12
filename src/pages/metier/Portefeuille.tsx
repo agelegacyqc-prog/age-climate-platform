@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 const biens = [
   {id:1,adresse:"12 rue des Lilas",ville:"Dax",score:87,risque:"eleve",statut:"a_contacter",priorite:3,zone_rga:true,zone_ppri:false},
@@ -16,6 +17,7 @@ const statutColor = (s) => ({a_contacter:"#d97706",diagnostic:"#0369a1",travaux:
 const statutBg = (s) => ({a_contacter:"#fef3c7",diagnostic:"#e0f2fe",travaux:"#ede9fe",termine:"#dcfce7"}[s]||"#f0f0f0")
 
 export default function Portefeuille() {
+  const navigate = useNavigate()
   const [filtreRisque, setFiltreRisque] = useState("tous")
   const [filtreStatut, setFiltreStatut] = useState("tous")
   const [filtreZone, setFiltreZone] = useState("tous")
@@ -92,7 +94,7 @@ export default function Portefeuille() {
                   {!b.zone_rga && !b.zone_ppri && <span style={{color:"#ccc"}}>—</span>}
                 </td>
                 <td style={{padding:"0.875rem 1rem"}}>
-                  <button style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.4rem 1rem",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem",fontWeight:"600"}}>Voir</button>
+                  <button onClick={() => navigate("/metier/portefeuille/"+b.id)} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.4rem 1rem",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem",fontWeight:"600"}}>Voir</button>
                 </td>
               </tr>
             ))}
