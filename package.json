@@ -14,6 +14,7 @@
     "vite": "^5.3.4"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "@tanstack/react-query": "^5.100.9",
     "axios": "^1.16.0",
     "lucide-react": "^1.14.0",
