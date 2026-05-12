@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
 import DashboardMetier from "./pages/metier/DashboardMetier"
+import Portefeuille from "./pages/metier/Portefeuille"
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
           <Route path="sensibilisation" element={<Sensibilisation />} />
           <Route path="projets" element={<Projets />} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
-          <Route path="metier/portefeuille" element={<ProtectedRoute><div>Portefeuille</div></ProtectedRoute>} />
+          <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/campagnes" element={<ProtectedRoute><div>Campagnes</div></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><div>Financement</div></ProtectedRoute>} />
           <Route path="metier/reporting" element={<ProtectedRoute><div>Reporting</div></ProtectedRoute>} />
