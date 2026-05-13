@@ -13,6 +13,7 @@ import FicheBien from "./pages/metier/FicheBien"
 import Campagnes from "./pages/metier/Campagnes"
 import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
+import Administration from "./pages/metier/Administration"
 
 export default function App() {
   return (
@@ -30,7 +31,7 @@ export default function App() {
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
           <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
-          <Route path="metier/admin" element={<ProtectedRoute><div>Administration</div></ProtectedRoute>} />
+          <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>
