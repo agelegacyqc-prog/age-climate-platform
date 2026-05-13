@@ -35,6 +35,13 @@ export default function Layout() {
           <NavLink to="/marketplace" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="nav-icon">🛒</span><span>Marketplace</span>
           </NavLink>
+          <div className="nav-section">ESPACE CLIENT</div>
+          <NavLink to="/client" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <span className="nav-icon">👤</span><span>Mon compte</span>
+          </NavLink>
+          <NavLink to="/client/actifs" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <span className="nav-icon">🏢</span><span>Mes actifs</span>
+          </NavLink>
           <div className="nav-section">ESPACE METIER</div>
           <NavLink to="/metier" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="nav-icon">🏢</span><span>Dashboard</span>
