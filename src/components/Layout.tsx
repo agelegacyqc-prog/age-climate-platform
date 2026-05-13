@@ -21,49 +21,41 @@ export default function Layout() {
         <nav className="sidebar-nav">
           <div className="nav-section">PLATEFORME</div>
           <NavLink to="/" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">🏠</span>
-            <span>Accueil</span>
+            <span className="nav-icon">🏠</span><span>Accueil</span>
           </NavLink>
           <NavLink to="/dashboard" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">📊</span>
-            <span>Dashboard</span>
+            <span className="nav-icon">📊</span><span>Dashboard</span>
           </NavLink>
           <NavLink to="/sensibilisation" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">🌱</span>
-            <span>Sensibilisation</span>
+            <span className="nav-icon">🌱</span><span>Sensibilisation</span>
           </NavLink>
           <NavLink to="/projets" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">📋</span>
-            <span>Projets</span>
+            <span className="nav-icon">📋</span><span>Projets</span>
           </NavLink>
           <NavLink to="/marketplace" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">🛒</span>
-            <span>Marketplace</span>
+            <span className="nav-icon">🛒</span><span>Marketplace</span>
           </NavLink>
           <div className="nav-section">ESPACE METIER</div>
           <NavLink to="/metier" end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">🏢</span>
-            <span>Dashboard</span>
+            <span className="nav-icon">🏢</span><span>Dashboard</span>
           </NavLink>
           <NavLink to="/metier/portefeuille" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">📍</span>
-            <span>Portefeuille</span>
+            <span className="nav-icon">📍</span><span>Portefeuille</span>
           </NavLink>
           <NavLink to="/metier/campagnes" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">📢</span>
-            <span>Campagnes</span>
+            <span className="nav-icon">📢</span><span>Campagnes</span>
+          </NavLink>
+          <NavLink to="/metier/missions" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <span className="nav-icon">🎯</span><span>Missions</span>
           </NavLink>
           <NavLink to="/metier/financement" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">💰</span>
-            <span>Financement</span>
+            <span className="nav-icon">💰</span><span>Financement</span>
           </NavLink>
           <NavLink to="/metier/reporting" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">📊</span>
-            <span>Reporting</span>
+            <span className="nav-icon">📊</span><span>Reporting</span>
           </NavLink>
           <NavLink to="/metier/admin" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="nav-icon">⚙️</span>
-            <span>Administration</span>
+            <span className="nav-icon">⚙️</span><span>Administration</span>
           </NavLink>
         </nav>
         <button onClick={handleLogout} style={{margin:"1rem",padding:"0.75rem",background:"rgba(255,255,255,0.1)",color:"white",border:"none",borderRadius:"8px",cursor:"pointer",fontSize:"0.9rem"}}>Déconnexion</button>

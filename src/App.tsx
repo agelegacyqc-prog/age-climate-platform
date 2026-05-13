@@ -12,6 +12,7 @@ import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
 import Campagnes from "./pages/metier/Campagnes"
+import Missions from "./pages/metier/Missions"
 import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
+          <Route path="metier/missions" element={<ProtectedRoute><Missions /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
           <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
