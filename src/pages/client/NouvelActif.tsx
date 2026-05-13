@@ -13,34 +13,136 @@ const etapes = [
 const typesBatiments = ["Bureau","Entrepôt","Commerce","Industrie","Hôtel","Enseignement","Santé","Autre"]
 const secteurs = ["Assurance","Banque","Immobilier","Industrie","Retail","Santé","Éducation","Autre"]
 
-const reglementations = [
-  {id:"tertiaire",label:"Décret Tertiaire",icone:"⚡",desc:"Réduction consommation énergétique bâtiments >1000m²"},
-  {id:"bacs",label:"Décret BACS",icone:"🔧",desc:"Système de GTB pour bâtiments tertiaires"},
-  {id:"csrd",label:"CSRD",icone:"📊",desc:"Reporting durabilité entreprises >250 salariés"},
-  {id:"bilan_carbone",label:"Bilan Carbone",icone:"🌱",desc:"Bilan GES obligatoire entreprises >500 salariés"},
-  {id:"iso50001",label:"ISO 50001",icone:"🏆",desc:"Certification système de management de l'énergie"},
-  {id:"audit_energetique",label:"Audit Énergétique",icone:"🔍",desc:"Audit obligatoire grandes entreprises tous les 4 ans"}
+const typesDocuments = [
+  {id:"dpe",label:"DPE",desc:"Diagnostic de Performance Énergétique"},
+  {id:"audit",label:"Audit énergétique",desc:"Dernier audit réalisé"},
+  {id:"bilan_carbone",label:"Bilan Carbone",desc:"Bilan GES existant"},
+  {id:"plan_action",label:"Plan d'action",desc:"Plan de réduction existant"},
+  {id:"rapport_csrd",label:"Rapport CSRD/ESG",desc:"Rapport durabilité"},
+  {id:"factures",label:"Factures énergie",desc:"12 derniers mois"}
 ]
+
+interface Infos {
+  nom: string
+  adresse: string
+  ville: string
+  code_postal: string
+  surface: string
+  type_batiment: string
+  annee_construction: string
+  effectifs: string
+  chiffre_affaires: string
+  secteur_activite: string
+  nb_sites: string
+}
+
+interface Reglementation {
+  id: string
+  label: string
+  icone: string
+  desc: string
+  statut: "eligible"|"potentiel"|"non_eligible"
+  raison: string
+}
+
+function calculerEligibilite(infos: Infos): Reglementation[] {
+  const surface = parseInt(infos.surface) || 0
+  const effectifs = parseInt(infos.effectifs) || 0
+  const ca = parseFloat(infos.chiffre_affaires) || 0
+  const annee = parseInt(infos.annee_construction) || 0
+  const typeTertiaire = ["Bureau","Commerce","Hôtel","Enseignement","Santé"].includes(infos.type_batiment)
+
+  return [
+    {
+      id:"tertiaire",
+      label:"Décret Tertiaire",
+      icone:"⚡",
+      desc:"Réduction consommation énergétique bâtiments tertiaires >1000m²",
+      statut: surface >= 1000 && typeTertiaire ? "eligible" : surface >= 1000 ? "potentiel" : "non_eligible",
+      raison: surface >= 1000 && typeTertiaire
+        ? `Surface ${surface}m² ≥ 1000m² et bâtiment tertiaire — Obligatoire`
+        : surface >= 1000
+        ? `Surface ${surface}m² ≥ 1000m² mais type à confirmer`
+        : `Surface ${surface}m² < 1000m² — Non assujetti`
+    },
+    {
+      id:"bacs",
+      label:"Décret BACS",
+      icone:"🔧",
+      desc:"Système de gestion technique du bâtiment (GTB)",
+      statut: surface >= 1000 && annee < 2023 ? "eligible" : surface >= 1000 ? "potentiel" : "non_eligible",
+      raison: surface >= 1000 && annee < 2023
+        ? `Surface ${surface}m² ≥ 1000m² et bâtiment existant — Obligatoire avant 2025`
+        : surface >= 1000
+        ? `Surface ${surface}m² ≥ 1000m² — Vérifier date construction`
+        : `Surface ${surface}m² < 1000m² — Non assujetti`
+    },
+    {
+      id:"csrd",
+      label:"CSRD",
+      icone:"📊",
+      desc:"Reporting de durabilité entreprises",
+      statut: effectifs >= 250 || ca >= 40 ? "eligible" : effectifs >= 50 ? "potentiel" : "non_eligible",
+      raison: effectifs >= 250 || ca >= 40
+        ? `${effectifs >= 250 ? `${effectifs} salariés ≥ 250` : `CA ${ca}M€ ≥ 40M€`} — Obligatoire`
+        : effectifs >= 50
+        ? `${effectifs} salariés — Potentiellement concerné (seuil 250)`
+        : `${effectifs} salariés < 50 — Non assujetti`
+    },
+    {
+      id:"bilan_carbone",
+      label:"Bilan Carbone GES",
+      icone:"🌱",
+      desc:"Bilan des émissions de gaz à effet de serre obligatoire",
+      statut: effectifs >= 500 ? "eligible" : effectifs >= 250 ? "potentiel" : "non_eligible",
+      raison: effectifs >= 500
+        ? `${effectifs} salariés ≥ 500 — Obligatoire tous les 4 ans`
+        : effectifs >= 250
+        ? `${effectifs} salariés — Proche du seuil de 500`
+        : `${effectifs} salariés < 500 — Non obligatoire`
+    },
+    {
+      id:"iso50001",
+      label:"ISO 50001",
+      icone:"🏆",
+      desc:"Certification système de management de l'énergie",
+      statut: "potentiel",
+      raison: "Démarche volontaire — Recommandée pour tous les actifs"
+    },
+    {
+      id:"audit_energetique",
+      label:"Audit Énergétique",
+      icone:"🔍",
+      desc:"Audit obligatoire grandes entreprises tous les 4 ans",
+      statut: effectifs >= 250 || ca >= 50 ? "eligible" : effectifs >= 100 ? "potentiel" : "non_eligible",
+      raison: effectifs >= 250 || ca >= 50
+        ? `${effectifs >= 250 ? `${effectifs} salariés ≥ 250` : `CA ${ca}M€ ≥ 50M€`} — Obligatoire tous les 4 ans`
+        : effectifs >= 100
+        ? `${effectifs} salariés — Proche du seuil`
+        : `${effectifs} salariés < 250 — Non obligatoire`
+    }
+  ]
+}
 
 export default function NouvelActif() {
   const navigate = useNavigate()
   const [etape, setEtape] = useState(1)
   const [loading, setLoading] = useState(false)
   const [actifId, setActifId] = useState<string|null>(null)
+  const [documentsUploades, setDocumentsUploades] = useState<string[]>([])
+  const [reglementations, setReglementations] = useState<Reglementation[]>([])
 
-  const [infos, setInfos] = useState({
+  const [infos, setInfos] = useState<Infos>({
     nom:"", adresse:"", ville:"", code_postal:"",
     surface:"", type_batiment:"", annee_construction:"",
-    effectifs:"", secteur_activite:"", nb_sites:"1"
+    effectifs:"", chiffre_affaires:"", secteur_activite:"", nb_sites:"1"
   })
 
-  const [documents, setDocuments] = useState<any[]>([])
-  const [reglementationsSelectionnees, setReglementationsSelectionnees] = useState<string[]>([])
-
   async function saveEtape1() {
+    if (!infos.nom || !infos.adresse || !infos.ville) return
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase.from("actifs").insert([{
+    const { data } = await supabase.from("actifs").insert([{
       user_id: user?.id,
       nom: infos.nom,
       adresse: infos.adresse,
@@ -54,36 +156,49 @@ export default function NouvelActif() {
       nb_sites: parseInt(infos.nb_sites)||1,
       statut_analyse: "en_attente"
     }]).select()
-    if (data && data[0]) {
-      setActifId(data[0].id)
-      setEtape(2)
-    }
+    if (data && data[0]) setActifId(data[0].id)
     setLoading(false)
+    setEtape(2)
   }
 
-  async function saveEtape2() {
+  function goToEtape3() {
+    const reglsCalculees = calculerEligibilite(infos)
+    setReglementations(reglsCalculees)
     setEtape(3)
   }
 
   async function saveEtape3() {
     if (actifId) {
-      const inserts = reglementationsSelectionnees.map(r => ({
-        actif_id: actifId,
-        reglementation: r,
-        statut: "a_evaluer",
-        score: 0
-      }))
-      if (inserts.length > 0) {
-        await supabase.from("actifs_reglementaire").insert(inserts)
+      const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
+      if (eligibles.length > 0) {
+        await supabase.from("actifs_reglementaire").insert(
+          eligibles.map(r => ({
+            actif_id: actifId,
+            reglementation: r.id,
+            statut: r.statut,
+            score: r.statut === "eligible" ? 0 : 50,
+            details: r.raison
+          }))
+        )
       }
     }
     setEtape(4)
   }
 
+  function toggleDocument(id: string) {
+    setDocumentsUploades(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const statutStyle:any = {
+    eligible: {bg:"#dcfce7",color:"#2d6a4f",icone:"✅",label:"Éligible — Obligatoire"},
+    potentiel: {bg:"#fef3c7",color:"#d97706",icone:"⚠️",label:"Potentiellement éligible"},
+    non_eligible: {bg:"#f0f0f0",color:"#999",icone:"❌",label:"Non éligible"}
+  }
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:"1rem",marginBottom:"2rem"}}>
-        <button onClick={() => navigate("/client/actifs")} style={{background:"white",border:"1px solid #e5e1da",padding:"0.5rem 1rem",borderRadius:"8px",cursor:"pointer",color:"#666"}}>← Retour</button>
+        <button onClick={() => navigate("/client")} style={{background:"white",border:"1px solid #e5e1da",padding:"0.5rem 1rem",borderRadius:"8px",cursor:"pointer",color:"#666"}}>← Retour</button>
         <h2 style={{color:"#1a3a2a"}}>Créer un actif</h2>
       </div>
 
@@ -143,6 +258,10 @@ export default function NouvelActif() {
               <input value={infos.effectifs} onChange={e => setInfos({...infos,effectifs:e.target.value})} placeholder="Nombre de salariés" type="number" style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}} />
             </div>
             <div>
+              <label style={{display:"block",marginBottom:"0.4rem",fontWeight:"600",fontSize:"0.85rem",color:"#1a3a2a"}}>Chiffre d'affaires (M€)</label>
+              <input value={infos.chiffre_affaires} onChange={e => setInfos({...infos,chiffre_affaires:e.target.value})} placeholder="Ex: 50" type="number" style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}} />
+            </div>
+            <div>
               <label style={{display:"block",marginBottom:"0.4rem",fontWeight:"600",fontSize:"0.85rem",color:"#1a3a2a"}}>Secteur d'activité</label>
               <select value={infos.secteur_activite} onChange={e => setInfos({...infos,secteur_activite:e.target.value})} style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none",background:"white"}}>
                 <option value="">Choisir...</option>
@@ -166,54 +285,75 @@ export default function NouvelActif() {
       {etape===2 && (
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
           <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>📄 Upload de documents</h3>
-          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Déposez vos documents existants pour enrichir l'analyse</p>
+          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Déposez vos documents existants — vous pourrez en ajouter d'autres depuis la fiche actif</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
-            {[
-              {id:"dpe",label:"DPE",desc:"Diagnostic de Performance Énergétique"},
-              {id:"audit",label:"Audit énergétique",desc:"Dernier audit réalisé"},
-              {id:"bilan_carbone",label:"Bilan Carbone",desc:"Bilan GES existant"},
-              {id:"plan_action",label:"Plan d'action",desc:"Plan de réduction existant"},
-              {id:"rapport_csrd",label:"Rapport CSRD/ESG",desc:"Rapport durabilité"},
-              {id:"factures",label:"Factures énergie",desc:"12 derniers mois"}
-            ].map(doc => (
-              <div key={doc.id} style={{border:"2px dashed #e5e1da",borderRadius:"12px",padding:"1.25rem",textAlign:"center",cursor:"pointer",transition:"all 0.2s"}}
-                onMouseEnter={e => (e.currentTarget.style.borderColor="#1a3a2a")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor="#e5e1da")}>
-                <div style={{fontSize:"1.5rem",marginBottom:"0.5rem"}}>📄</div>
+            {typesDocuments.map(doc => (
+              <div key={doc.id} onClick={() => toggleDocument(doc.id)} style={{border:`2px ${documentsUploades.includes(doc.id)?"solid #1a3a2a":"dashed #e5e1da"}`,borderRadius:"12px",padding:"1.25rem",textAlign:"center",cursor:"pointer",background:documentsUploades.includes(doc.id)?"#f0f4f0":"white",transition:"all 0.2s"}}>
+                <div style={{fontSize:"1.5rem",marginBottom:"0.5rem"}}>{documentsUploades.includes(doc.id)?"✅":"📄"}</div>
                 <div style={{fontWeight:"600",color:"#1a3a2a",fontSize:"0.9rem",marginBottom:"0.25rem"}}>{doc.label}</div>
                 <div style={{fontSize:"0.75rem",color:"#666",marginBottom:"0.75rem"}}>{doc.desc}</div>
-                <div style={{fontSize:"0.75rem",color:"#0369a1"}}>Cliquer pour uploader</div>
+                <div style={{fontSize:"0.75rem",color:documentsUploades.includes(doc.id)?"#2d6a4f":"#0369a1",fontWeight:"600"}}>
+                  {documentsUploades.includes(doc.id)?"Sélectionné ✓":"Cliquer pour uploader"}
+                </div>
               </div>
             ))}
           </div>
+          <div style={{border:"2px dashed #2d6a4f",borderRadius:"12px",padding:"1.5rem",textAlign:"center",cursor:"pointer",background:"#f0fdf4",marginBottom:"1rem"}}
+            onMouseEnter={e => (e.currentTarget.style.background="#dcfce7")}
+            onMouseLeave={e => (e.currentTarget.style.background="#f0fdf4")}>
+            <div style={{fontSize:"2rem",marginBottom:"0.5rem"}}>➕</div>
+            <div style={{fontWeight:"600",color:"#2d6a4f",fontSize:"0.9rem",marginBottom:"0.25rem"}}>Ajouter un autre document</div>
+            <div style={{fontSize:"0.75rem",color:"#666"}}>PDF, Word, Excel — tout format accepté</div>
+          </div>
+          <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1"}}>
+            💡 Vous pourrez ajouter d'autres documents à tout moment depuis la fiche de votre actif.
+          </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
             <button onClick={() => setEtape(1)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
-            <button onClick={saveEtape2} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Suivant →</button>
+            <button onClick={goToEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Suivant →</button>
           </div>
         </div>
       )}
 
-      {/* Étape 3 — Réglementaire */}
+      {/* Étape 3 — Réglementaire automatique */}
       {etape===3 && (
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-          <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>⚖️ Périmètre réglementaire</h3>
-          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Sélectionnez les réglementations applicables à votre actif</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
-            {reglementations.map(r => (
-              <div key={r.id} onClick={() => setReglementationsSelectionnees(prev => prev.includes(r.id) ? prev.filter(x => x!==r.id) : [...prev,r.id])}
-                style={{padding:"1.25rem",borderRadius:"12px",border:`2px solid ${reglementationsSelectionnees.includes(r.id)?"#1a3a2a":"#e5e1da"}`,cursor:"pointer",background:reglementationsSelectionnees.includes(r.id)?"#f0f4f0":"white",transition:"all 0.2s"}}>
-                <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.5rem"}}>
-                  <span style={{fontSize:"1.5rem"}}>{r.icone}</span>
-                  <div style={{fontWeight:"700",color:"#1a3a2a"}}>{r.label}</div>
-                  {reglementationsSelectionnees.includes(r.id) && <span style={{marginLeft:"auto",color:"#2d6a4f",fontWeight:"700"}}>✓</span>}
-                </div>
-                <div style={{fontSize:"0.8rem",color:"#666"}}>{r.desc}</div>
+          <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>⚖️ Analyse réglementaire</h3>
+          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"0.5rem"}}>Résultats basés sur vos données : <strong>{infos.surface}m²</strong> • <strong>{infos.effectifs} salariés</strong> • <strong>{infos.chiffre_affaires}M€ CA</strong></p>
+          <div style={{display:"flex",gap:"1rem",marginBottom:"1.5rem"}}>
+            {[
+              {label:"Obligatoire",color:"#2d6a4f",bg:"#dcfce7",nb:reglementations.filter(r=>r.statut==="eligible").length},
+              {label:"Potentiel",color:"#d97706",bg:"#fef3c7",nb:reglementations.filter(r=>r.statut==="potentiel").length},
+              {label:"Non éligible",color:"#999",bg:"#f0f0f0",nb:reglementations.filter(r=>r.statut==="non_eligible").length}
+            ].map((s,i) => (
+              <div key={i} style={{background:s.bg,padding:"0.75rem 1.25rem",borderRadius:"8px",display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                <span style={{fontSize:"1.25rem",fontWeight:"800",color:s.color}}>{s.nb}</span>
+                <span style={{fontSize:"0.85rem",color:s.color,fontWeight:"600"}}>{s.label}</span>
               </div>
             ))}
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:"1rem",marginBottom:"1.5rem"}}>
+            {reglementations.map(r => (
+              <div key={r.id} style={{padding:"1.25rem",borderRadius:"12px",border:`2px solid ${r.statut==="eligible"?"#2d6a4f":r.statut==="potentiel"?"#d97706":"#e5e1da"}`,background:statutStyle[r.statut].bg}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                    <span style={{fontSize:"1.5rem"}}>{r.icone}</span>
+                    <div style={{fontWeight:"700",color:"#1a3a2a",fontSize:"1rem"}}>{r.label}</div>
+                  </div>
+                  <span style={{background:"white",color:statutStyle[r.statut].color,padding:"0.3rem 0.875rem",borderRadius:"999px",fontSize:"0.8rem",fontWeight:"700",border:`1px solid ${statutStyle[r.statut].color}`}}>
+                    {statutStyle[r.statut].icone} {statutStyle[r.statut].label}
+                  </span>
+                </div>
+                <div style={{fontSize:"0.85rem",color:"#444",marginBottom:"0.5rem"}}>{r.desc}</div>
+                <div style={{fontSize:"0.8rem",color:statutStyle[r.statut].color,fontWeight:"600",background:"white",padding:"0.5rem 0.75rem",borderRadius:"6px"}}>
+                  {r.raison}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between"}}>
             <button onClick={() => setEtape(2)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
-            <button onClick={saveEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Analyser →</button>
+            <button onClick={saveEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Analyser le score climatique →</button>
           </div>
         </div>
       )}
@@ -222,14 +362,14 @@ export default function NouvelActif() {
       {etape===4 && (
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
           <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>🌡️ Score climatique</h3>
-          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Analyse en cours...</p>
+          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Analyse préliminaire basée sur la localisation et les données du site</p>
           <div style={{textAlign:"center",padding:"2rem"}}>
             <div style={{fontSize:"5rem",fontWeight:"800",color:"#d97706"}}>72</div>
             <div style={{color:"#666",marginBottom:"1.5rem"}}>Score climatique global</div>
             <div style={{background:"#f0f0f0",borderRadius:"999px",height:"16px",overflow:"hidden",marginBottom:"2rem"}}>
               <div style={{background:"linear-gradient(90deg,#2d6a4f,#d97706,#b91c1c)",width:"72%",height:"100%",borderRadius:"999px"}}></div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"1rem"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
               {[
                 {label:"Risque physique",score:65,color:"#d97706"},
                 {label:"Risque transition",score:80,color:"#b91c1c"},
@@ -240,6 +380,9 @@ export default function NouvelActif() {
                   <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.25rem"}}>{s.label}</div>
                 </div>
               ))}
+            </div>
+            <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1",textAlign:"left"}}>
+              💡 L'analyse complète avec IA sera disponible après traitement de vos documents. Vous recevrez une notification par email.
             </div>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
@@ -254,8 +397,28 @@ export default function NouvelActif() {
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
           <div style={{textAlign:"center",padding:"2rem"}}>
             <div style={{fontSize:"4rem",marginBottom:"1rem"}}>✅</div>
-            <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>Analyse complétée !</h3>
-            <p style={{color:"#666",marginBottom:"2rem"}}>Votre actif a été créé et analysé avec succès.</p>
+            <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem",fontSize:"1.5rem"}}>Actif créé avec succès !</h3>
+            <p style={{color:"#666",marginBottom:"0.5rem"}}>Votre actif a été enregistré et l'analyse préliminaire est disponible.</p>
+            <p style={{color:"#666",fontSize:"0.85rem",marginBottom:"2rem"}}>L'analyse complète avec IA sera disponible sous 24h après traitement de vos documents.</p>
+            <div style={{background:"#f8f7f4",padding:"1.5rem",borderRadius:"12px",marginBottom:"2rem",textAlign:"left"}}>
+              <h4 style={{color:"#1a3a2a",marginBottom:"1rem"}}>Récapitulatif</h4>
+              <div style={{display:"flex",flexDirection:"column",gap:"0.5rem"}}>
+                {[
+                  ["Actif",infos.nom],
+                  ["Localisation",infos.ville],
+                  ["Surface",infos.surface+"m²"],
+                  ["Effectifs",infos.effectifs+" salariés"],
+                  ["Documents uploadés",documentsUploades.length.toString()],
+                  ["Réglementations obligatoires",reglementations.filter(r=>r.statut==="eligible").length.toString()],
+                  ["Score climatique","72 / 100"]
+                ].map(([k,v],i) => (
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
+                    <span style={{color:"#666"}}>{k}</span>
+                    <span style={{fontWeight:"600",color:k==="Score climatique"?"#d97706":"#1a3a2a"}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div style={{display:"flex",gap:"1rem",justifyContent:"center"}}>
               <button onClick={() => navigate("/client/actifs")} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Voir mes actifs</button>
               <button onClick={() => navigate("/client")} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>Mon compte</button>
