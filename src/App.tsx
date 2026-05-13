@@ -7,6 +7,7 @@ import Accueil from "./pages/Accueil"
 import Dashboard from "./pages/Dashboard"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
+import Marketplace from "./pages/Marketplace"
 import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="sensibilisation" element={<Sensibilisation />} />
           <Route path="projets" element={<Projets />} />
+          <Route path="marketplace" element={<Marketplace />} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
