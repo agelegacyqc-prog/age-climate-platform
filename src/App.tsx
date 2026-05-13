@@ -12,6 +12,7 @@ import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
 import Campagnes from "./pages/metier/Campagnes"
 import Financement from "./pages/metier/Financement"
+import Reporting from "./pages/metier/Reporting"
 
 export default function App() {
   return (
@@ -28,7 +29,7 @@ export default function App() {
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
-          <Route path="metier/reporting" element={<ProtectedRoute><div>Reporting</div></ProtectedRoute>} />
+          <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><div>Administration</div></ProtectedRoute>} />
         </Route>
       </Routes>
