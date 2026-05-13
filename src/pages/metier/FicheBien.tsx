@@ -1,5 +1,6 @@
 import React, { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import ScoreGeorisques from "../../components/ScoreGeorisques"
 
 const workflow = [
   {label:"Contact client",statut:"done",date:"12/04/2026"},
@@ -47,14 +48,12 @@ export default function FicheBien() {
               </div>
             ))}
           </div>
-          <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",textAlign:"center"}}>
-            <h3 style={{color:"#1a3a2a",marginBottom:"1rem"}}>Score climatique</h3>
-            <div style={{fontSize:"5rem",fontWeight:"800",color:"#b91c1c",lineHeight:1}}>87</div>
-            <div style={{color:"#666",margin:"0.5rem 0 1.5rem"}}>Risque eleve</div>
-            <div style={{background:"#f0f0f0",borderRadius:"999px",height:"16px",overflow:"hidden"}}>
-              <div style={{background:"linear-gradient(90deg,#2d6a4f,#d97706,#b91c1c)",width:"87%",height:"100%",borderRadius:"999px"}}></div>
-            </div>
-          </div>
+          <ScoreGeorisques
+            zone_rga={true}
+            zone_ppri={false}
+            score_risque={87}
+            niveau_risque="eleve"
+          />
         </div>
       )}
       {onglet==="workflow" && (
