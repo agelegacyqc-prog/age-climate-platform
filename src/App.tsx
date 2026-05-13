@@ -12,6 +12,7 @@ import DashboardClient from "./pages/client/DashboardClient"
 import MesActifs from "./pages/client/MesActifs"
 import NouvelActif from "./pages/client/NouvelActif"
 import FicheActif from "./pages/client/FicheActif"
+import Onboarding from "./pages/client/Onboarding"
 import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
@@ -26,6 +27,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Accueil />} />
           <Route path="dashboard" element={<Dashboard />} />
