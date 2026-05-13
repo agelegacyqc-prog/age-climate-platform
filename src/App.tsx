@@ -8,6 +8,9 @@ import Dashboard from "./pages/Dashboard"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
 import Marketplace from "./pages/Marketplace"
+import DashboardClient from "./pages/client/DashboardClient"
+import MesActifs from "./pages/client/MesActifs"
+import NouvelActif from "./pages/client/NouvelActif"
 import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
@@ -16,8 +19,6 @@ import Missions from "./pages/metier/Missions"
 import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
-import DashboardClient from "./pages/client/DashboardClient"
-import MesActifs from "./pages/client/MesActifs"
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="marketplace" element={<Marketplace />} />
           <Route path="client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
           <Route path="client/actifs" element={<ProtectedRoute><MesActifs /></ProtectedRoute>} />
+          <Route path="client/actifs/nouveau" element={<ProtectedRoute><NouvelActif /></ProtectedRoute>} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
