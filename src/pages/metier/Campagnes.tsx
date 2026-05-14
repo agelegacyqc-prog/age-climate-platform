@@ -3,89 +3,159 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from "../../lib/supabase"
 
 const perfData = [
-  {semaine:"S1",reponses:120,rdv:80,diagnostics:45},
-  {semaine:"S2",reponses:340,rdv:210,diagnostics:120},
-  {semaine:"S3",reponses:520,rdv:380,diagnostics:240},
-  {semaine:"S4",reponses:890,rdv:530,diagnostics:395}
+  { semaine: "S1", reponses: 120, rdv: 80, diagnostics: 45 },
+  { semaine: "S2", reponses: 340, rdv: 210, diagnostics: 120 },
+  { semaine: "S3", reponses: 520, rdv: 380, diagnostics: 240 },
+  { semaine: "S4", reponses: 890, rdv: 530, diagnostics: 395 },
 ]
 
-const statutColor = (s:string) => s==="en_cours" ? "#2d6a4f" : "#666"
-const statutBg = (s:string) => s==="en_cours" ? "#dcfce7" : "#f0f0f0"
-const statutLabel = (s:string) => s==="en_cours" ? "En cours" : "Terminé"
+const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  en_cours: { label: "En cours", color: "#065F46", bg: "#ECFDF5" },
+  termine:  { label: "Terminé",  color: "#475569", bg: "#F1F5F9" },
+}
 
 export default function Campagnes() {
   const [campagnes, setCampagnes] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadCampagnes()
-  }, [])
+  useEffect(() => { loadCampagnes() }, [])
 
   async function loadCampagnes() {
-    const { data } = await supabase.from("campagnes").select("*").order("date_debut", {ascending: false})
+    const { data } = await supabase.from("campagnes").select("*").order("date_debut", { ascending: false })
     setCampagnes(data || [])
     if (data && data.length > 0) setSelected(data[0])
     setLoading(false)
   }
 
-  if (loading) return <div style={{padding:"2rem",color:"#666"}}>Chargement...</div>
+  if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
   return (
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.5rem"}}>
-        <div>
-          <h2 style={{color:"#1a3a2a",marginBottom:"0.25rem"}}>📢 Campagnes</h2>
-          <p style={{color:"#666",fontSize:"0.9rem"}}>{campagnes.length} campagnes</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+      {/* En-tête */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: "13px", color: "#64748B" }}>
+          <span style={{ fontWeight: 500, color: "#0F172A" }}>{campagnes.length}</span> campagne{campagnes.length > 1 ? "s" : ""}
         </div>
-        <button style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.75rem 1.5rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>+ Nouvelle campagne</button>
+        <button style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#0F6E56", color: "white", border: "none",
+          padding: "8px 16px", borderRadius: "7px",
+          fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+        }}>
+          <i className="ti ti-plus" style={{ fontSize: "15px" }} aria-hidden="true" />
+          Nouvelle campagne
+        </button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"1.5rem"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
-          {campagnes.map(c => (
-            <div key={c.id} onClick={() => setSelected(c)} style={{background:"white",padding:"1.25rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",cursor:"pointer",borderLeft:selected?.id===c.id?"4px solid #1a3a2a":"4px solid transparent"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.5rem"}}>
-                <div style={{fontWeight:"600",color:"#1a3a2a",fontSize:"0.9rem"}}>{c.nom}</div>
-                <span style={{background:statutBg(c.statut),color:statutColor(c.statut),padding:"0.2rem 0.6rem",borderRadius:"999px",fontSize:"0.75rem",fontWeight:"600"}}>{statutLabel(c.statut)}</span>
-              </div>
-              <div style={{fontSize:"0.8rem",color:"#666"}}>{c.date_debut} → {c.date_fin}</div>
-              <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.25rem"}}>{c.courriers_envoyes} courriers • {Math.round(c.reponses/c.courriers_envoyes*100)}% réponse</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "16px", alignItems: "start" }}>
+
+        {/* Liste campagnes */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {campagnes.length === 0 ? (
+            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "24px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>
+              Aucune campagne
             </div>
-          ))}
+          ) : (
+            campagnes.map(c => {
+              const statut = STATUT_CONFIG[c.statut] || STATUT_CONFIG.termine
+              const tauxReponse = c.courriers_envoyes > 0 ? Math.round(c.reponses / c.courriers_envoyes * 100) : 0
+              const isSelected = selected?.id === c.id
+              return (
+                <div key={c.id} onClick={() => setSelected(c)} style={{
+                  background: "#FFFFFF",
+                  border: `1px solid ${isSelected ? "#0F6E56" : "#E2E8F0"}`,
+                  borderRadius: "10px", padding: "14px 16px",
+                  cursor: "pointer", transition: "border-color 0.12s",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", flex: 1, paddingRight: "8px" }}>{c.nom}</div>
+                    <span style={{ background: statut.bg, color: statut.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, flexShrink: 0 }}>{statut.label}</span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "8px" }}>
+                    {c.date_debut} → {c.date_fin}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ flex: 1, background: "#F1F5F9", borderRadius: "3px", height: "4px", overflow: "hidden" }}>
+                      <div style={{ background: "#0F6E56", width: `${tauxReponse}%`, height: "100%", borderRadius: "3px" }} />
+                    </div>
+                    <span style={{ fontSize: "11px", color: "#64748B", fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>{tauxReponse} %</span>
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#94A3B8", marginTop: "4px" }}>Taux de réponse</div>
+                </div>
+              )
+            })
+          )}
         </div>
-        {selected && (
-          <div style={{display:"flex",flexDirection:"column",gap:"1.5rem"}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem"}}>
+
+        {/* Détail */}
+        {selected ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+            {/* KPIs */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
               {[
-                {label:"Courriers",val:selected.courriers_envoyes,color:"#1a3a2a"},
-                {label:"Réponses",val:selected.reponses,color:"#2d6a4f"},
-                {label:"RDV pris",val:selected.rdv_pris,color:"#0369a1"},
-                {label:"Diagnostics",val:selected.diagnostics,color:"#d97706"}
-              ].map((k,i) => (
-                <div key={i} style={{background:"white",padding:"1rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",textAlign:"center"}}>
-                  <div style={{fontSize:"1.5rem",fontWeight:"800",color:k.color}}>{k.val?.toLocaleString()}</div>
-                  <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.25rem"}}>{k.label}</div>
+                { label: "Courriers envoyés", val: selected.courriers_envoyes, icon: "ti-mail" },
+                { label: "Réponses reçues", val: selected.reponses, icon: "ti-mail-opened" },
+                { label: "RDV pris", val: selected.rdv_pris, icon: "ti-calendar" },
+                { label: "Diagnostics", val: selected.diagnostics, icon: "ti-clipboard-list" },
+              ].map((k, i) => (
+                <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <i className={`ti ${k.icon}`} style={{ fontSize: "15px", color: "#94A3B8" }} aria-hidden="true" />
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
+                  </div>
+                  <div style={{ fontSize: "24px", fontWeight: 500, color: "#0F172A", fontFamily: "'DM Mono', monospace" }}>
+                    {k.val?.toLocaleString("fr-FR") ?? "—"}
+                  </div>
                 </div>
               ))}
             </div>
-            <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-              <h3 style={{color:"#1a3a2a",marginBottom:"1rem"}}>Performance hebdomadaire</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={perfData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="semaine" tick={{fontSize:12}} />
-                  <YAxis tick={{fontSize:12}} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="reponses" stroke="#2d6a4f" fill="#dcfce7" strokeWidth={2} name="Réponses" />
-                  <Area type="monotone" dataKey="rdv" stroke="#0369a1" fill="#e0f2fe" strokeWidth={2} name="RDV" />
-                  <Area type="monotone" dataKey="diagnostics" stroke="#d97706" fill="#fef3c7" strokeWidth={2} name="Diagnostics" />
+
+            {/* Graphique */}
+            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>Performance hebdomadaire</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={perfData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                  <XAxis dataKey="semaine" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", fontSize: "12px" }} labelStyle={{ color: "#0F172A", fontWeight: 500 }} />
+                  <Area type="monotone" dataKey="reponses" stroke="#0F6E56" fill="#ECFDF5" strokeWidth={2} name="Réponses" />
+                  <Area type="monotone" dataKey="rdv" stroke="#0369A1" fill="#EFF6FF" strokeWidth={2} name="RDV" />
+                  <Area type="monotone" dataKey="diagnostics" stroke="#D97706" fill="#FFFBEB" strokeWidth={2} name="Diagnostics" />
                 </AreaChart>
               </ResponsiveContainer>
+              <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
+                {[
+                  { label: "Réponses", color: "#0F6E56" },
+                  { label: "RDV", color: "#0369A1" },
+                  { label: "Diagnostics", color: "#D97706" },
+                ].map((l, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: l.color }} />
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{display:"flex",gap:"1rem"}}>
-              <button style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.75rem 1.5rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>📤 Exporter résultats</button>
-              <button style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.75rem 1.5rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>📧 Lancer relance</button>
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "8px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                <i className="ti ti-download" style={{ fontSize: "15px" }} aria-hidden="true" />
+                Exporter résultats
+              </button>
+              <button style={{ display: "flex", alignItems: "center", gap: "6px", background: "#FFFFFF", color: "#0F172A", border: "1px solid #E2E8F0", padding: "8px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                <i className="ti ti-send" style={{ fontSize: "15px" }} aria-hidden="true" />
+                Lancer relance
+              </button>
             </div>
+          </div>
+        ) : (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "40px", textAlign: "center", color: "#94A3B8", fontSize: "14px" }}>
+            Sélectionnez une campagne pour voir le détail
           </div>
         )}
       </div>
