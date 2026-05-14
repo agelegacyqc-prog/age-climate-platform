@@ -6,57 +6,108 @@ import CartePortefeuille from "../components/CartePortefeuille"
 type Profil = "banque" | "assurance" | "particulier" | "collectivite" | null
 
 interface ProfilConfig {
-  titre: string
   sousTitre: string
-  boutons: { label: string; route: string; icone: string }[]
+  boutons: { label: string; route: string; icon: string }[]
   afficherCarte: boolean
+  kpis: { val: string; label: string; tendance?: string; tendanceColor?: string }[]
+  raccourcis: { route: string; icon: string; titre: string; desc: string }[]
 }
 
 const PROFIL_CONFIG: Record<string, ProfilConfig> = {
   banque: {
-    titre: "Bienvenue sur AGE Climate Platform",
     sousTitre: "Gérez le risque climatique de vos financements immobiliers",
     boutons: [
-      { label: "Mes campagnes", route: "/metier/campagnes", icone: "📋" },
-      { label: "Portefeuille", route: "/metier/portefeuille", icone: "🏢" },
+      { label: "Mes campagnes", route: "/metier/campagnes", icon: "ti-speakerphone" },
+      { label: "Portefeuille", route: "/metier/portefeuille", icon: "ti-building-bank" },
     ],
     afficherCarte: true,
+    kpis: [
+      { val: "247", label: "Actifs analysés", tendance: "+12 ce mois", tendanceColor: "#0F6E56" },
+      { val: "−6,4 %", label: "Décote moy. Brown Value", tendance: "Sur 180 biens", tendanceColor: "#94A3B8" },
+      { val: "8", label: "Campagnes actives", tendance: "3 en attente", tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/metier/campagnes", icon: "ti-speakerphone", titre: "Campagnes", desc: "Gérez vos campagnes d'analyse climatique" },
+      { route: "/metier/portefeuille", icon: "ti-building-bank", titre: "Portefeuille", desc: "Vue consolidée de vos actifs financés" },
+      { route: "/metier/reporting", icon: "ti-file-analytics", titre: "Reporting", desc: "Rapports CSRD, SFDR et conformité" },
+    ],
   },
   assurance: {
-    titre: "Bienvenue sur AGE Climate Platform",
     sousTitre: "Analysez l'exposition climatique de vos assurés",
     boutons: [
-      { label: "Mes campagnes", route: "/metier/campagnes", icone: "📋" },
-      { label: "Portefeuille", route: "/metier/portefeuille", icone: "🏢" },
+      { label: "Mes campagnes", route: "/metier/campagnes", icon: "ti-speakerphone" },
+      { label: "Portefeuille", route: "/metier/portefeuille", icon: "ti-building-bank" },
     ],
     afficherCarte: true,
+    kpis: [
+      { val: "312", label: "Biens assurés analysés", tendance: "+24 ce mois", tendanceColor: "#0F6E56" },
+      { val: "58/100", label: "Score risque moyen", tendance: "Risque modéré", tendanceColor: "#D97706" },
+      { val: "5", label: "Campagnes actives", tendance: "2 en attente", tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/metier/campagnes", icon: "ti-speakerphone", titre: "Campagnes", desc: "Gérez vos campagnes d'analyse climatique" },
+      { route: "/metier/portefeuille", icon: "ti-building-bank", titre: "Portefeuille", desc: "Vue consolidée de vos assurés" },
+      { route: "/metier/reporting", icon: "ti-file-analytics", titre: "Reporting", desc: "Rapports CSRD, SFDR et conformité" },
+    ],
   },
   particulier: {
-    titre: "Bienvenue sur AGE Climate Platform",
     sousTitre: "Évaluez le risque climatique de votre bien immobilier",
     boutons: [
-      { label: "Mon bien", route: "/client/actifs", icone: "🏠" },
-      { label: "Aides & Subventions", route: "/client/aides", icone: "💶" },
+      { label: "Mon bien", route: "/client/actifs", icon: "ti-home" },
+      { label: "Aides & Subventions", route: "/client/aides", icon: "ti-coin" },
     ],
     afficherCarte: false,
+    kpis: [
+      { val: "+1.4°C", label: "Réchauffement actuel", tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
+      { val: "421 ppm", label: "CO₂ atmosphérique", tendance: "Record historique", tendanceColor: "#B91C1C" },
+      { val: "5", label: "Projets actifs", tendance: "Sur votre territoire", tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/client/actifs", icon: "ti-home", titre: "Mon bien", desc: "Analysez le risque climatique de votre bien" },
+      { route: "/client/aides", icon: "ti-coin", titre: "Aides & Subventions", desc: "Découvrez les financements disponibles" },
+      { route: "/marketplace", icon: "ti-building-store", titre: "Marketplace", desc: "Trouvez vos experts partenaires" },
+    ],
   },
   collectivite: {
-    titre: "Bienvenue sur AGE Climate Platform",
     sousTitre: "Pilotez la résilience climatique de votre territoire",
     boutons: [
-      { label: "Mon territoire", route: "/metier/portefeuille", icone: "🗺️" },
-      { label: "Reporting", route: "/metier/reporting", icone: "📊" },
+      { label: "Mon territoire", route: "/metier/portefeuille", icon: "ti-map" },
+      { label: "Reporting", route: "/metier/reporting", icon: "ti-file-analytics" },
     ],
     afficherCarte: true,
+    kpis: [
+      { val: "47", label: "Sites analysés", tendance: "+5 ce mois", tendanceColor: "#0F6E56" },
+      { val: "62/100", label: "Score résilience moyen", tendance: "En amélioration", tendanceColor: "#0F6E56" },
+      { val: "3", label: "Rapports produits", tendance: "Ce trimestre", tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/metier/portefeuille", icon: "ti-map", titre: "Mon territoire", desc: "Vue géographique de vos sites" },
+      { route: "/metier/reporting", icon: "ti-file-analytics", titre: "Reporting", desc: "Conformité et rapports de durabilité" },
+      { route: "/marketplace", icon: "ti-building-store", titre: "Marketplace", desc: "Trouvez vos experts partenaires" },
+    ],
   },
   defaut: {
-    titre: "AGE Climate Platform",
     sousTitre: "Comprendre, agir et collaborer pour un avenir climatique durable",
     boutons: [
-      { label: "Voir le Dashboard", route: "/dashboard", icone: "📊" },
+      { label: "Voir le Dashboard", route: "/dashboard", icon: "ti-chart-bar" },
     ],
     afficherCarte: false,
+    kpis: [
+      { val: "+1.4°C", label: "Réchauffement actuel", tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
+      { val: "421 ppm", label: "CO₂ atmosphérique", tendance: "Record historique", tendanceColor: "#B91C1C" },
+      { val: "5", label: "Projets actifs", tendance: "Sur votre territoire", tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/dashboard", icon: "ti-chart-bar", titre: "Dashboard", desc: "Visualisez les données climatiques" },
+      { route: "/sensibilisation", icon: "ti-plant-2", titre: "Sensibilisation", desc: "Découvrez les enjeux climatiques" },
+      { route: "/projets", icon: "ti-clipboard-list", titre: "Projets", desc: "Participez aux initiatives locales" },
+    ],
   },
+}
+
+const LABEL_PROFIL: Record<string, string> = {
+  banque: "Banque", assurance: "Assurance",
+  particulier: "Particulier", collectivite: "Collectivité",
 }
 
 export default function Accueil() {
@@ -69,13 +120,11 @@ export default function Accueil() {
     async function chargerProfil() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-
       const { data } = await supabase
         .from("profils")
         .select("profil, prenom")
         .eq("id", user.id)
         .single()
-
       if (data) {
         setProfil(data.profil as Profil)
         setPrenom(data.prenom || null)
@@ -86,108 +135,145 @@ export default function Accueil() {
   }, [])
 
   const config = PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut
-
-  const labelProfil: Record<string, string> = {
-    banque: "Banque",
-    assurance: "Assurance",
-    particulier: "Particulier",
-    collectivite: "Collectivité",
-  }
+  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   return (
-    <div>
-      {/* Bandeau hero */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+
+      {/* ── Hero sobre ── */}
       <div style={{
-        background: "linear-gradient(135deg,#1a3a2a,#2d6a4f)",
-        borderRadius: "16px", padding: "3rem", color: "white",
-        marginBottom: "2rem", textAlign: "center",
+        background: "#FFFFFF",
+        border: "1px solid #E2E8F0",
+        borderRadius: "12px",
+        padding: "28px 32px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "20px",
       }}>
-        <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🌍</div>
+        <div>
+          {profil && (
+            <div style={{ marginBottom: "8px" }}>
+              <span style={{
+                background: "#ECFDF5", color: "#065F46",
+                padding: "3px 10px", borderRadius: "4px",
+                fontSize: "11px", fontWeight: 600,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                border: "1px solid #A7F3D0",
+              }}>
+                {LABEL_PROFIL[profil]}
+              </span>
+            </div>
+          )}
+          <h2 style={{ fontSize: "22px", fontWeight: 600, color: "#0F172A", marginBottom: "6px", letterSpacing: "-0.02em" }}>
+            {loading ? "Chargement…" : prenom ? `Bonjour, ${prenom}` : "Bienvenue"}
+          </h2>
+          <p style={{ fontSize: "14px", color: "#64748B", marginBottom: "0" }}>
+            {config.sousTitre}
+          </p>
+          <p style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px" }}>
+            {today.charAt(0).toUpperCase() + today.slice(1)}
+          </p>
+        </div>
 
-        {profil && (
-          <div style={{ marginBottom: "1rem" }}>
-            <span style={{
-              background: "rgba(255,255,255,0.15)",
-              border: "1px solid rgba(255,255,255,0.3)",
-              padding: "4px 14px", borderRadius: "999px",
-              fontSize: "0.8rem", fontWeight: 700,
-              letterSpacing: "0.05em", textTransform: "uppercase",
-            }}>
-              {labelProfil[profil]}
-            </span>
-          </div>
-        )}
-
-        <h1 style={{ fontSize: "2rem", fontWeight: "800", marginBottom: "0.75rem" }}>
-          {prenom ? `Bonjour ${prenom} 👋` : config.titre}
-        </h1>
-
-        <p style={{
-          fontSize: "1.1rem", opacity: 0.85,
-          maxWidth: "520px", margin: "0 auto 2rem", lineHeight: 1.6,
-        }}>
-          {config.sousTitre}
-        </p>
-
-        {loading ? (
-          <div style={{ opacity: 0.6, fontSize: "0.9rem" }}>Chargement…</div>
-        ) : (
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
+        {/* Boutons d'action */}
+        {!loading && (
+          <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
             {config.boutons.map((b, i) => (
               <button
                 key={i}
                 onClick={() => navigate(b.route)}
                 style={{
-                  background: i === 0 ? "#7ec87e" : "rgba(255,255,255,0.15)",
-                  color: i === 0 ? "#1a3a2a" : "white",
-                  border: i === 0 ? "none" : "1px solid rgba(255,255,255,0.4)",
-                  padding: "0.75rem 2rem", borderRadius: "999px",
-                  fontSize: "1rem", fontWeight: "700", cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: "8px",
+                  display: "flex", alignItems: "center", gap: "7px",
+                  background: i === 0 ? "#0F6E56" : "#FFFFFF",
+                  color: i === 0 ? "white" : "#0F172A",
+                  border: i === 0 ? "none" : "1px solid #E2E8F0",
+                  padding: "9px 18px", borderRadius: "8px",
+                  fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                  transition: "background 0.12s",
+                  fontFamily: "inherit",
                 }}
               >
-                {b.icone} {b.label}
+                <i className={`ti ${b.icon}`} style={{ fontSize: "15px" }} aria-hidden="true" />
+                {b.label}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1.5rem", marginBottom: "2rem" }}>
-        {[
-          { val: "+1.4°C", label: "Réchauffement actuel", color: "#e63946" },
-          { val: "421 ppm", label: "CO2 atmosphérique", color: "#e63946" },
-          { val: "5", label: "Projets actifs", color: "#2d6a4f" },
-        ].map((k, i) => (
-          <div key={i} style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center" }}>
-            <div style={{ fontSize: "2.5rem", fontWeight: "800", color: k.color }}>{k.val}</div>
-            <div style={{ color: "#666", marginTop: "0.5rem" }}>{k.label}</div>
+      {/* ── KPIs ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+        {config.kpis.map((k, i) => (
+          <div key={i} style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "10px",
+            padding: "18px 20px",
+          }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "10px" }}>
+              {k.label}
+            </div>
+            <div style={{ fontSize: "26px", fontWeight: 500, color: "#0F172A", letterSpacing: "-0.02em", marginBottom: "6px", fontFamily: "'DM Mono', monospace" }}>
+              {k.val}
+            </div>
+            {k.tendance && (
+              <div style={{ fontSize: "12px", color: k.tendanceColor || "#94A3B8", display: "flex", alignItems: "center", gap: "4px" }}>
+                {k.tendanceColor === "#0F6E56" && <i className="ti ti-trending-up" style={{ fontSize: "13px" }} aria-hidden="true" />}
+                {k.tendanceColor === "#B91C1C" && <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} aria-hidden="true" />}
+                {k.tendance}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Carte portefeuille — uniquement pour banque, assurance, collectivité */}
+      {/* ── Carte portefeuille ── */}
       {!loading && config.afficherCarte && (
-        <div style={{ marginBottom: "2rem" }}>
-          <CartePortefeuille />
-        </div>
+        <CartePortefeuille />
       )}
 
-      {/* Raccourcis */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1.5rem" }}>
-        {[
-          { route: "/dashboard", icone: "📊", titre: "Dashboard", desc: "Visualisez les données climatiques en temps réel", couleur: "#e63946" },
-          { route: "/sensibilisation", icone: "🌱", titre: "Sensibilisation", desc: "Découvrez les enjeux et les gestes qui comptent", couleur: "#2d6a4f" },
-          { route: "/projets", icone: "📋", titre: "Projets", desc: "Suivez et participez aux initiatives locales", couleur: "#1565c0" },
-        ].map((c, i) => (
-          <div key={i} onClick={() => navigate(c.route)} style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", cursor: "pointer", borderLeft: `4px solid ${c.couleur}` }}>
-            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>{c.icone}</div>
-            <h3 style={{ color: "#1a3a2a", marginBottom: "0.5rem" }}>{c.titre}</h3>
-            <p style={{ color: "#666", fontSize: "0.9rem" }}>{c.desc}</p>
+      {/* ── Raccourcis ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+        {config.raccourcis.map((c, i) => (
+          <div
+            key={i}
+            onClick={() => navigate(c.route)}
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E2E8F0",
+              borderRadius: "10px",
+              padding: "18px 20px",
+              cursor: "pointer",
+              transition: "border-color 0.12s, background 0.12s",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "14px",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#A7F3D0"
+              ;(e.currentTarget as HTMLDivElement).style.background = "#FAFFFE"
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#E2E8F0"
+              ;(e.currentTarget as HTMLDivElement).style.background = "#FFFFFF"
+            }}
+          >
+            <div style={{
+              width: "36px", height: "36px", borderRadius: "8px",
+              background: "#ECFDF5", display: "flex", alignItems: "center",
+              justifyContent: "center", flexShrink: 0,
+            }}>
+              <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: "#0F6E56" }} aria-hidden="true" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, color: "#0F172A", fontSize: "14px", marginBottom: "4px" }}>{c.titre}</div>
+              <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.5 }}>{c.desc}</div>
+            </div>
           </div>
         ))}
       </div>
+
     </div>
   )
 }
