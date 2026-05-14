@@ -38,9 +38,7 @@ export default function DashboardClient() {
   const [actifs, setActifs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -85,7 +83,7 @@ export default function DashboardClient() {
 
   return (
     <div>
-      {/* Header personnalisé */}
+      {/* Header */}
       <div style={{background:"linear-gradient(135deg,#1a3a2a,#2d6a4f)",borderRadius:"16px",padding:"2rem",color:"white",marginBottom:"1.5rem"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"1rem"}}>
           <div>
@@ -188,7 +186,7 @@ export default function DashboardClient() {
                 {label:"Mes actifs",icone:"🏢",path:"/client/actifs"},
                 {label:"Marketplace",icone:"🛒",path:"/marketplace"},
                 {label:"Consulting Climat",icone:"🌍",path:"/marketplace"},
-                {label:"Modifier mon profil",icone:"⚙️",path:"/onboarding"}
+                {label:"Modifier mon profil",icone:"⚙️",path:"/client/profil"},
               ].map((a,i) => (
                 <button key={i} onClick={() => navigate(a.path)} style={{display:"flex",alignItems:"center",gap:"0.75rem",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",background:"white",cursor:"pointer",textAlign:"left",width:"100%",fontSize:"0.9rem",color:"#1a3a2a",fontWeight:"500"}}>
                   <span>{a.icone}</span>
