@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import CartePortefeuille from "../components/CartePortefeuille"
 
 type Profil = "banque" | "assurance" | "particulier" | "collectivite" | null
 
@@ -8,6 +9,7 @@ interface ProfilConfig {
   titre: string
   sousTitre: string
   boutons: { label: string; route: string; icone: string }[]
+  afficherCarte: boolean
 }
 
 const PROFIL_CONFIG: Record<string, ProfilConfig> = {
@@ -18,6 +20,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Mes campagnes", route: "/metier/campagnes", icone: "📋" },
       { label: "Portefeuille", route: "/metier/portefeuille", icone: "🏢" },
     ],
+    afficherCarte: true,
   },
   assurance: {
     titre: "Bienvenue sur AGE Climate Platform",
@@ -26,6 +29,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Mes campagnes", route: "/metier/campagnes", icone: "📋" },
       { label: "Portefeuille", route: "/metier/portefeuille", icone: "🏢" },
     ],
+    afficherCarte: true,
   },
   particulier: {
     titre: "Bienvenue sur AGE Climate Platform",
@@ -34,6 +38,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Mon bien", route: "/client/actifs", icone: "🏠" },
       { label: "Aides & Subventions", route: "/client/aides", icone: "💶" },
     ],
+    afficherCarte: false,
   },
   collectivite: {
     titre: "Bienvenue sur AGE Climate Platform",
@@ -42,6 +47,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Mon territoire", route: "/metier/portefeuille", icone: "🗺️" },
       { label: "Reporting", route: "/metier/reporting", icone: "📊" },
     ],
+    afficherCarte: true,
   },
   defaut: {
     titre: "AGE Climate Platform",
@@ -49,6 +55,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     boutons: [
       { label: "Voir le Dashboard", route: "/dashboard", icone: "📊" },
     ],
+    afficherCarte: false,
   },
 }
 
@@ -68,8 +75,6 @@ export default function Accueil() {
         .select("profil, prenom")
         .eq("id", user.id)
         .single()
-
-      console.log("Profil chargé :", data)
 
       if (data) {
         setProfil(data.profil as Profil)
@@ -161,6 +166,13 @@ export default function Accueil() {
           </div>
         ))}
       </div>
+
+      {/* Carte portefeuille — uniquement pour banque, assurance, collectivité */}
+      {!loading && config.afficherCarte && (
+        <div style={{ marginBottom: "2rem" }}>
+          <CartePortefeuille />
+        </div>
+      )}
 
       {/* Raccourcis */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1.5rem" }}>
