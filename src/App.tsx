@@ -14,6 +14,8 @@ import NouvelActif from "./pages/client/NouvelActif"
 import FicheActif from "./pages/client/FicheActif"
 import MonProfil from "./pages/client/MonProfil"
 import Onboarding from "./pages/client/Onboarding"
+import ClientCampagnes from "./pages/client/Campagnes"
+import ClientDemandes from "./pages/client/Demandes"
 import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
@@ -22,6 +24,7 @@ import Missions from "./pages/metier/Missions"
 import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
+import GED from "./pages/metier/GED"
 
 export default function App() {
   return (
@@ -40,6 +43,8 @@ export default function App() {
           <Route path="client/actifs/nouveau" element={<ProtectedRoute><NouvelActif /></ProtectedRoute>} />
           <Route path="client/actifs/:id" element={<ProtectedRoute><FicheActif /></ProtectedRoute>} />
           <Route path="client/profil" element={<ProtectedRoute><MonProfil /></ProtectedRoute>} />
+          <Route path="client/campagnes" element={<ProtectedRoute><ClientCampagnes /></ProtectedRoute>} />
+          <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
@@ -47,6 +52,7 @@ export default function App() {
           <Route path="metier/missions" element={<ProtectedRoute><Missions /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
           <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
+          <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
         </Route>
       </Routes>

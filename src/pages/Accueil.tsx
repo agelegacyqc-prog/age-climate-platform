@@ -22,16 +22,16 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     afficherCarte: true,
     kpis: [
-      { val: "247",    label: "Actifs analysés",          tendance: "+12 ce mois",       tendanceColor: "#0F6E56" },
-      { val: "−6,4 %", label: "Décote moy. Brown Value",  tendance: "Sur 180 biens",     tendanceColor: "#94A3B8" },
-      { val: "8",      label: "Campagnes actives",         tendance: "3 en attente",      tendanceColor: "#94A3B8" },
+      { val: "247",    label: "Actifs analysés",         tendance: "+12 ce mois",   tendanceColor: "#0F6E56" },
+      { val: "−6,4 %", label: "Décote moy. Brown Value", tendance: "Sur 180 biens", tendanceColor: "#94A3B8" },
+      { val: "8",      label: "Campagnes actives",        tendance: "3 en attente",  tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",            desc: "Gérez vos campagnes d'analyse climatique" },
-      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille",          desc: "Vue consolidée de vos actifs financés" },
-      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",     desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
-      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",           desc: "Accédez aux prestations énergie, carbone et prévention" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours", desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",                  desc: "Gérez vos campagnes d'analyse climatique" },
+      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille",               desc: "Vue consolidée de vos actifs financés" },
+      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
+      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Accédez aux prestations énergie, carbone et prévention" },
+      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",      desc: "Suivez vos accompagnements commandés sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES et Brown Value" },
     ],
   },
@@ -43,36 +43,36 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     afficherCarte: true,
     kpis: [
-      { val: "312",     label: "Biens assurés analysés", tendance: "+24 ce mois",    tendanceColor: "#0F6E56" },
-      { val: "58/100",  label: "Score risque moyen",     tendance: "Risque modéré",  tendanceColor: "#D97706" },
-      { val: "5",       label: "Campagnes actives",       tendance: "2 en attente",  tendanceColor: "#94A3B8" },
+      { val: "312",    label: "Biens assurés analysés", tendance: "+24 ce mois",   tendanceColor: "#0F6E56" },
+      { val: "58/100", label: "Score risque moyen",     tendance: "Risque modéré", tendanceColor: "#D97706" },
+      { val: "5",      label: "Campagnes actives",       tendance: "2 en attente", tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",              desc: "Gérez vos campagnes d'analyse climatique" },
-      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille assurés",   desc: "Vue consolidée de l'exposition climatique" },
-      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",       desc: "Rapports SFDR, CSRD et suivi des prestations commandées" },
-      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",             desc: "Prestations prévention, audit et accompagnement" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",   desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",                desc: "Gérez vos campagnes d'analyse climatique" },
+      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille assurés",     desc: "Vue consolidée de l'exposition climatique" },
+      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",        desc: "Rapports SFDR, CSRD et suivi des prestations commandées" },
+      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",              desc: "Prestations prévention, audit et accompagnement" },
+      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",    desc: "Suivez vos accompagnements commandés sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-shield",         titre: "Risques & Réglementation", desc: "TCFD, SFDR, CSRD, Brown Value et prévention climatique" },
     ],
   },
   particulier: {
     sousTitre: "Évaluez le risque climatique de votre bien immobilier",
     boutons: [
-      { label: "Mon bien",           route: "/client/actifs", icon: "ti-home" },
-      { label: "Aides & Subventions",route: "/client/aides",  icon: "ti-coin" },
+      { label: "Mon bien",            route: "/client/actifs", icon: "ti-home" },
+      { label: "Aides & Subventions", route: "/client/aides",  icon: "ti-coin" },
     ],
     afficherCarte: false,
     kpis: [
-      { val: "+1.4°C", label: "Réchauffement actuel",  tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
-      { val: "421 ppm",label: "CO₂ atmosphérique",     tendance: "Record historique",             tendanceColor: "#B91C1C" },
-      { val: "5",      label: "Projets actifs",          tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
+      { val: "+1.4°C",  label: "Réchauffement actuel", tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
+      { val: "421 ppm", label: "CO₂ atmosphérique",    tendance: "Record historique",             tendanceColor: "#B91C1C" },
+      { val: "5",       label: "Projets actifs",         tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/client/actifs",   icon: "ti-home",          titre: "Mon bien",              desc: "Analysez le risque climatique de votre bien" },
-      { route: "/client/aides",    icon: "ti-coin",           titre: "Aides & Subventions",   desc: "CEE, Fonds Barnier, ADEME — financements disponibles" },
-      { route: "/marketplace",     icon: "ti-building-store", titre: "Trouver un expert",     desc: "Diagnostiqueurs, artisans et consultants certifiés" },
-      { route: "/sensibilisation", icon: "ti-leaf",           titre: "S'informer",            desc: "Comprendre vos obligations et les enjeux climatiques" },
+      { route: "/client/actifs",   icon: "ti-home",           titre: "Mon bien",            desc: "Analysez le risque climatique de votre bien" },
+      { route: "/client/aides",    icon: "ti-coin",            titre: "Aides & Subventions", desc: "CEE, Fonds Barnier, ADEME — financements disponibles" },
+      { route: "/marketplace",     icon: "ti-building-store",  titre: "Trouver un expert",   desc: "Diagnostiqueurs, artisans et consultants certifiés" },
+      { route: "/sensibilisation", icon: "ti-leaf",            titre: "S'informer",          desc: "Comprendre vos obligations et les enjeux climatiques" },
     ],
   },
   collectivite: {
@@ -83,15 +83,15 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     afficherCarte: true,
     kpis: [
-      { val: "47",     label: "Sites analysés",        tendance: "+5 ce mois",     tendanceColor: "#0F6E56" },
-      { val: "62/100", label: "Score résilience moyen",tendance: "En amélioration", tendanceColor: "#0F6E56" },
-      { val: "3",      label: "Rapports produits",      tendance: "Ce trimestre",   tendanceColor: "#94A3B8" },
+      { val: "47",     label: "Sites analysés",         tendance: "+5 ce mois",      tendanceColor: "#0F6E56" },
+      { val: "62/100", label: "Score résilience moyen", tendance: "En amélioration", tendanceColor: "#0F6E56" },
+      { val: "3",      label: "Rapports produits",       tendance: "Ce trimestre",    tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/metier/portefeuille", icon: "ti-map",            titre: "Mon territoire",          desc: "Vue géographique de vos sites et bâtiments" },
-      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",        desc: "Conformité et suivi des prestations commandées" },
-      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",              desc: "Experts en énergie, carbone et prévention climatique" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",    desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/metier/portefeuille", icon: "ti-map",            titre: "Mon territoire",             desc: "Vue géographique de vos sites et bâtiments" },
+      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Conformité et suivi des prestations commandées" },
+      { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Experts en énergie, carbone et prévention climatique" },
+      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",      desc: "Suivez vos accompagnements commandés sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-shield",         titre: "Obligations réglementaires", desc: "Décret tertiaire, CSRD, risques climatiques" },
     ],
   },
@@ -102,15 +102,15 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     afficherCarte: false,
     kpis: [
-      { val: "+1.4°C", label: "Réchauffement actuel",  tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
-      { val: "421 ppm",label: "CO₂ atmosphérique",     tendance: "Record historique",             tendanceColor: "#B91C1C" },
-      { val: "5",      label: "Projets actifs",          tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
+      { val: "+1.4°C",  label: "Réchauffement actuel", tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
+      { val: "421 ppm", label: "CO₂ atmosphérique",    tendance: "Record historique",             tendanceColor: "#B91C1C" },
+      { val: "5",       label: "Projets actifs",         tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/dashboard",       icon: "ti-chart-bar",      titre: "Dashboard",           desc: "Visualisez les données climatiques" },
-      { route: "/marketplace",     icon: "ti-building-store", titre: "Marketplace",          desc: "Prestations énergie, carbone et prévention" },
-      { route: "/sensibilisation", icon: "ti-plant-2",        titre: "Sensibilisation",      desc: "Découvrez les enjeux et obligations climatiques" },
-      { route: "/projets",         icon: "ti-clipboard-list", titre: "Projets",              desc: "Participez aux initiatives locales" },
+      { route: "/dashboard",       icon: "ti-chart-bar",      titre: "Dashboard",     desc: "Visualisez les données climatiques" },
+      { route: "/marketplace",     icon: "ti-building-store", titre: "Marketplace",   desc: "Prestations énergie, carbone et prévention" },
+      { route: "/sensibilisation", icon: "ti-plant-2",        titre: "Sensibilisation",desc: "Découvrez les enjeux et obligations climatiques" },
+      { route: "/projets",         icon: "ti-clipboard-list", titre: "Projets",        desc: "Participez aux initiatives locales" },
     ],
   },
 }
@@ -202,10 +202,7 @@ export default function Accueil() {
         ))}
       </div>
 
-      {/* Carte */}
-      {!loading && config.afficherCarte && <CartePortefeuille />}
-
-      {/* Raccourcis enrichis */}
+      {/* Accès rapides ← déplacé AVANT la cartographie */}
       <div>
         <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
           Accès rapides
@@ -232,6 +229,9 @@ export default function Accueil() {
           ))}
         </div>
       </div>
+
+      {/* Cartographie du portefeuille ← déplacée APRÈS les accès rapides */}
+      {!loading && config.afficherCarte && <CartePortefeuille />}
 
     </div>
   )
