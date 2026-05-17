@@ -26,6 +26,12 @@ import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
 import GED from "./pages/metier/GED"
+import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
+import PartenaireDashboard from "./pages/partenaire/PartenaireDashboard"
+import PartenaireMissions from "./pages/partenaire/PartenaireMissions"
+import PartenaireMessages from "./pages/partenaire/PartenaireMessages"
+import PartenaireDocuments from "./pages/partenaire/PartenaireDocuments"
+import PartenaireLayout from "./components/PartenaireLayout"
 
 export default function App() {
   return (
@@ -33,6 +39,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+        {/* ── Layout AGE ── */}
         <Route path="/" element={<Layout />}>
           <Route index element={<Accueil />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -57,6 +65,16 @@ export default function App() {
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
         </Route>
+
+        {/* ── Portail Partenaire ── */}
+        <Route path="/partenaire/login" element={<PartenaireLogin />} />
+        <Route path="/partenaire" element={<PartenaireLayout />}>
+          <Route path="dashboard" element={<PartenaireDashboard />} />
+          <Route path="missions" element={<PartenaireMissions />} />
+          <Route path="messages" element={<PartenaireMessages />} />
+          <Route path="documents" element={<PartenaireDocuments />} />
+        </Route>
+
       </Routes>
     </BrowserRouter>
   )
