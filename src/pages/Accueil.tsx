@@ -16,10 +16,10 @@ interface ProfilConfig {
 const PROFIL_CONFIG: Record<string, ProfilConfig> = {
   banque: {
     sousTitre: "Gérez le risque climatique de vos financements immobiliers",
-    boutons: [
-      { label: "Mes campagnes",  route: "/metier/campagnes",    icon: "ti-speakerphone" },
-      { label: "Portefeuille",   route: "/metier/portefeuille", icon: "ti-building-bank" },
-    ],
+   boutons: [
+  { label: "Mes campagnes", route: "/metier/campagnes",       icon: "ti-speakerphone" },
+  { label: "Créer un actif", route: "/client/actifs/nouveau", icon: "ti-plus" },
+],
     afficherCarte: true,
     kpis: [
       { val: "247",    label: "Actifs analysés",         tendance: "+12 ce mois",   tendanceColor: "#0F6E56" },
@@ -28,19 +28,20 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     raccourcis: [
       { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",                  desc: "Gérez vos campagnes d'analyse climatique" },
-      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille",               desc: "Vue consolidée de vos actifs financés" },
+      { route: "/client/actifs", icon: "ti-building", titre: "Mon Patrimoine", desc: "Vue consolidée de vos actifs financés" },
       { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
       { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Accédez aux prestations énergie, carbone et prévention" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",      desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/client/demandes", icon: "ti-clipboard-list", titre: "Mes demandes", desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES et Brown Value" },
     ],
   },
   assurance: {
     sousTitre: "Analysez l'exposition climatique de vos assurés",
-    boutons: [
-      { label: "Mes campagnes", route: "/metier/campagnes",    icon: "ti-speakerphone" },
-      { label: "Portefeuille",  route: "/metier/portefeuille", icon: "ti-building-bank" },
-    ],
+
+   boutons: [
+  { label: "Mes campagnes",  route: "/metier/campagnes",       icon: "ti-speakerphone" },
+  { label: "Créer un actif", route: "/client/actifs/nouveau",  icon: "ti-plus" },
+],
     afficherCarte: true,
     kpis: [
       { val: "312",    label: "Biens assurés analysés", tendance: "+24 ce mois",   tendanceColor: "#0F6E56" },
@@ -49,10 +50,10 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     raccourcis: [
       { route: "/metier/campagnes",    icon: "ti-speakerphone",   titre: "Campagnes",                desc: "Gérez vos campagnes d'analyse climatique" },
-      { route: "/metier/portefeuille", icon: "ti-building-bank",  titre: "Portefeuille assurés",     desc: "Vue consolidée de l'exposition climatique" },
+      { route: "/client/actifs", icon: "ti-building", titre: "Mon Patrimoine", desc: "Vue consolidée de l'exposition climatique" },
       { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",        desc: "Rapports SFDR, CSRD et suivi des prestations commandées" },
       { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",              desc: "Prestations prévention, audit et accompagnement" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",    desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/client/demandes", icon: "ti-clipboard-list", titre: "Mes demandes", desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-shield",         titre: "Risques & Réglementation", desc: "TCFD, SFDR, CSRD, Brown Value et prévention climatique" },
     ],
   },
@@ -91,7 +92,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/metier/portefeuille", icon: "ti-map",            titre: "Mon territoire",             desc: "Vue géographique de vos sites et bâtiments" },
       { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Conformité et suivi des prestations commandées" },
       { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Experts en énergie, carbone et prévention climatique" },
-      { route: "/metier/missions",     icon: "ti-briefcase",      titre: "Mes missions en cours",      desc: "Suivez vos accompagnements commandés sur la marketplace" },
+      { route: "/client/demandes", icon: "ti-clipboard-list", titre: "Mes demandes", desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-shield",         titre: "Obligations réglementaires", desc: "Décret tertiaire, CSRD, risques climatiques" },
     ],
   },

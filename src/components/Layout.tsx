@@ -53,6 +53,7 @@ export default function Layout() {
   const [prenom, setPrenom] = useState("")
   const [labelProfil, setLabelProfil] = useState("")
   const [espace, setEspace] = useState<EspaceType>("public")
+  const [nbDemandes, setNbDemandes] = useState(0)
 
   useEffect(() => {
     async function chargerProfil() {
@@ -77,6 +78,13 @@ export default function Layout() {
         }
         setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Consultant")
         setEspace("metier")
+
+        // Charger le nombre de demandes en attente
+        const { count } = await supabase
+          .from("demandes_marketplace")
+          .select("id", { count: "exact", head: true })
+          .eq("statut", "soumise")
+        setNbDemandes(count || 0)
         return
       }
 
@@ -158,7 +166,24 @@ export default function Layout() {
               <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
               <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
               <NavItem to="/metier/campagnes" icon="ti-speakerphone" label="Campagnes" />
-              <NavItem to="/metier/missions" icon="ti-briefcase" label="Missions" />
+
+              {/* Missions avec cloche notification */}
+              <NavLink
+                to="/metier/missions"
+                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+              >
+                <i className="ti ti-briefcase nav-item__icon" aria-hidden="true" />
+                <span className="nav-item__label">Missions</span>
+                {nbDemandes > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+                    <i className="ti ti-bell" style={{ fontSize: "13px", color: "#D97706" }} aria-hidden="true" />
+                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+                      {nbDemandes}
+                    </span>
+                  </span>
+                )}
+              </NavLink>
+
               <NavItem to="/metier/financement" icon="ti-coin" label="Financement" />
               <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
