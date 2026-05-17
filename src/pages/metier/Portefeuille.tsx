@@ -228,14 +228,19 @@ export default function Portefeuille() {
                   </td>
 
                   {onglet === "patrimoine_client" && (
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{a.nom_client || "—"}</div>
-                      {typeClient && (
-                        <span style={{ display: "inline-flex", background: typeClient.bg, color: typeClient.color, padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, marginTop: "3px" }}>
-                          {typeClient.label}
-                        </span>
-                      )}
-                    </td>
+                   <td style={{ padding: "12px 16px" }}>
+  <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
+    {[a.prenom_client, a.nom_client].filter(Boolean).join(" ") || "—"}
+  </div>
+  {a.telephone_client && (
+    <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{a.telephone_client}</div>
+  )}
+  {typeClient && (
+    <span style={{ display: "inline-flex", background: typeClient.bg, color: typeClient.color, padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, marginTop: "3px" }}>
+      {typeClient.label}
+    </span>
+  )}
+</td>
                   )}
 
                   <td style={{ padding: "12px 16px" }}>

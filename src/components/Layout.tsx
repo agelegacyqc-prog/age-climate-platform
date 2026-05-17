@@ -4,24 +4,25 @@ import { supabase } from "../lib/supabase"
 import "../styles/Layout.css"
 
 const PAGE_TITLES: Record<string, string> = {
-  "/":                       "Accueil",
-  "/dashboard":              "Dashboard",
-  "/sensibilisation":        "Sensibilisation",
-  "/projets":                "Projets",
-  "/marketplace":            "Marketplace",
-  "/client":                 "Mon compte",
-  "/client/actifs":          "Mon Patrimoine",
-  "/client/campagnes":       "Mes Campagnes",
-  "/client/demandes":        "Mes Demandes",
-  "/client/profil":          "Mon profil",
-  "/metier":                 "Dashboard métier",
-  "/metier/portefeuille":    "Portefeuille",
-  "/metier/campagnes":       "Campagnes",
-  "/metier/missions":        "Missions",
-  "/metier/financement":     "Financement",
-  "/metier/reporting":       "Reporting",
-  "/metier/ged":             "Documents",
-  "/metier/admin":           "Administration",
+  "/":                    "Accueil",
+  "/dashboard":           "Dashboard",
+  "/sensibilisation":     "Sensibilisation",
+  "/projets":             "Projets",
+  "/marketplace":         "Marketplace",
+  "/client":              "Mon compte",
+  "/client/actifs":       "Mon Patrimoine",
+  "/client/campagnes":    "Mes Campagnes",
+  "/client/demandes":     "Mes Demandes",
+  "/client/profil":       "Mon profil",
+  "/metier":              "Dashboard métier",
+  "/metier/portefeuille": "Portefeuille",
+  "/metier/campagnes":    "Campagnes",
+  "/metier/missions":     "Missions",
+  "/metier/messagerie":   "Messagerie",
+  "/metier/financement":  "Financement",
+  "/metier/reporting":    "Reporting",
+  "/metier/ged":          "Documents",
+  "/metier/admin":        "Administration",
 }
 
 type EspaceType = "metier" | "client" | "public"
@@ -49,18 +50,18 @@ function NavItem({ to, icon, label, end }: NavItemProps) {
 export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [initiales, setInitiales] = useState("--")
-  const [prenom, setPrenom] = useState("")
-  const [labelProfil, setLabelProfil] = useState("")
-  const [espace, setEspace] = useState<EspaceType>("public")
-  const [nbDemandes, setNbDemandes] = useState(0)
+  const [initiales, setInitiales]           = useState("--")
+  const [prenom, setPrenom]                 = useState("")
+  const [labelProfil, setLabelProfil]       = useState("")
+  const [espace, setEspace]                 = useState<EspaceType>("public")
+  const [nbDemandes, setNbDemandes]         = useState(0)
+  const [nbMessagesNonLus, setNbMessagesNonLus] = useState(0)
 
   useEffect(() => {
     async function chargerProfil() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // 1. Vérifier si c'est un profil AGE (admin/consultant)
       const { data: profilAGE } = await supabase
         .from("profils")
         .select("prenom, nom, profil, role")
@@ -79,16 +80,21 @@ export default function Layout() {
         setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Consultant")
         setEspace("metier")
 
-        // Charger le nombre de demandes en attente
         const { count } = await supabase
           .from("demandes_marketplace")
           .select("id", { count: "exact", head: true })
           .eq("statut", "soumise")
         setNbDemandes(count || 0)
+
+        const { count: countMessages } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("lu", false)
+          .neq("expediteur_id", user.id)
+        setNbMessagesNonLus(countMessages || 0)
         return
       }
 
-      // 2. Vérifier si c'est un client externe
       const { data: profilClient } = await supabase
         .from("profils_client")
         .select("type_client")
@@ -106,7 +112,6 @@ export default function Layout() {
         return
       }
 
-      // 3. Aucun profil trouvé — espace public
       setEspace("public")
     }
     chargerProfil()
@@ -122,10 +127,8 @@ export default function Layout() {
   return (
     <div className="app-container">
 
-      {/* ── Sidebar ── */}
       <aside className="sidebar">
 
-        {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo__mark">
             <i className="ti ti-leaf" aria-hidden="true" />
@@ -136,18 +139,18 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="sidebar-nav">
 
-          {/* ── Plateforme (commun à tous) ── */}
+          {/* ── Plateforme ── */}
           <div className="nav-section">Plateforme</div>
           <NavItem to="/" icon="ti-home" label="Accueil" end />
           <NavItem to="/dashboard" icon="ti-chart-bar" label="Dashboard" />
           <NavItem to="/sensibilisation" icon="ti-plant-2" label="Sensibilisation" />
           <NavItem to="/projets" icon="ti-clipboard-list" label="Projets" />
           <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
+          <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
 
-          {/* ── Espace Client (clients externes uniquement) ── */}
+          {/* ── Espace Client ── */}
           {espace === "client" && (
             <>
               <div className="nav-section">Mon espace</div>
@@ -159,15 +162,14 @@ export default function Layout() {
             </>
           )}
 
-          {/* ── Espace Métier (AGE admin/consultant uniquement) ── */}
+          {/* ── Espace Métier ── */}
           {espace === "metier" && (
             <>
               <div className="nav-section">Espace métier</div>
               <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
-              <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
               <NavItem to="/metier/campagnes" icon="ti-speakerphone" label="Campagnes" />
 
-              {/* Missions avec cloche notification */}
+              {/* Missions avec cloche */}
               <NavLink
                 to="/metier/missions"
                 className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
@@ -184,6 +186,22 @@ export default function Layout() {
                 )}
               </NavLink>
 
+              {/* Messagerie avec badge */}
+              <NavLink
+                to="/metier/messagerie"
+                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+              >
+                <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
+                <span className="nav-item__label">Messagerie</span>
+                {nbMessagesNonLus > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+                      {nbMessagesNonLus}
+                    </span>
+                  </span>
+                )}
+              </NavLink>
+
               <NavItem to="/metier/financement" icon="ti-coin" label="Financement" />
               <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
@@ -193,7 +211,6 @@ export default function Layout() {
 
         </nav>
 
-        {/* Profil utilisateur */}
         <div className="sidebar-user">
           <div className="sidebar-user__avatar">{initiales}</div>
           <div className="sidebar-user__info">
@@ -212,10 +229,7 @@ export default function Layout() {
 
       </aside>
 
-      {/* ── Main ── */}
       <main className="main-content">
-
-        {/* Header */}
         <header className="header">
           <div className="header-left">
             <h1 className="header-title">{pageTitle}</h1>
@@ -227,12 +241,9 @@ export default function Layout() {
             </div>
           </div>
         </header>
-
-        {/* Contenu */}
         <div className="page-content">
           <Outlet />
         </div>
-
       </main>
     </div>
   )

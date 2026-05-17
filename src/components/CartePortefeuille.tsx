@@ -8,6 +8,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { supabase } from "../lib/supabase"
 
+
 // Couleurs par niveau de risque
 const COULEURS_RISQUE: Record<string, string> = {
   eleve:  "#B91C1C",
@@ -56,6 +57,7 @@ export default function CartePortefeuille() {
   const [loading, setLoading] = useState(true)
   const [geocoding, setGeocoding] = useState(false)
   const [stats, setStats] = useState({ total: 0, geocodes: 0 })
+  const [vueSatellite, setVueSatellite] = useState(false)
 
   // Chargement des biens
   useEffect(() => {
@@ -125,10 +127,17 @@ export default function CartePortefeuille() {
         scrollWheelZoom: false,
       })
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      }).addTo(map)
+     const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+})
+
+const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+  attribution: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
+  maxZoom: 19,
+})
+
+vueSatellite ? satelliteLayer.addTo(map) : osmLayer.addTo(map)
 
       // Ajout des marqueurs
       const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
@@ -200,7 +209,7 @@ export default function CartePortefeuille() {
         mapInstanceRef.current = null
       }
     }
-  }, [loading, biens])
+  }, [loading, biens, vueSatellite])
 
   return (
     <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", overflow: "hidden", border: "1px solid #E5E1DA" }}>
@@ -226,6 +235,20 @@ export default function CartePortefeuille() {
           ))}
         </div>
       </div>
+      <button
+  onClick={() => setVueSatellite(!vueSatellite)}
+  style={{
+    display: "flex", alignItems: "center", gap: "6px",
+    padding: "5px 12px", borderRadius: "6px",
+    border: "1px solid #E2E8F0",
+    background: vueSatellite ? "#0F172A" : "white",
+    color: vueSatellite ? "white" : "#64748B",
+    fontSize: "12px", fontWeight: 500,
+    cursor: "pointer", fontFamily: "inherit",
+  }}>
+  <i className="ti ti-satellite" style={{ fontSize: "14px" }} aria-hidden="true" />
+  {vueSatellite ? "Vue carte" : "Vue satellite"}
+</button>
 
       {/* Carte */}
       {loading ? (
