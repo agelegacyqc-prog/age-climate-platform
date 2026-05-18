@@ -16,6 +16,7 @@ import MonProfil from "./pages/client/MonProfil"
 import Onboarding from "./pages/client/Onboarding"
 import ClientCampagnes from "./pages/client/MesCampagnes"
 import ClientDemandes from "./pages/client/Demandes"
+import ClientMessagerie from "./pages/client/Messagerie"
 import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="client/profil" element={<ProtectedRoute><MonProfil /></ProtectedRoute>} />
           <Route path="client/campagnes" element={<ProtectedRoute><ClientCampagnes /></ProtectedRoute>} />
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
+          <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />

@@ -14,6 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/client/campagnes":    "Mes Campagnes",
   "/client/demandes":     "Mes Demandes",
   "/client/profil":       "Mon profil",
+  "/client/messagerie":   "Messagerie",
   "/metier":              "Dashboard métier",
   "/metier/portefeuille": "Portefeuille",
   "/metier/campagnes":    "Campagnes",
@@ -169,6 +170,7 @@ export default function Layout() {
               <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
               <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
               <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
+              <NavItem to="/client/messagerie" icon="ti-message-circle" label="Messagerie" />
             </>
           )}
 
