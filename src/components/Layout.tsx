@@ -50,17 +50,22 @@ function NavItem({ to, icon, label, end }: NavItemProps) {
 export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [initiales, setInitiales]           = useState("--")
-  const [prenom, setPrenom]                 = useState("")
-  const [labelProfil, setLabelProfil]       = useState("")
-  const [espace, setEspace]                 = useState<EspaceType>("public")
-  const [nbDemandes, setNbDemandes]         = useState(0)
+  const [initiales, setInitiales]               = useState("--")
+  const [prenom, setPrenom]                     = useState("")
+  const [labelProfil, setLabelProfil]           = useState("")
+  const [espace, setEspace]                     = useState<EspaceType>("public")
+  const [nbDemandes, setNbDemandes]             = useState(0)
   const [nbMessagesNonLus, setNbMessagesNonLus] = useState(0)
+  const [authChecked, setAuthChecked]           = useState(false)
 
   useEffect(() => {
     async function chargerProfil() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+
+      if (!user) {
+        navigate("/login")
+        return
+      }
 
       const { data: profilAGE } = await supabase
         .from("profils")
@@ -92,6 +97,7 @@ export default function Layout() {
           .eq("lu", false)
           .neq("expediteur_id", user.id)
         setNbMessagesNonLus(countMessages || 0)
+        setAuthChecked(true)
         return
       }
 
@@ -109,9 +115,11 @@ export default function Layout() {
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
         setEspace("client")
+        setAuthChecked(true)
         return
       }
 
+      setAuthChecked(true)
       setEspace("public")
     }
     chargerProfil()
@@ -123,6 +131,8 @@ export default function Layout() {
   }
 
   const pageTitle = PAGE_TITLES[location.pathname] || "AGE Climate"
+
+  if (!authChecked) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
   return (
     <div className="app-container">
