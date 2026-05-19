@@ -128,20 +128,37 @@ export default function Accueil() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function chargerProfil() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-      const { data } = await supabase
-        .from("profils")
-        .select("profil, prenom")
-        .eq("id", user.id)
-        .single()
-      if (data) {
-        setProfil(data.profil as Profil)
-        setPrenom(data.prenom || null)
-      }
-      setLoading(false)
-    }
+   async function chargerProfil() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) { setLoading(false); return }
+
+  // Vérifier profils AGE
+  const { data: profilAGE } = await supabase
+    .from("profils")
+    .select("profil, prenom")
+    .eq("id", user.id)
+    .single()
+  if (profilAGE) {
+    setProfil(profilAGE.profil as Profil)
+    setPrenom(profilAGE.prenom || null)
+    setLoading(false)
+    return
+  }
+
+  // Vérifier profils client
+  const { data: profilClient } = await supabase
+    .from("profils_client")
+    .select("type_client")
+    .eq("id", user.id)
+    .single()
+  if (profilClient) {
+    setProfil(profilClient.type_client as Profil)
+    setLoading(false)
+    return
+  }
+
+  setLoading(false)
+}
     chargerProfil()
   }, [])
 
