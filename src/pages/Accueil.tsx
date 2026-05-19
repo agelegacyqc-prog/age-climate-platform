@@ -147,15 +147,24 @@ export default function Accueil() {
 
   // Vérifier profils client
   const { data: profilClient } = await supabase
-    .from("profils_client")
-    .select("type_client")
-    .eq("id", user.id)
-    .single()
+  .from("profils_client")
+  .select("type_client, sous_profil")
+  .eq("id", user.id)
+  .single()
   if (profilClient) {
-    setProfil(profilClient.type_client as Profil)
-    setLoading(false)
-    return
+  const mapping: Record<string, string> = {
+    banque_assurance: profilClient.sous_profil || "banque",
+    proprietaire:     "particulier",
+    collectivite:     "collectivite",
+    entreprise:       "entreprise",
+    banque:           "banque",
+    assurance:        "assurance",
   }
+  const profilMappe = mapping[profilClient.type_client] || profilClient.type_client
+  setProfil(profilMappe as Profil)
+  setLoading(false)
+  return
+}
 
   setLoading(false)
 }

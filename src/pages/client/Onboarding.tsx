@@ -87,15 +87,16 @@ export default function Onboarding() {
     const profilValue = getProfilFromTypeClient(typeClient, sousProfil)
 
     // Sauvegarde profils_client (existant)
-    await supabase.from("profils_client").upsert({
-      id: user?.id,
-      type_client: typeClient,
-      enjeux: enjeuxSelectionnes,
-      niveau,
-      onboarding_complete: true,
-      roadmap,
-      updated_at: new Date().toISOString(),
-    })
+   await supabase.from("profils_client").upsert({
+  id: user?.id,
+  type_client: typeClient,
+  sous_profil: sousProfil || null,
+  enjeux: enjeuxSelectionnes,
+  niveau,
+  onboarding_complete: true,
+  roadmap,
+  updated_at: new Date().toISOString(),
+})
 
     // Mise à jour colonne profil dans la table profils
     if (profilValue) {
