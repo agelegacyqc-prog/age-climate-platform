@@ -57,6 +57,7 @@ export default function Layout() {
   const [espace, setEspace]                     = useState<EspaceType>("public")
   const [nbDemandes, setNbDemandes]             = useState(0)
   const [nbMessagesNonLus, setNbMessagesNonLus] = useState(0)
+  const [nbCampagnes, setNbCampagnes] = useState(0)
   const [authChecked, setAuthChecked]           = useState(false)
 
   useEffect(() => {
@@ -91,7 +92,12 @@ export default function Layout() {
           .select("id", { count: "exact", head: true })
           .eq("statut", "soumise")
         setNbDemandes(count || 0)
-
+const { count: countCampagnes } = await supabase
+  .from("campagnes")
+  .select("id", { count: "exact", head: true })
+  .eq("origine", "client")
+  .eq("statut", "soumise")
+setNbCampagnes(countCampagnes || 0)
         const { count: countMessages } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
@@ -179,7 +185,20 @@ export default function Layout() {
             <>
               <div className="nav-section">Espace métier</div>
               <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
-              <NavItem to="/metier/campagnes" icon="ti-speakerphone" label="Campagnes" />
+              <NavLink
+  to="/metier/campagnes"
+  className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+>
+  <i className="ti ti-speakerphone nav-item__icon" aria-hidden="true" />
+  <span className="nav-item__label">Campagnes</span>
+  {nbCampagnes > 0 && (
+    <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+      <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+        {nbCampagnes}
+      </span>
+    </span>
+  )}
+</NavLink>
 
               {/* Missions avec cloche */}
               <NavLink
