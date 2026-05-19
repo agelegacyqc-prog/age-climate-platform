@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
@@ -27,6 +28,7 @@ interface FormCampagne {
 }
 
 export default function MesCampagnes() {
+  const navigate = useNavigate()
   const [campagnes, setCampagnes]   = useState<any[]>([])
   const [loading, setLoading]       = useState(true)
   const [etape, setEtape]           = useState(1)
@@ -102,7 +104,11 @@ export default function MesCampagnes() {
 
       {/* En-tête */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: "13px", color: "#64748B" }}>
+  <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+    <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
+  </button>
+  <div style={{ fontSize: "13px", color: "#64748B" }}>
+  <div></div>
           <span style={{ fontWeight: 500, color: "#0F172A" }}>{campagnes.length}</span> campagne{campagnes.length > 1 ? "s" : ""}
         </div>
         <button

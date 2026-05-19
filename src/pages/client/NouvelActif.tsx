@@ -165,6 +165,8 @@ export default function NouvelActif() {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [autresDocuments, setAutresDocuments] = useState<File[]>([])
   const searchRef = useRef<any>(null)
 
   const [infos, setInfos] = useState<Infos>({
@@ -430,11 +432,28 @@ export default function NouvelActif() {
               </div>
             ))}
           </div>
-          <div style={{border:"2px dashed #2d6a4f",borderRadius:"12px",padding:"1.5rem",textAlign:"center",cursor:"pointer",background:"#f0fdf4",marginBottom:"1rem"}}>
-            <div style={{fontSize:"2rem",marginBottom:"0.5rem"}}>➕</div>
-            <div style={{fontWeight:"600",color:"#2d6a4f",fontSize:"0.9rem",marginBottom:"0.25rem"}}>Ajouter un autre document</div>
-            <div style={{fontSize:"0.75rem",color:"#666"}}>PDF, Word, Excel — tout format accepté</div>
-          </div>
+<label style={{ border: "2px dashed #2d6a4f", borderRadius: "12px", padding: "1.5rem", textAlign: "center", cursor: "pointer", background: "#f0fdf4", marginBottom: "1rem", display: "block" }}>
+  <input
+    type="file"
+    accept=".pdf,.doc,.docx,.xls,.xlsx"
+    multiple
+    style={{ display: "none" }}
+    onChange={e => {
+      const files = Array.from(e.target.files || [])
+      setAutresDocuments(prev => [...prev, ...files])
+    }}
+  />
+  <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>➕</div>
+  <div style={{ fontWeight: "600", color: "#2d6a4f", fontSize: "0.9rem", marginBottom: "0.25rem" }}>Ajouter un autre document</div>
+  <div style={{ fontSize: "0.75rem", color: "#666" }}>PDF, Word, Excel — tout format accepté</div>
+  {autresDocuments.length > 0 && (
+    <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+      {autresDocuments.map((f, i) => (
+        <div key={i} style={{ fontSize: "0.8rem", color: "#2d6a4f", fontWeight: "600" }}>✅ {f.name}</div>
+      ))}
+    </div>
+  )}
+</label>
           <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1"}}>
             💡 Vous pourrez ajouter d'autres documents à tout moment depuis la fiche de votre actif.
           </div>

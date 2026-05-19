@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 const perfData = [
@@ -36,6 +37,7 @@ interface FormCampagne {
 }
 
 export default function Campagnes() {
+  const navigate = useNavigate()
   const [onglet, setOnglet]         = useState<Onglet>("age")
   const [campagnes, setCampagnes]   = useState<any[]>([])
   const [demandesClient, setDemandesClient] = useState<any[]>([])
@@ -119,8 +121,13 @@ export default function Campagnes() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-      {/* Onglets */}
-      <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
+      {/* Header + Onglets */}
+<div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+  <button onClick={() => navigate("/metier")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+    <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
+  </button>
+</div>
+<div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
         {([
           { key: "age",     label: "Campagnes AGE",    icon: "ti-speakerphone", count: campagnes.length,      badgeBg: "#ECFDF5", badgeColor: "#065F46" },
           { key: "clients", label: "Demandes clients", icon: "ti-users",        count: demandesClient.length, badgeBg: demandesEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: demandesEnAttente > 0 ? "#991B1B" : "#065F46" },

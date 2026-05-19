@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 const phases = [
@@ -22,6 +23,7 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
 }
 
 export default function PartenaireMissions() {
+  const navigate = useNavigate()
   const [missions, setMissions] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading]   = useState(true)
@@ -44,9 +46,14 @@ export default function PartenaireMissions() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div style={{ fontSize: "13px", color: "#64748B" }}>
-        <span style={{ fontWeight: 500, color: "#0F172A" }}>{missions.length}</span> mission{missions.length > 1 ? "s" : ""} assignée{missions.length > 1 ? "s" : ""}
-      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+  <button onClick={() => navigate("/partenaire/dashboard")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+    <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
+  </button>
+  <div style={{ fontSize: "13px", color: "#64748B" }}>
+    <span style={{ fontWeight: 500, color: "#0F172A" }}>{missions.length}</span> mission{missions.length > 1 ? "s" : ""} assignée{missions.length > 1 ? "s" : ""}
+  </div>
+</div>
 
       {missions.length === 0 ? (
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 export default function PartenaireDocuments() {
+  const navigate = useNavigate()
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
 
@@ -31,9 +33,14 @@ export default function PartenaireDocuments() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div style={{ fontSize: "13px", color: "#64748B" }}>
-        <span style={{ fontWeight: 500, color: "#0F172A" }}>{documents.length}</span> document{documents.length > 1 ? "s" : ""} partagé{documents.length > 1 ? "s" : ""}
-      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+  <button onClick={() => navigate("/partenaire/dashboard")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+    <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
+  </button>
+  <div style={{ fontSize: "13px", color: "#64748B" }}>
+    <span style={{ fontWeight: 500, color: "#0F172A" }}>{documents.length}</span> document{documents.length > 1 ? "s" : ""} partagé{documents.length > 1 ? "s" : ""}
+  </div>
+</div>
 
       {documents.length === 0 ? (
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>

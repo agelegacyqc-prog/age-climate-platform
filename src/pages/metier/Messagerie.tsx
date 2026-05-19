@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 export default function Messagerie() {
+  const navigate = useNavigate()
   const [userId, setUserId]         = useState<string>("")
   const [role, setRole]             = useState<string>("")
   const [missions, setMissions]     = useState<any[]>([])
@@ -103,9 +105,12 @@ export default function Messagerie() {
       {/* Liste missions */}
       <div style={{ width: "280px", borderRight: "1px solid #E2E8F0", display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "16px", borderBottom: "1px solid #E2E8F0" }}>
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Messagerie</div>
-          <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{missions.length} conversation{missions.length > 1 ? "s" : ""}</div>
-        </div>
+  <button onClick={() => navigate("/metier")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "6px 12px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "12px", fontFamily: "inherit", marginBottom: "10px" }}>
+    <i className="ti ti-arrow-left" style={{ fontSize: "13px" }} aria-hidden="true" /> Retour
+  </button>
+  <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Messagerie</div>
+  <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{missions.length} conversation{missions.length > 1 ? "s" : ""}</div>
+</div>
         <div style={{ flex: 1, overflowY: "auto" }}>
           {missions.length === 0 ? (
             <div style={{ padding: "24px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>Aucune mission</div>
