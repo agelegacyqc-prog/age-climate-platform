@@ -107,7 +107,7 @@ export default function Onboarding() {
     }
 
     setLoading(false)
-    navigate("/client")
+    navigate("/")
   }
 
   // Labels des étapes selon le profil
