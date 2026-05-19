@@ -76,6 +76,45 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/sensibilisation", icon: "ti-leaf",            titre: "S'informer",          desc: "Comprendre vos obligations et les enjeux climatiques" },
     ],
   },
+  entreprise: {
+    sousTitre: "Pilotez votre transition climatique et énergétique",
+    boutons: [
+      { label: "Mes campagnes",  route: "/client/campagnes",     icon: "ti-speakerphone" },
+      { label: "Créer un actif", route: "/client/actifs/nouveau", icon: "ti-plus" },
+    ],
+    afficherCarte: true,
+    kpis: [
+      { val: "0",      label: "Actifs analysés",        tendance: "Commencez votre analyse", tendanceColor: "#94A3B8" },
+      { val: "0",      label: "Bilan GES (tCO₂e)",      tendance: "À réaliser",              tendanceColor: "#94A3B8" },
+      { val: "0",      label: "Campagnes actives",       tendance: "Créez votre première",    tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/client/campagnes",     icon: "ti-speakerphone",   titre: "Mes campagnes",              desc: "Gérez vos campagnes d'analyse climatique" },
+      { route: "/client/actifs",        icon: "ti-building",       titre: "Mon Patrimoine",             desc: "Vue consolidée de vos actifs" },
+      { route: "/metier/reporting",     icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "CSRD, Bilan GES et suivi des prestations" },
+      { route: "/marketplace",          icon: "ti-building-store", titre: "Marketplace",                desc: "Prestations énergie, carbone et prévention" },
+      { route: "/client/demandes",      icon: "ti-clipboard-list", titre: "Mes demandes",               desc: "Suivez vos demandes passées sur la marketplace" },
+      { route: "/sensibilisation",      icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES" },
+    ],
+  },
+  expert: {
+    sousTitre: "Accédez à vos outils métier et gérez vos missions",
+    boutons: [
+      { label: "Mes missions", route: "/metier/missions", icon: "ti-briefcase" },
+    ],
+    afficherCarte: false,
+    kpis: [
+      { val: "0", label: "Missions actives",   tendance: "En attente d'assignation", tendanceColor: "#94A3B8" },
+      { val: "0", label: "Clients suivis",     tendance: "Aucun pour l'instant",     tendanceColor: "#94A3B8" },
+      { val: "0", label: "Rapports produits",  tendance: "Ce trimestre",             tendanceColor: "#94A3B8" },
+    ],
+    raccourcis: [
+      { route: "/metier/missions",  icon: "ti-briefcase",      titre: "Mes missions",    desc: "Consultez et gérez vos missions AGE" },
+      { route: "/marketplace",      icon: "ti-building-store", titre: "Marketplace",     desc: "Prestations et expertises disponibles" },
+      { route: "/metier/reporting", icon: "ti-file-analytics", titre: "Reporting",       desc: "Rapports et suivi des prestations" },
+      { route: "/sensibilisation",  icon: "ti-leaf",           titre: "Documentation",   desc: "Ressources et obligations réglementaires" },
+    ],
+  },
   collectivite: {
     sousTitre: "Pilotez la résilience climatique de votre territoire",
     boutons: [
@@ -152,14 +191,15 @@ export default function Accueil() {
   .eq("id", user.id)
   .single()
   if (profilClient) {
-  const mapping: Record<string, string> = {
-    banque_assurance: profilClient.sous_profil || "banque",
-    proprietaire:     "particulier",
-    collectivite:     "collectivite",
-    entreprise:       "entreprise",
-    banque:           "banque",
-    assurance:        "assurance",
-  }
+ const mapping: Record<string, string> = {
+  banque_assurance: profilClient.sous_profil || "banque",
+  proprietaire:     "particulier",
+  collectivite:     "collectivite",
+  entreprise:       "entreprise",
+  expert:           "expert",
+  banque:           "banque",
+  assurance:        "assurance",
+}
   const profilMappe = mapping[profilClient.type_client] || profilClient.type_client
   setProfil(profilMappe as Profil)
   setLoading(false)
