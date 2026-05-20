@@ -12,6 +12,8 @@ export default function ClientMessagerie() {
   const [contenu, setContenu]       = useState("")
   const [loading, setLoading]       = useState(true)
   const [sending, setSending]       = useState(false)
+  const [nbNonLus, setNbNonLus] = useState<Record<string, number>>({ demandes: 0, campagnes: 0, actifs: 0 })
+  
   const bottomRef                   = useRef<HTMLDivElement>(null)
 
   useEffect(() => { init() }, [])
@@ -72,6 +74,22 @@ export default function ClientMessagerie() {
       if (onglet === "actifs")    updateQuery = updateQuery.eq("actif_id",    selected.id)
       await updateQuery
     }
+    // Compter non lus par onglet
+    const counts: Record<string, number> = { demandes: 0, campagnes: 0, actifs: 0 }
+    const { data: nonLus } = await supabase
+      .from("messages")
+      .select("demande_id, campagne_id, actif_id")
+      .eq("client_id", userId)
+      .eq("lu", false)
+      .neq("expediteur_id", userId)
+    if (nonLus) {
+      nonLus.forEach(m => {
+        if (m.demande_id)  counts.demandes++
+        if (m.campagne_id) counts.campagnes++
+        if (m.actif_id)    counts.actifs++
+      })
+    }
+    setNbNonLus(counts)
   }
 
   async function handleEnvoyer() {
@@ -119,11 +137,11 @@ export default function ClientMessagerie() {
     return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
   }
 
-  const onglets = [
-    { id: "demandes",  label: "Demandes",  icon: "ti-clipboard-list" },
-    { id: "campagnes", label: "Campagnes", icon: "ti-speakerphone" },
-    { id: "actifs",    label: "Actifs",    icon: "ti-building" },
-  ] as const
+ const onglets = [
+  { id: "demandes",  label: "Demandes",  icon: "ti-clipboard-list", nb: nbNonLus.demandes  },
+  { id: "campagnes", label: "Campagnes", icon: "ti-speakerphone",   nb: nbNonLus.campagnes },
+  { id: "actifs",    label: "Actifs",    icon: "ti-building",       nb: nbNonLus.actifs    },
+] as const
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
@@ -142,7 +160,12 @@ export default function ClientMessagerie() {
             cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
           }}>
             <i className={`ti ${o.icon}`} style={{ fontSize: "15px" }} aria-hidden="true" />
-            {o.label}
+{o.label}
+{o.nb > 0 && (
+  <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px" }}>
+    {o.nb}
+  </span>
+)}
           </button>
         ))}
       </div>

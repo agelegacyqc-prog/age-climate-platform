@@ -147,8 +147,8 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { val: "5",       label: "Projets actifs",         tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/dashboard",       icon: "ti-chart-bar",      titre: "Dashboard",      desc: "Visualisez les données climatiques" },
-      { route: "/marketplace",     icon: "ti-building-store", titre: "Marketplace",    desc: "Prestations énergie, carbone et prévention" },
+      { route: "/dashboard",       icon: "ti-chart-bar",      titre: "Dashboard",       desc: "Visualisez les données climatiques" },
+      { route: "/marketplace",     icon: "ti-building-store", titre: "Marketplace",     desc: "Prestations énergie, carbone et prévention" },
       { route: "/sensibilisation", icon: "ti-plant-2",        titre: "Sensibilisation", desc: "Découvrez les enjeux et obligations climatiques" },
       { route: "/projets",         icon: "ti-clipboard-list", titre: "Projets",         desc: "Participez aux initiatives locales" },
     ],
@@ -175,46 +175,37 @@ interface AlerteRegl {
 
 const ALERTES_PAR_PROFIL: Record<string, AlerteRegl[]> = {
   entreprise: [
-    { label: "Décret Tertiaire — rapport 2025",   echeance: "30/09/2025", niveau: "orange" },
-    { label: "Décret BACS — mise en conformité",  echeance: "01/01/2025", niveau: "rouge"  },
-    { label: "Audit énergétique — renouvellement", echeance: "01/11/2025", niveau: "bleu"   },
+    { label: "Décret Tertiaire — rapport 2025",    echeance: "30/09/2025",      niveau: "orange" },
+    { label: "Décret BACS — mise en conformité",   echeance: "01/01/2025",      niveau: "rouge"  },
+    { label: "Audit énergétique — renouvellement", echeance: "01/11/2025",      niveau: "bleu"   },
   ],
   banque: [
-    { label: "CSRD — reporting durabilité 2024",   echeance: "30/06/2025", niveau: "rouge"  },
-    { label: "SFDR — classification portefeuille", echeance: "31/12/2025", niveau: "orange" },
-    { label: "Brown Value — mise à jour actifs",   echeance: "01/10/2025", niveau: "bleu"   },
+    { label: "CSRD — reporting durabilité 2024",   echeance: "30/06/2025",      niveau: "rouge"  },
+    { label: "SFDR — classification portefeuille", echeance: "31/12/2025",      niveau: "orange" },
+    { label: "Brown Value — mise à jour actifs",   echeance: "01/10/2025",      niveau: "bleu"   },
   ],
   assurance: [
-    { label: "SFDR — reporting durabilité",        echeance: "30/06/2025", niveau: "rouge"  },
-    { label: "CSRD — obligations 2025",            echeance: "31/12/2025", niveau: "orange" },
-    { label: "Score risque — révision annuelle",   echeance: "01/10/2025", niveau: "bleu"   },
+    { label: "SFDR — reporting durabilité",        echeance: "30/06/2025",      niveau: "rouge"  },
+    { label: "CSRD — obligations 2025",            echeance: "31/12/2025",      niveau: "orange" },
+    { label: "Score risque — révision annuelle",   echeance: "01/10/2025",      niveau: "bleu"   },
   ],
   collectivite: [
-    { label: "Décret Tertiaire — rapport annuel",  echeance: "30/09/2025", niveau: "orange" },
-    { label: "Plan adaptation climatique",         echeance: "31/12/2025", niveau: "bleu"   },
-    { label: "Bilan GES territorial",              echeance: "01/06/2025", niveau: "rouge"  },
+    { label: "Décret Tertiaire — rapport annuel",  echeance: "30/09/2025",      niveau: "orange" },
+    { label: "Plan adaptation climatique",         echeance: "31/12/2025",      niveau: "bleu"   },
+    { label: "Bilan GES territorial",              echeance: "01/06/2025",      niveau: "rouge"  },
   ],
   particulier: [
-    { label: "DPE — validité 10 ans",              echeance: "Variable",   niveau: "orange" },
-    { label: "Audit énergétique recommandé",       echeance: "Dès que possible", niveau: "bleu" },
+    { label: "DPE — validité 10 ans",              echeance: "Variable",         niveau: "orange" },
+    { label: "Audit énergétique recommandé",       echeance: "Dès que possible", niveau: "bleu"   },
   ],
-}
-
-const ACTIONS_RAPIDES: Record<string, { label: string; route: string; icon: string }[]> = {
-  entreprise:   [{ label: "Mes actifs",   route: "/client/actifs",  icon: "ti-building"      }, { label: "Marketplace",   route: "/marketplace",    icon: "ti-building-store" }, { label: "Mon profil",    route: "/client/profil",  icon: "ti-settings"      }],
-  banque:       [{ label: "Mon Patrimoine", route: "/client/actifs",  icon: "ti-building"    }, { label: "Mes demandes",  route: "/client/demandes",icon: "ti-clipboard-list" }, { label: "Marketplace",   route: "/marketplace",    icon: "ti-building-store"}],
-  assurance:    [{ label: "Mon Patrimoine", route: "/client/actifs",  icon: "ti-building"    }, { label: "Mes demandes",  route: "/client/demandes",icon: "ti-clipboard-list" }, { label: "Marketplace",   route: "/marketplace",    icon: "ti-building-store"}],
-  collectivite: [{ label: "Mon territoire",route: "/metier/portefeuille", icon: "ti-map"     }, { label: "Reporting",     route: "/metier/reporting",icon: "ti-file-analytics"}, { label: "Marketplace",   route: "/marketplace",    icon: "ti-building-store"}],
-  particulier:  [{ label: "Mon bien",      route: "/client/actifs",  icon: "ti-home"         }, { label: "Marketplace",   route: "/marketplace",    icon: "ti-building-store" }, { label: "Mon profil",    route: "/client/profil",  icon: "ti-settings"      }],
 }
 
 export default function Accueil() {
   const navigate = useNavigate()
-  const [profil, setProfil]     = useState<Profil>(null)
-  const [prenom, setPrenom]     = useState<string | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [roadmap, setRoadmap]   = useState<RoadmapEtape[]>([])
-  const [nbActifs, setNbActifs] = useState(0)
+  const [profil, setProfil]   = useState<Profil>(null)
+  const [prenom, setPrenom]   = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
 
   useEffect(() => { chargerProfil() }, [])
 
@@ -246,16 +237,8 @@ export default function Accueil() {
         entreprise: "entreprise", expert: "expert",
         banque: "banque", assurance: "assurance",
       }
-      const profilMappe = mapping[profilClient.type_client] || profilClient.type_client
-      setProfil(profilMappe as Profil)
+      setProfil((mapping[profilClient.type_client] || profilClient.type_client) as Profil)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
-
-      const { count } = await supabase
-        .from("actifs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-      setNbActifs(count || 0)
-
       setLoading(false)
       return
     }
@@ -265,7 +248,6 @@ export default function Accueil() {
 
   const config  = PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut
   const alertes = ALERTES_PAR_PROFIL[profil || ""] || []
-  const actions = ACTIONS_RAPIDES[profil || ""] || []
   const today   = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   const niveauStyle = {
@@ -274,9 +256,9 @@ export default function Accueil() {
     bleu:   { bg: "#EFF6FF", border: "#378ADD", titre: "#042C53", sous: "#185FA5" },
   }
 
-  const etapesDone   = roadmap.filter(e => e.statut === "complete").length
-  const etapesTotal  = roadmap.length
-  const pctRoadmap   = etapesTotal > 0 ? Math.round(etapesDone / etapesTotal * 100) : 0
+  const etapesDone  = roadmap.filter(e => e.statut === "complete").length
+  const etapesTotal = roadmap.length
+  const pctRoadmap  = etapesTotal > 0 ? Math.round(etapesDone / etapesTotal * 100) : 0
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -361,7 +343,7 @@ export default function Accueil() {
         </div>
       </div>
 
-      {/* Roadmap + Alertes réglementaires */}
+      {/* Roadmap + Alertes */}
       {!loading && config.afficherRoadmap && (roadmap.length > 0 || alertes.length > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
@@ -373,7 +355,7 @@ export default function Accueil() {
                 <span style={{ fontSize: "12px", color: "#94A3B8" }}>{etapesDone}/{etapesTotal} étapes</span>
               </div>
               <div style={{ background: "#F1F5F9", borderRadius: "3px", height: "6px", overflow: "hidden", marginBottom: "16px" }}>
-                <div style={{ background: "#0F6E56", width: `${pctRoadmap}%`, height: "100%", borderRadius: "3px", transition: "width 0.5s" }} />
+                <div style={{ background: "#0F6E56", width: `${pctRoadmap}%`, height: "100%", borderRadius: "3px" }} />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {roadmap.map((e, i) => {
@@ -398,42 +380,21 @@ export default function Accueil() {
             </div>
           )}
 
-          {/* Alertes réglementaires + Actions rapides */}
+          {/* Alertes réglementaires */}
           {alertes.length > 0 && (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Alertes réglementaires</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {alertes.map((a, i) => {
-                    const s = niveauStyle[a.niveau]
-                    return (
-                      <div key={i} style={{ padding: "10px 12px", background: s.bg, borderRadius: "0 8px 8px 0", borderLeft: `3px solid ${s.border}` }}>
-                        <div style={{ fontSize: "13px", fontWeight: 500, color: s.titre, marginBottom: "2px" }}>{a.label}</div>
-                        <div style={{ fontSize: "11px", color: s.sous }}>Échéance : {a.echeance}</div>
-                      </div>
-                    )
-                  })}
-                </div>
+            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Alertes réglementaires</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {alertes.map((a, i) => {
+                  const s = niveauStyle[a.niveau]
+                  return (
+                    <div key={i} style={{ padding: "10px 12px", background: s.bg, borderRadius: "0 8px 8px 0", borderLeft: `3px solid ${s.border}` }}>
+                      <div style={{ fontSize: "13px", fontWeight: 500, color: s.titre, marginBottom: "2px" }}>{a.label}</div>
+                      <div style={{ fontSize: "11px", color: s.sous }}>Échéance : {a.echeance}</div>
+                    </div>
+                  )
+                })}
               </div>
-
-              {actions.length > 0 && (
-                <div>
-                  <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "10px" }}>Actions rapides</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {actions.map((a, i) => (
-                      <div key={i} onClick={() => navigate(a.route)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: "#F8FAFC", borderRadius: "8px", cursor: "pointer", transition: "background 0.1s" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#ECFDF5")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "#F8FAFC")}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <i className={`ti ${a.icon}`} style={{ fontSize: "15px", color: "#64748B" }} aria-hidden="true" />
-                          <span style={{ fontSize: "13px", color: "#0F172A" }}>{a.label}</span>
-                        </div>
-                        <i className="ti ti-arrow-right" style={{ fontSize: "14px", color: "#94A3B8" }} aria-hidden="true" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

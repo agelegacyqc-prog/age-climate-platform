@@ -57,7 +57,8 @@ export default function Layout() {
   const [espace, setEspace]                     = useState<EspaceType>("public")
   const [nbDemandes, setNbDemandes]             = useState(0)
   const [nbMessagesNonLus, setNbMessagesNonLus] = useState(0)
-  const [nbCampagnes, setNbCampagnes] = useState(0)
+  const [nbMessagesClient, setNbMessagesClient] = useState(0)
+  const [nbCampagnes, setNbCampagnes]           = useState(0)
   const [authChecked, setAuthChecked]           = useState(false)
 
   useEffect(() => {
@@ -92,18 +93,21 @@ export default function Layout() {
           .select("id", { count: "exact", head: true })
           .eq("statut", "soumise")
         setNbDemandes(count || 0)
-const { count: countCampagnes } = await supabase
-  .from("campagnes")
-  .select("id", { count: "exact", head: true })
-  .eq("origine", "client")
-  .eq("statut", "soumise")
-setNbCampagnes(countCampagnes || 0)
+
+        const { count: countCampagnes } = await supabase
+          .from("campagnes")
+          .select("id", { count: "exact", head: true })
+          .eq("origine", "client")
+          .eq("statut", "soumise")
+        setNbCampagnes(countCampagnes || 0)
+
         const { count: countMessages } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
           .eq("lu", false)
           .neq("expediteur_id", user.id)
         setNbMessagesNonLus(countMessages || 0)
+
         setAuthChecked(true)
         return
       }
@@ -122,6 +126,15 @@ setNbCampagnes(countCampagnes || 0)
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
         setEspace("client")
+
+        const { count: countMsgClient } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("lu", false)
+          .eq("client_id", user.id)
+          .neq("expediteur_id", user.id)
+        setNbMessagesClient(countMsgClient || 0)
+
         setAuthChecked(true)
         return
       }
@@ -171,12 +184,24 @@ setNbCampagnes(countCampagnes || 0)
           {espace === "client" && (
             <>
               <div className="nav-section">Mon espace</div>
-              <NavItem to="/client" icon="ti-layout-dashboard" label="Dashboard" end />
               <NavItem to="/client/campagnes" icon="ti-speakerphone" label="Mes Campagnes" />
               <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
               <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
               <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
-              <NavItem to="/client/messagerie" icon="ti-message-circle" label="Messagerie" />
+              <NavLink
+                to="/client/messagerie"
+                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+              >
+                <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
+                <span className="nav-item__label">Messagerie</span>
+                {nbMessagesClient > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+                      {nbMessagesClient}
+                    </span>
+                  </span>
+                )}
+              </NavLink>
             </>
           )}
 
@@ -185,22 +210,22 @@ setNbCampagnes(countCampagnes || 0)
             <>
               <div className="nav-section">Espace métier</div>
               <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
-              <NavLink
-  to="/metier/campagnes"
-  className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
->
-  <i className="ti ti-speakerphone nav-item__icon" aria-hidden="true" />
-  <span className="nav-item__label">Campagnes</span>
-  {nbCampagnes > 0 && (
-    <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-      <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-        {nbCampagnes}
-      </span>
-    </span>
-  )}
-</NavLink>
 
-              {/* Missions avec cloche */}
+              <NavLink
+                to="/metier/campagnes"
+                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+              >
+                <i className="ti ti-speakerphone nav-item__icon" aria-hidden="true" />
+                <span className="nav-item__label">Campagnes</span>
+                {nbCampagnes > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+                      {nbCampagnes}
+                    </span>
+                  </span>
+                )}
+              </NavLink>
+
               <NavLink
                 to="/metier/missions"
                 className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
@@ -217,7 +242,6 @@ setNbCampagnes(countCampagnes || 0)
                 )}
               </NavLink>
 
-              {/* Messagerie avec badge */}
               <NavLink
                 to="/metier/messagerie"
                 className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
