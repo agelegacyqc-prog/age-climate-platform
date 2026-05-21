@@ -10,9 +10,9 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 export default function MesActifs() {
   const navigate = useNavigate()
-  const [actifs, setActifs] = useState<any[]>([])
+  const [actifs, setActifs]   = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtre, setFiltre] = useState("tous")
+  const [filtre, setFiltre]   = useState("tous")
 
   useEffect(() => { loadActifs() }, [])
 
@@ -25,6 +25,12 @@ export default function MesActifs() {
       .order("created_at", { ascending: false })
     setActifs(data || [])
     setLoading(false)
+  }
+
+  async function supprimerActif(id: string) {
+    if (!confirm("Supprimer cet actif ? Cette action est irréversible.")) return
+    await supabase.from("actifs").delete().eq("id", id)
+    setActifs(actifs.filter(a => a.id !== id))
   }
 
   const actifsFiltres = filtre === "tous"
@@ -135,10 +141,12 @@ export default function MesActifs() {
                       <div style={{ fontSize: "10px", color: "#94A3B8" }}>/ 100</div>
                     </div>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#0F6E56", fontSize: "13px", fontWeight: 500 }}>
-                    Voir
-                    <i className="ti ti-arrow-right" style={{ fontSize: "14px" }} aria-hidden="true" />
-                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); supprimerActif(a.id) }}
+                    style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                    <i className="ti ti-trash" style={{ fontSize: "13px" }} aria-hidden="true" />
+                    Supprimer
+                  </button>
                 </div>
               </div>
             )

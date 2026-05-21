@@ -29,14 +29,14 @@ interface FormCampagne {
 
 export default function MesCampagnes() {
   const navigate = useNavigate()
-  const [campagnes, setCampagnes]   = useState<any[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [etape, setEtape]           = useState(1)
-  const [showForm, setShowForm]     = useState(false)
+  const [campagnes, setCampagnes]     = useState<any[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [etape, setEtape]             = useState(1)
+  const [showForm, setShowForm]       = useState(false)
   const [loadingForm, setLoadingForm] = useState(false)
-  const [succes, setSucces]         = useState(false)
-  const [selected, setSelected]     = useState<string | null>(null)
-  const [form, setForm]             = useState<FormCampagne>({
+  const [succes, setSucces]           = useState(false)
+  const [selected, setSelected]       = useState<string | null>(null)
+  const [form, setForm]               = useState<FormCampagne>({
     nom: "", type_campagne: "", zone_geo: "", date_debut: "", date_fin: "", description: "",
   })
 
@@ -74,6 +74,12 @@ export default function MesCampagnes() {
     setLoadingForm(false)
   }
 
+  async function supprimerCampagne(id: string) {
+    if (!confirm("Supprimer cette campagne ? Cette action est irréversible.")) return
+    await supabase.from("campagnes").delete().eq("id", id)
+    setCampagnes(campagnes.filter(c => c.id !== id))
+  }
+
   function resetForm() {
     setForm({ nom: "", type_campagne: "", zone_geo: "", date_debut: "", date_fin: "", description: "" })
     setEtape(1)
@@ -104,11 +110,10 @@ export default function MesCampagnes() {
 
       {/* En-tête */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-  <button onClick={() => navigate("/client")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
-    <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
-  </button>
-  <div style={{ fontSize: "13px", color: "#64748B" }}>
-  <div></div>
+        <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+          <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
+        </button>
+        <div style={{ fontSize: "13px", color: "#64748B" }}>
           <span style={{ fontWeight: 500, color: "#0F172A" }}>{campagnes.length}</span> campagne{campagnes.length > 1 ? "s" : ""}
         </div>
         <button
@@ -122,7 +127,6 @@ export default function MesCampagnes() {
       {/* Formulaire 3 étapes */}
       {showForm && (
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "24px" }}>
-
           {succes ? (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <i className="ti ti-circle-check" style={{ fontSize: "40px", color: "#0F6E56", display: "block", marginBottom: "12px" }} aria-hidden="true" />
@@ -154,7 +158,7 @@ export default function MesCampagnes() {
                 })}
               </div>
 
-              {/* Étape 1 — Périmètre */}
+              {/* Étape 1 */}
               {etape === 1 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <div>
@@ -176,7 +180,7 @@ export default function MesCampagnes() {
                       ))}
                     </div>
                   </div>
-                  <div style={{ display: "flex", justify: "flex-end", gap: "10px", justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                     <button onClick={() => setShowForm(false)} style={{ padding: "8px 16px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
                     <button onClick={() => setEtape(2)} disabled={!form.nom || !form.type_campagne} style={{ padding: "8px 16px", borderRadius: "7px", border: "none", background: form.nom && form.type_campagne ? "#0F6E56" : "#94A3B8", color: "white", fontSize: "13px", fontWeight: 500, cursor: form.nom && form.type_campagne ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "6px" }}>
                       Suivant <i className="ti ti-arrow-right" style={{ fontSize: "14px" }} />
@@ -185,7 +189,7 @@ export default function MesCampagnes() {
                 </div>
               )}
 
-              {/* Étape 2 — Configuration */}
+              {/* Étape 2 */}
               {etape === 2 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <div>
@@ -217,7 +221,7 @@ export default function MesCampagnes() {
                 </div>
               )}
 
-              {/* Étape 3 — Confirmation */}
+              {/* Étape 3 */}
               {etape === 3 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px" }}>
@@ -293,13 +297,20 @@ export default function MesCampagnes() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span style={{ background: statut.bg, color: statut.color, padding: "3px 10px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>{statut.label}</span>
+                    {c.statut === "soumise" && (
+                      <button
+                        onClick={e => { e.stopPropagation(); supprimerCampagne(c.id) }}
+                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                        <i className="ti ti-trash" style={{ fontSize: "13px" }} aria-hidden="true" />
+                        Supprimer
+                      </button>
+                    )}
                     <i className={`ti ${isOpen ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
                   </div>
                 </div>
 
                 {isOpen && (
                   <div style={{ borderTop: "1px solid #E2E8F0", padding: "20px" }}>
-                    {/* Stepper progression */}
                     <div style={{ marginBottom: "16px" }}>
                       <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "12px" }}>Progression</div>
                       <div style={{ display: "flex", alignItems: "center" }}>
@@ -320,7 +331,6 @@ export default function MesCampagnes() {
                         })}
                       </div>
                     </div>
-                    {/* Infos */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       {c.zone_geo && (
                         <div>

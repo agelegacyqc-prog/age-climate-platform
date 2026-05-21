@@ -22,11 +22,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Créer un actif", route: "/client/actifs/nouveau", icon: "ti-plus" },
     ],
     afficherCarte: true, afficherRoadmap: true,
-    kpis: [
-      { val: "247",    label: "Actifs analysés",         tendance: "+12 ce mois",   tendanceColor: "#0F6E56" },
-      { val: "−6,4 %", label: "Décote moy. Brown Value", tendance: "Sur 180 biens", tendanceColor: "#94A3B8" },
-      { val: "8",      label: "Campagnes actives",        tendance: "3 en attente",  tendanceColor: "#94A3B8" },
-    ],
+    kpis: [],
     raccourcis: [
       { route: "/client/campagnes",  icon: "ti-speakerphone",   titre: "Campagnes",                  desc: "Gérez vos campagnes d'analyse climatique" },
       { route: "/client/actifs",     icon: "ti-building",       titre: "Mon Patrimoine",             desc: "Vue consolidée de vos actifs financés" },
@@ -83,11 +79,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Créer un actif", route: "/client/actifs/nouveau", icon: "ti-plus" },
     ],
     afficherCarte: true, afficherRoadmap: true,
-    kpis: [
-      { val: "0", label: "Actifs analysés",   tendance: "Commencez votre analyse", tendanceColor: "#94A3B8" },
-      { val: "0", label: "Bilan GES (tCO₂e)", tendance: "À réaliser",              tendanceColor: "#94A3B8" },
-      { val: "0", label: "Campagnes actives", tendance: "Créez votre première",    tendanceColor: "#94A3B8" },
-    ],
+    kpis: [],
     raccourcis: [
       { route: "/client/campagnes", icon: "ti-speakerphone",   titre: "Mes campagnes",              desc: "Gérez vos campagnes d'analyse climatique" },
       { route: "/client/actifs",    icon: "ti-building",       titre: "Mon Patrimoine",             desc: "Vue consolidée de vos actifs" },
@@ -103,11 +95,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { label: "Mes missions", route: "/metier/missions", icon: "ti-briefcase" },
     ],
     afficherCarte: false, afficherRoadmap: false,
-    kpis: [
-      { val: "0", label: "Missions actives",  tendance: "En attente d'assignation", tendanceColor: "#94A3B8" },
-      { val: "0", label: "Clients suivis",    tendance: "Aucun pour l'instant",     tendanceColor: "#94A3B8" },
-      { val: "0", label: "Rapports produits", tendance: "Ce trimestre",             tendanceColor: "#94A3B8" },
-    ],
+    kpis: [],
     raccourcis: [
       { route: "/metier/missions",  icon: "ti-briefcase",      titre: "Mes missions",  desc: "Consultez et gérez vos missions AGE" },
       { route: "/marketplace",      icon: "ti-building-store", titre: "Marketplace",   desc: "Prestations et expertises disponibles" },
@@ -299,21 +287,23 @@ export default function Accueil() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-        {config.kpis.map((k, i) => (
-          <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "18px 20px" }}>
-            <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "10px" }}>{k.label}</div>
-            <div style={{ fontSize: "26px", fontWeight: 500, color: "#0F172A", letterSpacing: "-0.02em", marginBottom: "6px", fontFamily: "'DM Mono', monospace" }}>{k.val}</div>
-            {k.tendance && (
-              <div style={{ fontSize: "12px", color: k.tendanceColor || "#94A3B8", display: "flex", alignItems: "center", gap: "4px" }}>
-                {k.tendanceColor === "#0F6E56" && <i className="ti ti-trending-up" style={{ fontSize: "13px" }} aria-hidden="true" />}
-                {k.tendanceColor === "#B91C1C" && <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} aria-hidden="true" />}
-                {k.tendance}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {config.kpis.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+          {config.kpis.map((k, i) => (
+            <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "18px 20px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "10px" }}>{k.label}</div>
+              <div style={{ fontSize: "26px", fontWeight: 500, color: "#0F172A", letterSpacing: "-0.02em", marginBottom: "6px", fontFamily: "'DM Mono', monospace" }}>{k.val}</div>
+              {k.tendance && (
+                <div style={{ fontSize: "12px", color: k.tendanceColor || "#94A3B8", display: "flex", alignItems: "center", gap: "4px" }}>
+                  {k.tendanceColor === "#0F6E56" && <i className="ti ti-trending-up" style={{ fontSize: "13px" }} aria-hidden="true" />}
+                  {k.tendanceColor === "#B91C1C" && <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} aria-hidden="true" />}
+                  {k.tendance}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Accès rapides */}
       <div>
