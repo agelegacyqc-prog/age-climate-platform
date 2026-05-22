@@ -1,5 +1,14 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { supabase } from "../lib/supabase"
+
+// -- Types rôle / statut partenaire
+type UserRole = "admin" | "client" | "partenaire" | "consultant"
+type StatutPro = "en_attente" | "valide" | "rejete" | null
+
+interface UserContext {
+  role: UserRole | null
+  statutPro: StatutPro
+}
 
 const partenaires = [
   { id: 1, nom: "BatExpert Sud-Ouest",          type: "diagnostiqueur", ville: "Dax",            note: 4.8, avis: 124, familles: ["prevention"], specialites: ["RGA", "PPRI", "Feux"],                        disponible: true  },
@@ -92,7 +101,7 @@ interface DemandeForm {
 }
 
 export default function Marketplace() {
-  const [onglet, setOnglet]               = useState("partenaires")
+  const [onglet, setOnglet]               = useState("")
   const [filtreFamille, setFiltreFamille] = useState("tous")
   const [filtreType, setFiltreType]       = useState("tous")
   const [recherche, setRecherche]         = useState("")
@@ -103,6 +112,43 @@ export default function Marketplace() {
   const [loadingDemande, setLoadingDemande] = useState(false)
   const [succesDemande, setSuccesDemande]   = useState<number | null>(null)
   const [consultantActif, setConsultantActif] = useState<typeof consultantsAGE[0] | null>(null)
+
+  // -- Contexte utilisateur
+  const [userCtx, setUserCtx] = useState<UserContext>({ role: null, statutPro: null })
+
+  useEffect(() => {
+    async function loadUserContext() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profil } = await supabase
+        .from("profils")
+        .select("role")
+        .eq("id", user.id)
+        .single()
+
+      const role = (profil?.role as UserRole) ?? null
+
+      let statutPro: StatutPro = null
+      if (role === "partenaire") {
+        const { data: pro } = await supabase
+          .from("prestataires_pro")
+          .select("statut")
+          .eq("user_id", user.id)
+          .single()
+        statutPro = (pro?.statut as StatutPro) ?? null
+      }
+
+      setUserCtx({ role, statutPro })
+    }
+    loadUserContext()
+  }, [])
+  useEffect(() => {
+  if (!userCtx.role) return
+  if (userCtx.role === "admin") setOnglet("partenaires")
+  else if (userCtx.role === "partenaire") setOnglet("demandes")
+  else setOnglet("consultants")
+}, [userCtx.role])
 
   const [demandes, setDemandes]     = useState<any[]>([])
   const [loadingDem, setLoadingDem] = useState(false)
@@ -187,12 +233,18 @@ export default function Marketplace() {
 
   const nbDemandes = demandes.filter(d => ["soumise", "en_qualification", "entretien_planifie"].includes(d.statut)).length
 
-  const onglets = [
-    { id: "partenaires", label: "Partenaires",     icon: "ti-building-store" },
-    { id: "consultants", label: "Consultants AGE", icon: "ti-users" },
-    { id: "demandes",    label: "Mes demandes",    icon: "ti-clipboard-list", badge: nbDemandes > 0 ? nbDemandes : null },
-    { id: "pro",         label: "Espace Pro",      icon: "ti-briefcase" },
-  ]
+const onglets = [
+  ...(userCtx.role === "admin"
+    ? [{ id: "partenaires", label: "Partenaires", icon: "ti-building-store" }]
+    : []),
+  ...(userCtx.role !== "partenaire"
+    ? [{ id: "consultants", label: "Consultants AGE", icon: "ti-users" }]
+    : []),
+  { id: "demandes", label: "Mes demandes", icon: "ti-clipboard-list", badge: nbDemandes > 0 ? nbDemandes : null },
+  ...(userCtx.role !== "client"
+    ? [{ id: "pro", label: "Espace Pro", icon: "ti-briefcase" }]
+    : []),
+]
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -379,7 +431,6 @@ export default function Marketplace() {
                     </div>
                   </div>
 
-                  {/* Formulaire inline consultant */}
                   {ouvert && !succes && (
                     <div style={{ padding: "14px 18px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                       <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "10px" }}>Votre demande</div>
@@ -464,80 +515,112 @@ export default function Marketplace() {
       {/* ── ESPACE PRO ── */}
       {onglet === "pro" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px", display: "flex", alignItems: "center", gap: "20px" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <i className="ti ti-briefcase" style={{ fontSize: "24px", color: "#0F6E56" }} aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Rejoignez le réseau AGE Climate</div>
-              <div style={{ fontSize: "13px", color: "#64748B" }}>Référencez vos prestations et accédez aux missions de nos clients. Dossier examiné sous 5 jours ouvrés.</div>
-            </div>
-          </div>
 
-          {succesPro ? (
-            <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "10px", padding: "40px", textAlign: "center" }}>
-              <i className="ti ti-circle-check" style={{ fontSize: "40px", color: "#0F6E56", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Dossier envoyé !</div>
-              <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "20px" }}>Notre équipe examine votre candidature sous 5 jours ouvrés.</div>
-              <button onClick={() => setSuccesPro(false)} style={{ background: "#0F6E56", color: "white", border: "none", padding: "9px 20px", borderRadius: "7px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>Nouveau dossier</button>
-            </div>
-          ) : (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "24px" }}>
-              {erreurPro && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#991B1B" }}>
-                  <i className="ti ti-alert-triangle" style={{ fontSize: "15px" }} aria-hidden="true" />{erreurPro}
-                </div>
-              )}
-              <SectionTitle>Identité</SectionTitle>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                <div><label style={lStyle()}>Prénom *</label><input value={formPro.prenom} onChange={e => setFormPro({ ...formPro, prenom: e.target.value })} style={iStyle()} placeholder="Votre prénom" /></div>
-                <div><label style={lStyle()}>Nom *</label><input value={formPro.nom} onChange={e => setFormPro({ ...formPro, nom: e.target.value })} style={iStyle()} placeholder="Votre nom" /></div>
-                <div><label style={lStyle()}>Société *</label><input value={formPro.societe} onChange={e => setFormPro({ ...formPro, societe: e.target.value })} style={iStyle()} placeholder="Raison sociale" /></div>
-                <div><label style={lStyle()}>Email professionnel *</label><input type="email" value={formPro.email} onChange={e => setFormPro({ ...formPro, email: e.target.value })} style={iStyle()} placeholder="contact@societe.fr" /></div>
-                <div><label style={lStyle()}>Téléphone</label><input value={formPro.telephone} onChange={e => setFormPro({ ...formPro, telephone: e.target.value })} style={iStyle()} placeholder="06 XX XX XX XX" /></div>
-                <div><label style={lStyle()}>Site web</label><input value={formPro.site_web} onChange={e => setFormPro({ ...formPro, site_web: e.target.value })} style={iStyle()} placeholder="https://www.societe.fr" /></div>
+          {/* En attente */}
+          {userCtx.statutPro === "en_attente" && (
+            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "10px", padding: "32px", textAlign: "center" }}>
+              <i className="ti ti-clock" style={{ fontSize: "40px", color: "#D97706", display: "block", marginBottom: "12px" }} aria-hidden="true" />
+              <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Dossier en cours d'examen</div>
+              <div style={{ fontSize: "13px", color: "#64748B", maxWidth: "420px", margin: "0 auto" }}>
+                Votre candidature a bien été reçue. Notre équipe l'examine sous 5 jours ouvrés.
+                Vous serez notifié par email dès qu'une décision sera prise.
               </div>
-              <SectionTitle>Profil métier</SectionTitle>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                <div>
-                  <label style={lStyle()}>Type de structure *</label>
-                  <select value={formPro.type_structure} onChange={e => setFormPro({ ...formPro, type_structure: e.target.value })} style={{ ...iStyle(), cursor: "pointer" }}>
-                    <option value="">Choisir…</option>
-                    {typeStructures.map(t => <option key={t} value={t}>{TYPE_CONFIG[t]?.label || t}</option>)}
-                  </select>
-                </div>
-                <div><label style={lStyle()}>Tarif journalier (€/j)</label><input type="number" value={formPro.tarif_journalier} onChange={e => setFormPro({ ...formPro, tarif_journalier: e.target.value })} style={iStyle()} placeholder="Ex : 800" /></div>
-              </div>
-              <div style={{ marginBottom: "12px" }}>
-                <label style={lStyle()}>Familles de prestations proposées</label>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {FAMILLES.filter(f => f.id !== "tous").map(f => (
-                    <button key={f.id} onClick={() => setFormPro({ ...formPro, familles: toggleArray(formPro.familles, f.id) })} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", border: formPro.familles.includes(f.id) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.familles.includes(f.id) ? "#ECFDF5" : "white", color: formPro.familles.includes(f.id) ? "#065F46" : "#64748B", fontSize: "12px", fontWeight: formPro.familles.includes(f.id) ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                      <i className={`ti ${f.icon}`} style={{ fontSize: "14px" }} aria-hidden="true" />{f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ marginBottom: "12px" }}>
-                <label style={lStyle()}>Zones d'intervention</label>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {zonesIntervention.map(z => (
-                    <button key={z} onClick={() => setFormPro({ ...formPro, zones_intervention: toggleArray(formPro.zones_intervention, z) })} style={{ padding: "5px 12px", borderRadius: "6px", border: formPro.zones_intervention.includes(z) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.zones_intervention.includes(z) ? "#ECFDF5" : "white", color: formPro.zones_intervention.includes(z) ? "#065F46" : "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>{z}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label style={lStyle()}>Présentation de vos prestations</label>
-                <textarea value={formPro.description} onChange={e => setFormPro({ ...formPro, description: e.target.value })} rows={4} placeholder="Décrivez vos expertises, références, méthodes de travail…" style={{ ...iStyle(), resize: "vertical" as const }} />
-              </div>
-              <button onClick={handleSubmitPro} disabled={loadingPro} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "#0F6E56", color: "white", border: "none", padding: "10px 24px", borderRadius: "7px", cursor: loadingPro ? "wait" : "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit", width: "100%", opacity: loadingPro ? 0.7 : 1 }}>
-                <i className="ti ti-send" style={{ fontSize: "15px" }} aria-hidden="true" />
-                {loadingPro ? "Envoi en cours…" : "Envoyer mon dossier de candidature"}
-              </button>
             </div>
           )}
+
+          {/* Rejeté */}
+          {userCtx.statutPro === "rejete" && (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "10px", padding: "32px", textAlign: "center" }}>
+              <i className="ti ti-x-circle" style={{ fontSize: "40px", color: "#B91C1C", display: "block", marginBottom: "12px" }} aria-hidden="true" />
+              <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Candidature non retenue</div>
+              <div style={{ fontSize: "13px", color: "#64748B", maxWidth: "420px", margin: "0 auto" }}>
+                Votre dossier n'a pas pu être validé à ce stade.
+                Pour toute question, contactez-nous à <strong>partenaires@age-climate.fr</strong>.
+              </div>
+            </div>
+          )}
+
+          {/* Formulaire : validé, admin, ou partenaire sans dossier */}
+          {(userCtx.statutPro === "valide" || userCtx.role === "admin" || (userCtx.role === "partenaire" && userCtx.statutPro === null)) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px", display: "flex", alignItems: "center", gap: "20px" }}>
+                <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className="ti ti-briefcase" style={{ fontSize: "24px", color: "#0F6E56" }} aria-hidden="true" />
+                </div>
+                <div>
+                  <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Rejoignez le réseau AGE Climate</div>
+                  <div style={{ fontSize: "13px", color: "#64748B" }}>Référencez vos prestations et accédez aux missions de nos clients. Dossier examiné sous 5 jours ouvrés.</div>
+                </div>
+              </div>
+
+              {succesPro ? (
+                <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "10px", padding: "40px", textAlign: "center" }}>
+                  <i className="ti ti-circle-check" style={{ fontSize: "40px", color: "#0F6E56", display: "block", marginBottom: "12px" }} aria-hidden="true" />
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Dossier envoyé !</div>
+                  <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "20px" }}>Notre équipe examine votre candidature sous 5 jours ouvrés.</div>
+                  <button onClick={() => setSuccesPro(false)} style={{ background: "#0F6E56", color: "white", border: "none", padding: "9px 20px", borderRadius: "7px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>Nouveau dossier</button>
+                </div>
+              ) : (
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "24px" }}>
+                  {erreurPro && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#991B1B" }}>
+                      <i className="ti ti-alert-triangle" style={{ fontSize: "15px" }} aria-hidden="true" />{erreurPro}
+                    </div>
+                  )}
+                  <SectionTitle>Identité</SectionTitle>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                    <div><label style={lStyle()}>Prénom *</label><input value={formPro.prenom} onChange={e => setFormPro({ ...formPro, prenom: e.target.value })} style={iStyle()} placeholder="Votre prénom" /></div>
+                    <div><label style={lStyle()}>Nom *</label><input value={formPro.nom} onChange={e => setFormPro({ ...formPro, nom: e.target.value })} style={iStyle()} placeholder="Votre nom" /></div>
+                    <div><label style={lStyle()}>Société *</label><input value={formPro.societe} onChange={e => setFormPro({ ...formPro, societe: e.target.value })} style={iStyle()} placeholder="Raison sociale" /></div>
+                    <div><label style={lStyle()}>Email professionnel *</label><input type="email" value={formPro.email} onChange={e => setFormPro({ ...formPro, email: e.target.value })} style={iStyle()} placeholder="contact@societe.fr" /></div>
+                    <div><label style={lStyle()}>Téléphone</label><input value={formPro.telephone} onChange={e => setFormPro({ ...formPro, telephone: e.target.value })} style={iStyle()} placeholder="06 XX XX XX XX" /></div>
+                    <div><label style={lStyle()}>Site web</label><input value={formPro.site_web} onChange={e => setFormPro({ ...formPro, site_web: e.target.value })} style={iStyle()} placeholder="https://www.societe.fr" /></div>
+                  </div>
+                  <SectionTitle>Profil métier</SectionTitle>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                    <div>
+                      <label style={lStyle()}>Type de structure *</label>
+                      <select value={formPro.type_structure} onChange={e => setFormPro({ ...formPro, type_structure: e.target.value })} style={{ ...iStyle(), cursor: "pointer" }}>
+                        <option value="">Choisir…</option>
+                        {typeStructures.map(t => <option key={t} value={t}>{TYPE_CONFIG[t]?.label || t}</option>)}
+                      </select>
+                    </div>
+                    <div><label style={lStyle()}>Tarif journalier (€/j)</label><input type="number" value={formPro.tarif_journalier} onChange={e => setFormPro({ ...formPro, tarif_journalier: e.target.value })} style={iStyle()} placeholder="Ex : 800" /></div>
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={lStyle()}>Familles de prestations proposées</label>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {FAMILLES.filter(f => f.id !== "tous").map(f => (
+                        <button key={f.id} onClick={() => setFormPro({ ...formPro, familles: toggleArray(formPro.familles, f.id) })} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", border: formPro.familles.includes(f.id) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.familles.includes(f.id) ? "#ECFDF5" : "white", color: formPro.familles.includes(f.id) ? "#065F46" : "#64748B", fontSize: "12px", fontWeight: formPro.familles.includes(f.id) ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                          <i className={`ti ${f.icon}`} style={{ fontSize: "14px" }} aria-hidden="true" />{f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={lStyle()}>Zones d'intervention</label>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      {zonesIntervention.map(z => (
+                        <button key={z} onClick={() => setFormPro({ ...formPro, zones_intervention: toggleArray(formPro.zones_intervention, z) })} style={{ padding: "5px 12px", borderRadius: "6px", border: formPro.zones_intervention.includes(z) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.zones_intervention.includes(z) ? "#ECFDF5" : "white", color: formPro.zones_intervention.includes(z) ? "#065F46" : "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>{z}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={lStyle()}>Présentation de vos prestations</label>
+                    <textarea value={formPro.description} onChange={e => setFormPro({ ...formPro, description: e.target.value })} rows={4} placeholder="Décrivez vos expertises, références, méthodes de travail…" style={{ ...iStyle(), resize: "vertical" as const }} />
+                  </div>
+                  <button onClick={handleSubmitPro} disabled={loadingPro} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "#0F6E56", color: "white", border: "none", padding: "10px 24px", borderRadius: "7px", cursor: loadingPro ? "wait" : "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit", width: "100%", opacity: loadingPro ? 0.7 : 1 }}>
+                    <i className="ti ti-send" style={{ fontSize: "15px" }} aria-hidden="true" />
+                    {loadingPro ? "Envoi en cours…" : "Envoyer mon dossier de candidature"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
+
     </div>
   )
 }

@@ -16,16 +16,30 @@ export default function MesActifs() {
 
   useEffect(() => { loadActifs() }, [])
 
-  async function loadActifs() {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase
-      .from("actifs")
-      .select("*, actifs_reglementaire(id, statut)")
-      .eq("user_id", user?.id)
-      .order("created_at", { ascending: false })
-    setActifs(data || [])
-    setLoading(false)
+async function loadActifs() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const { data: profil } = await supabase
+    .from("profils")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  let query = supabase
+    .from("actifs")
+    .select("*, actifs_reglementaire(id, statut)")
+    .order("created_at", { ascending: false })
+
+  // Admin voit tous les actifs, client voit les siens
+  if (profil?.role !== "admin") {
+    query = query.or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   }
+
+  const { data } = await query
+  setActifs(data || [])
+  setLoading(false)
+}
 
   async function supprimerActif(id: string) {
     if (!confirm("Supprimer cet actif ? Cette action est irréversible.")) return

@@ -26,7 +26,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     raccourcis: [
       { route: "/client/campagnes",  icon: "ti-speakerphone",   titre: "Campagnes",                  desc: "Gérez vos campagnes d'analyse climatique" },
       { route: "/client/actifs",     icon: "ti-building",       titre: "Mon Patrimoine",             desc: "Vue consolidée de vos actifs financés" },
-      { route: "/metier/reporting",  icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
+      { route: "/client/reporting",  icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
       { route: "/marketplace",       icon: "ti-building-store", titre: "Marketplace",                desc: "Accédez aux prestations énergie, carbone et prévention" },
       { route: "/client/demandes",   icon: "ti-clipboard-list", titre: "Mes demandes",               desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",   icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES et Brown Value" },
@@ -47,19 +47,20 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     raccourcis: [
       { route: "/client/campagnes",  icon: "ti-speakerphone",   titre: "Campagnes",                desc: "Gérez vos campagnes d'analyse climatique" },
       { route: "/client/actifs",     icon: "ti-building",       titre: "Mon Patrimoine",           desc: "Vue consolidée de l'exposition climatique" },
-      { route: "/metier/reporting",  icon: "ti-file-analytics", titre: "Reporting & Suivi",        desc: "Rapports SFDR, CSRD et suivi des prestations commandées" },
+      { route: "/client/reporting",  icon: "ti-file-analytics", titre: "Reporting & Suivi",        desc: "Rapports SFDR, CSRD et suivi des prestations commandées" },
       { route: "/marketplace",       icon: "ti-building-store", titre: "Marketplace",              desc: "Prestations prévention, audit et accompagnement" },
       { route: "/client/demandes",   icon: "ti-clipboard-list", titre: "Mes demandes",             desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",   icon: "ti-shield",         titre: "Risques & Réglementation", desc: "TCFD, SFDR, CSRD, Brown Value et prévention climatique" },
     ],
   },
-  particulier: {
+ particulier: {
     sousTitre: "Évaluez le risque climatique de votre bien immobilier",
     boutons: [
       { label: "Mon bien",            route: "/client/actifs", icon: "ti-home" },
       { label: "Aides & Subventions", route: "/client/aides",  icon: "ti-coin" },
     ],
-    afficherCarte: false, afficherRoadmap: true,
+    afficherCarte: true, // <-- était false
+    afficherRoadmap: true,
     kpis: [
       { val: "+1.4°C",  label: "Réchauffement actuel", tendance: "Depuis l'ère préindustrielle", tendanceColor: "#94A3B8" },
       { val: "421 ppm", label: "CO₂ atmosphérique",    tendance: "Record historique",             tendanceColor: "#B91C1C" },
@@ -83,7 +84,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     raccourcis: [
       { route: "/client/campagnes", icon: "ti-speakerphone",   titre: "Mes campagnes",              desc: "Gérez vos campagnes d'analyse climatique" },
       { route: "/client/actifs",    icon: "ti-building",       titre: "Mon Patrimoine",             desc: "Vue consolidée de vos actifs" },
-      { route: "/metier/reporting", icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "CSRD, Bilan GES et suivi des prestations" },
+      { route: "/client/reporting",  icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Rapports CSRD, SFDR et suivi des prestations commandées" },
       { route: "/marketplace",      icon: "ti-building-store", titre: "Marketplace",                desc: "Prestations énergie, carbone et prévention" },
       { route: "/client/demandes",  icon: "ti-clipboard-list", titre: "Mes demandes",               desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",  icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES" },
@@ -117,7 +118,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
     ],
     raccourcis: [
       { route: "/metier/portefeuille", icon: "ti-map",            titre: "Mon territoire",             desc: "Vue géographique de vos sites et bâtiments" },
-      { route: "/metier/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Conformité et suivi des prestations commandées" },
+      { route: "/client/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Conformité et suivi des prestations commandées" },
       { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Experts en énergie, carbone et prévention climatique" },
       { route: "/client/demandes",     icon: "ti-clipboard-list", titre: "Mes demandes",               desc: "Suivez vos demandes passées sur la marketplace" },
       { route: "/sensibilisation",     icon: "ti-shield",         titre: "Obligations réglementaires", desc: "Décret tertiaire, CSRD, risques climatiques" },
@@ -206,12 +207,21 @@ export default function Accueil() {
       .select("profil, prenom")
       .eq("id", user.id)
       .single()
-    if (profilAGE) {
-      setProfil(profilAGE.profil as Profil)
-      setPrenom(profilAGE.prenom || null)
-      setLoading(false)
-      return
-    }
+  if (profilAGE) {
+  setProfil(profilAGE.profil as Profil)
+  setPrenom(profilAGE.prenom || null)
+
+  // Charger la roadmap depuis profils_client
+  const { data: clientData } = await supabase
+    .from("profils_client")
+    .select("roadmap")
+    .eq("id", user.id)
+    .single()
+  if (clientData?.roadmap) setRoadmap(clientData.roadmap)
+
+  setLoading(false)
+  return
+}
 
     const { data: profilClient } = await supabase
       .from("profils_client")

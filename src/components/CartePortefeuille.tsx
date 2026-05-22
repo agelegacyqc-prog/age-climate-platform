@@ -53,6 +53,8 @@ async function geocoderBien(bien: Bien): Promise<{ lat: number; lng: number } | 
 export default function CartePortefeuille() {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  const osmLayerRef = useRef<any>(null)
+const satelliteLayerRef = useRef<any>(null)
   const [biens, setBiens] = useState<Bien[]>([])
   const [loading, setLoading] = useState(true)
   const [geocoding, setGeocoding] = useState(false)
@@ -106,110 +108,118 @@ export default function CartePortefeuille() {
     charger()
   }, [])
 
-  // Initialisation Leaflet
-  useEffect(() => {
-    if (loading || !mapRef.current) return
+// Initialisation Leaflet — une seule fois
+useEffect(() => {
+  if (loading || !mapRef.current) return
 
-    async function initMap() {
-      const L = (await import("leaflet")).default
-      await import("leaflet/dist/leaflet.css")
+  async function initMap() {
+    const L = (await import("leaflet")).default
+    await import("leaflet/dist/leaflet.css")
 
-      // Évite double init
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove()
+      mapInstanceRef.current = null
+    }
 
-      const map = L.map(mapRef.current!, {
-        center: [46.8, 2.3],
-        zoom: 5,
-        zoomControl: true,
-        scrollWheelZoom: false,
+    const map = L.map(mapRef.current!, {
+      center: [46.8, 2.3],
+      zoom: 5,
+      zoomControl: true,
+      scrollWheelZoom: false,
+    })
+
+    osmLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    })
+
+    satelliteLayerRef.current = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
+      maxZoom: 19,
+    })
+
+    osmLayerRef.current.addTo(map)
+
+    // Marqueurs
+    const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
+    const bounds: [number, number][] = []
+
+    biensCoordonnes.forEach(bien => {
+      const couleur = COULEURS_RISQUE[bien.niveau_risque] || "#78716C"
+      const lat = bien.latitude as number
+      const lng = bien.longitude as number
+
+      const svgIcon = L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            width: 28px; height: 28px;
+            background: ${couleur};
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700; color: white;
+            font-family: Inter, sans-serif;
+          ">${bien.score_risque || "?"}</div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
       })
 
-     const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 19,
-})
-
-const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-  attribution: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
-  maxZoom: 19,
-})
-
-vueSatellite ? satelliteLayer.addTo(map) : osmLayer.addTo(map)
-
-      // Ajout des marqueurs
-      const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
-      const bounds: [number, number][] = []
-
-      biensCoordonnes.forEach(bien => {
-        const couleur = COULEURS_RISQUE[bien.niveau_risque] || "#78716C"
-        const lat = bien.latitude as number
-        const lng = bien.longitude as number
-
-        // Icône SVG personnalisée
-        const svgIcon = L.divIcon({
-          className: "",
-          html: `
-            <div style="
-              width: 28px; height: 28px;
-              background: ${couleur};
-              border: 2px solid white;
-              border-radius: 50%;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-              display: flex; align-items: center; justify-content: center;
-              font-size: 10px; font-weight: 700; color: white;
-              font-family: Inter, sans-serif;
-            ">${bien.score_risque || "?"}</div>
-          `,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        })
-
-        const marker = L.marker([lat, lng], { icon: svgIcon })
-
-        marker.bindPopup(`
-          <div style="font-family: Inter, sans-serif; min-width: 180px;">
-            <div style="font-weight: 600; font-size: 13px; color: #1F2937; margin-bottom: 4px;">
-              ${bien.adresse}
-            </div>
-            <div style="font-size: 12px; color: #78716C; margin-bottom: 8px;">
-              ${bien.code_postal} ${bien.ville}
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <div style="width: 8px; height: 8px; border-radius: 50%; background: ${couleur};"></div>
-              <span style="font-size: 11px; font-weight: 600; color: ${couleur};">
-                ${LABELS_RISQUE[bien.niveau_risque] || bien.niveau_risque}
-              </span>
-              <span style="margin-left: auto; font-size: 11px; color: #78716C;">
-                Score ${bien.score_risque}/100
-              </span>
-            </div>
+      const marker = L.marker([lat, lng], { icon: svgIcon })
+      marker.bindPopup(`
+        <div style="font-family: Inter, sans-serif; min-width: 180px;">
+          <div style="font-weight: 600; font-size: 13px; color: #1F2937; margin-bottom: 4px;">
+            ${bien.adresse}
           </div>
-        `, { maxWidth: 240 })
+          <div style="font-size: 12px; color: #78716C; margin-bottom: 8px;">
+            ${bien.code_postal} ${bien.ville}
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${couleur};"></div>
+            <span style="font-size: 11px; font-weight: 600; color: ${couleur};">
+              ${LABELS_RISQUE[bien.niveau_risque] || bien.niveau_risque}
+            </span>
+            <span style="margin-left: auto; font-size: 11px; color: #78716C;">
+              Score ${bien.score_risque}/100
+            </span>
+          </div>
+        </div>
+      `, { maxWidth: 240 })
 
-        marker.addTo(map)
-        bounds.push([lat, lng])
-      })
+      marker.addTo(map)
+      bounds.push([lat, lng])
+    })
 
-      // Zoom automatique sur les biens
-      if (bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
-      }
-
-      mapInstanceRef.current = map
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
     }
 
-    initMap()
+    mapInstanceRef.current = map
+  }
 
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
+  initMap()
+
+  return () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove()
+      mapInstanceRef.current = null
     }
-  }, [loading, biens, vueSatellite])
+  }
+}, [loading, biens]) // -- vueSatellite retiré des dépendances
+
+// Permutation des layers sans recréer la carte
+useEffect(() => {
+  if (!mapInstanceRef.current || !osmLayerRef.current || !satelliteLayerRef.current) return
+  if (vueSatellite) {
+    mapInstanceRef.current.removeLayer(osmLayerRef.current)
+    satelliteLayerRef.current.addTo(mapInstanceRef.current)
+  } else {
+    mapInstanceRef.current.removeLayer(satelliteLayerRef.current)
+    osmLayerRef.current.addTo(mapInstanceRef.current)
+  }
+}, [vueSatellite])
 
   return (
     <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", overflow: "hidden", border: "1px solid #E5E1DA" }}>

@@ -76,42 +76,57 @@ export default function Layout() {
         .eq("id", user.id)
         .single()
 
-      if (profilAGE) {
+ if (profilAGE) {
         const p = profilAGE.prenom || ""
         const n = profilAGE.nom || ""
         setPrenom(p)
         setInitiales(`${p[0] || ""}${n[0] || ""}`.toUpperCase() || user.email![0].toUpperCase())
+
         const labels: Record<string, string> = {
           banque: "Banque", assurance: "Assurance",
           particulier: "Particulier", collectivite: "Collectivité",
+          entreprise: "Entreprise", foncieres: "Foncières",
         }
-        setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Consultant")
-        setEspace("metier")
+        setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Client")
 
-        const { count } = await supabase
-          .from("demandes_marketplace")
-          .select("id", { count: "exact", head: true })
-          .eq("statut", "soumise")
-        setNbDemandes(count || 0)
+        if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
+          setEspace("metier")
 
-        const { count: countCampagnes } = await supabase
-          .from("campagnes")
-          .select("id", { count: "exact", head: true })
-          .eq("origine", "client")
-          .eq("statut", "soumise")
-        setNbCampagnes(countCampagnes || 0)
+          const { count } = await supabase
+            .from("demandes_marketplace")
+            .select("id", { count: "exact", head: true })
+            .eq("statut", "soumise")
+          setNbDemandes(count || 0)
 
-        const { count: countMessages } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .eq("lu", false)
-          .neq("expediteur_id", user.id)
-        setNbMessagesNonLus(countMessages || 0)
+          const { count: countCampagnes } = await supabase
+            .from("campagnes")
+            .select("id", { count: "exact", head: true })
+            .eq("origine", "client")
+            .eq("statut", "soumise")
+          setNbCampagnes(countCampagnes || 0)
+
+          const { count: countMessages } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("lu", false)
+            .neq("expediteur_id", user.id)
+          setNbMessagesNonLus(countMessages || 0)
+
+        } else {
+          setEspace("client")
+
+          const { count: countMsgClient } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("lu", false)
+            .eq("client_id", user.id)
+            .neq("expediteur_id", user.id)
+          setNbMessagesClient(countMsgClient || 0)
+        }
 
         setAuthChecked(true)
         return
       }
-
       const { data: profilClient } = await supabase
         .from("profils_client")
         .select("type_client")

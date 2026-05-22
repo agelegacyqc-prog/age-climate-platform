@@ -29,10 +29,14 @@ export default function Login() {
       .eq("id", user.id)
       .single()
 
-    if (profilAGE) {
-      navigate("/metier")
-      return
-    }
+  if (profilAGE) {
+  if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
+    navigate("/metier")
+  } else {
+    navigate("/")
+  }
+  return
+}
 
     // Vérifier si c'est un client
     const { data: profilClient } = await supabase
