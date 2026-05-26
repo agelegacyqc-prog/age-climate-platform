@@ -69,7 +69,7 @@ export default function Layout() {
         navigate("/login")
         return
       }
-
+console.log("user:", user?.id, user?.email)
       const { data: profilAGE } = await supabase
         .from("profils")
         .select("prenom, nom, profil, role")
@@ -82,13 +82,13 @@ export default function Layout() {
         setPrenom(p)
         setInitiales(`${p[0] || ""}${n[0] || ""}`.toUpperCase() || user.email![0].toUpperCase())
 
-        const labels: Record<string, string> = {
-          banque: "Banque", assurance: "Assurance",
-          particulier: "Particulier", collectivite: "Collectivité",
-          entreprise: "Entreprise", foncieres: "Foncières",
-        }
+       const labels: Record<string, string> = {
+  banque: "Banque", assureur: "Assurance",
+  particulier: "Particulier", collectivite: "Collectivité",
+  entreprise: "Entreprise", foncieres: "Foncières",
+}
         setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Client")
-
+console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Client")
         if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
           setEspace("metier")
 
@@ -195,30 +195,51 @@ export default function Layout() {
           <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
           <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
 
-          {/* ── Espace Client ── */}
-          {espace === "client" && (
-            <>
-              <div className="nav-section">Mon espace</div>
-              <NavItem to="/client/campagnes" icon="ti-speakerphone" label="Mes Campagnes" />
-              <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
-              <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
-              <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
-              <NavLink
-                to="/client/messagerie"
-                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
-              >
-                <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
-                <span className="nav-item__label">Messagerie</span>
-                {nbMessagesClient > 0 && (
-                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-                      {nbMessagesClient}
-                    </span>
-                  </span>
-                )}
-              </NavLink>
-            </>
-          )}
+{/* ── Espace Client ── */}
+{espace === "client" && (
+  <>
+    <div className="nav-section">Mon espace</div>
+    <NavItem to="/client/campagnes" icon="ti-speakerphone" label="Mes Campagnes" />
+
+    {/* Patrimoine selon profil */}
+    {(labelProfil === "Entreprise" || labelProfil === "Particulier") && (
+      <NavItem to="/client/actifs" icon="ti-building" label={labelProfil === "Particulier" ? "Mon bien" : "Mon Patrimoine"} />
+    )}
+    {labelProfil === "Collectivité" && (
+      <NavItem to="/client/actifs" icon="ti-map" label="Mon Territoire" />
+    )}
+    {labelProfil === "Banque" && (
+      <>
+        <NavItem to="/client/biens-campagnes" icon="ti-building-bank" label="Biens financés" />
+        <NavItem to="/client/actifs?vue=patrimoine" icon="ti-building" label="Mon Patrimoine" />
+      </>
+    )}
+    {labelProfil === "Assurance" && (
+      <>
+      <NavItem to="/client/biens-campagnes" icon="ti-shield" label="Biens assurés" />
+        <NavItem to="/client/actifs/patrimoine" icon="ti-building" label="Mon Patrimoine" />
+      </>
+    )}
+
+    <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
+    <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" />
+    <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
+    <NavLink
+      to="/client/messagerie"
+      className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+    >
+      <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
+      <span className="nav-item__label">Messagerie</span>
+      {nbMessagesClient > 0 && (
+        <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
+          <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
+            {nbMessagesClient}
+          </span>
+        </span>
+      )}
+    </NavLink>
+  </>
+)}
 
           {/* ── Espace Métier ── */}
           {espace === "metier" && (

@@ -2,25 +2,33 @@ import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
-type ProfilType = "banque" | "assurance" | "particulier" | "collectivite" | null
-
 const PROFILS = [
-  { id: "banque",      label: "Banque",       icon: "ti-building-bank",      desc: "Financement immobilier, crédit, analyse du risque de portefeuille" },
-  { id: "assurance",   label: "Assurance",    icon: "ti-shield-check",       desc: "Souscription, sinistres, exposition climatique des assurés" },
-  { id: "particulier", label: "Particulier",  icon: "ti-home",               desc: "Évaluation du risque climatique de votre bien immobilier" },
-  { id: "collectivite",label: "Collectivité", icon: "ti-building-community", desc: "Adaptation territoriale et conformité réglementaire" },
+  { id: "banque",       label: "Banque",       icon: "ti-building-bank",      desc: "Financement immobilier, crédit, analyse du risque de portefeuille" },
+  { id: "assureur",     label: "Assurance",    icon: "ti-shield-check",       desc: "Souscription, sinistres, exposition climatique des assurés" },
+  { id: "particulier",  label: "Particulier",  icon: "ti-home",               desc: "Évaluation du risque climatique de votre bien immobilier" },
+  { id: "collectivite", label: "Collectivité", icon: "ti-building-community", desc: "Adaptation territoriale et conformité réglementaire" },
+  { id: "entreprise",   label: "Entreprise",   icon: "ti-building-factory",   desc: "PME, ETI, Grand groupe — obligations réglementaires et transition énergétique" },
+  { id: "foncieres",    label: "Foncière",     icon: "ti-building-estate",    desc: "Valorisation et résilience de votre patrimoine immobilier" },
 ]
 
-const RACCOURCIS: Record<string, { label: string; route: string; icon: string }[]> = {
-  banque:      [{ label: "Mes campagnes", route: "/metier/campagnes",    icon: "ti-speakerphone" }, { label: "Portefeuille", route: "/metier/portefeuille", icon: "ti-building-bank" }],
-  assurance:   [{ label: "Mes campagnes", route: "/metier/campagnes",    icon: "ti-speakerphone" }, { label: "Portefeuille", route: "/metier/portefeuille", icon: "ti-building-bank" }],
-  particulier: [{ label: "Mon bien",      route: "/client/actifs",       icon: "ti-home"         }, { label: "Aides & Subventions", route: "/client/aides", icon: "ti-coin" }],
-  collectivite:[{ label: "Mon territoire",route: "/metier/portefeuille", icon: "ti-map"          }, { label: "Reporting", route: "/metier/reporting", icon: "ti-file-analytics" }],
+const ENJEUX_LABELS: Record<string, string> = {
+  energie:       "Énergie & Performance énergétique",
+  environnement: "Environnement & Carbone",
+  prevention:    "Prévention & Risques climatiques",
+  resilience:    "Accompagnement à la résilience",
+  financement:   "Financement & Aides",
+  reporting:     "Reporting & Conformité",
 }
 
-function inputStyle(disabled = false): React.CSSProperties {
+const NIVEAUX_LABELS: Record<string, string> = {
+  debutant: "Débutant — découverte des obligations",
+  en_cours: "En cours — accompagnement en démarche",
+  avance:   "Avancé — optimisation et structuration",
+}
+
+function iStyle(disabled = false): React.CSSProperties {
   return {
-    width: "100%", padding: "9px 12px",
+    width: "100%", padding: "8px 10px",
     border: "1px solid #E2E8F0", borderRadius: "7px",
     fontSize: "13px", color: disabled ? "#94A3B8" : "#0F172A",
     background: disabled ? "#F8FAFC" : "white",
@@ -29,69 +37,99 @@ function inputStyle(disabled = false): React.CSSProperties {
   }
 }
 
-function labelStyle(): React.CSSProperties {
+function lStyle(): React.CSSProperties {
   return {
     display: "block", fontSize: "11px", fontWeight: 600,
-    color: "#94A3B8", marginBottom: "6px",
+    color: "#94A3B8", marginBottom: "5px",
     textTransform: "uppercase" as const, letterSpacing: "0.07em",
   }
 }
 
 export default function MonProfil() {
   const navigate = useNavigate()
-  const [profilActuel, setProfilActuel] = useState<ProfilType>(null)
-  const [profilSelectionne, setProfilSelectionne] = useState<ProfilType>(null)
-  const [prenom, setPrenom] = useState("")
-  const [nom, setNom] = useState("")
-  const [email, setEmail] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    async function charger() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setEmail(user.email || "")
-      const { data } = await supabase.from("profils").select("*").eq("id", user.id).single()
-      if (data) {
-        setProfilActuel(data.profil as ProfilType)
-        setProfilSelectionne(data.profil as ProfilType)
-        setPrenom(data.prenom || "")
-        setNom(data.nom || "")
-      }
-      setLoading(false)
+  // Identité
+  const [prenom, setPrenom]       = useState("")
+  const [nom, setNom]             = useState("")
+  const [email, setEmail]         = useState("")
+  const [telephone, setTelephone] = useState("")
+  const [poste, setPoste]         = useState("")
+
+  // Organisation
+  const [societe, setSociete]   = useState("")
+  const [adresse, setAdresse]   = useState("")
+  const [profil, setProfil]     = useState("")
+
+  // Parcours (lecture seule sauf si on clique Modifier)
+  const [enjeux, setEnjeux]     = useState<string[]>([])
+  const [niveau, setNiveau]     = useState("")
+  const [editParcours, setEditParcours] = useState(false)
+
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+
+  useEffect(() => { charger() }, [])
+
+  async function charger() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setEmail(user.email || "")
+
+    const { data: p } = await supabase.from("profils").select("*").eq("id", user.id).single()
+    if (p) {
+      setPrenom(p.prenom || "")
+      setNom(p.nom || "")
+      setTelephone(p.telephone || "")
+      setPoste(p.poste || "")
+      setSociete(p.societe || "")
+      setAdresse(p.adresse || "")
+      setProfil(p.profil || "")
     }
-    charger()
-  }, [])
+
+    const { data: pc } = await supabase.from("profils_client").select("enjeux, niveau").eq("id", user.id).single()
+    if (pc) {
+      setEnjeux(pc.enjeux || [])
+      setNiveau(pc.niveau || "")
+    }
+
+    setLoading(false)
+  }
 
   async function sauvegarder() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from("profils").upsert({ id: user.id, prenom, nom, profil: profilSelectionne })
-    setProfilActuel(profilSelectionne)
+
+    await supabase.from("profils").upsert({
+      id: user.id, prenom, nom, telephone, poste, societe, adresse, profil,
+    })
+
+    if (editParcours) {
+      await supabase.from("profils_client").upsert({
+        id: user.id, enjeux, niveau,
+      })
+    }
+
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
+
+  const initiales = `${prenom?.[0] || ""}${nom?.[0] || ""}`.toUpperCase() || "?"
+  const pctComplet = [prenom, nom, telephone, poste, societe, adresse, profil].filter(Boolean).length
+  const pctLabel = Math.round((pctComplet / 7) * 100)
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-      {/* Header */}
+      {/* En-tête */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <button
-          onClick={() => navigate("/client")}
-          style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
-          <i className="ti ti-arrow-left" style={{ fontSize: "15px" }} aria-hidden="true" />
-          Retour
+        <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
+          <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "15px", color: "#64748B" }}>Modifiez vos informations et votre type de compte</div>
-        </div>
         {saved && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ECFDF5", color: "#065F46", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, border: "1px solid #A7F3D0" }}>
             <i className="ti ti-circle-check" style={{ fontSize: "15px" }} aria-hidden="true" />
@@ -100,120 +138,157 @@ export default function MonProfil() {
         )}
       </div>
 
-      {/* Informations + Aperçu */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-
-        {/* Informations personnelles */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>
-            <i className="ti ti-user" style={{ fontSize: "15px", color: "#94A3B8", marginRight: "8px" }} aria-hidden="true" />
-            Informations personnelles
+      {/* Avatar + résumé */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px", display: "flex", alignItems: "center", gap: "20px" }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "22px", fontWeight: 500, color: "#0F6E56" }}>
+          {initiales}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>
+            {prenom || nom ? `${prenom} ${nom}`.trim() : "Mon profil"}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <div>
-                <label style={labelStyle()}>Prénom</label>
-                <input type="text" value={prenom} onChange={e => setPrenom(e.target.value)} style={inputStyle()} />
-              </div>
-              <div>
-                <label style={labelStyle()}>Nom</label>
-                <input type="text" value={nom} onChange={e => setNom(e.target.value)} style={inputStyle()} />
+          <div style={{ fontSize: "13px", color: "#64748B" }}>
+            {email}{profil ? ` · ${PROFILS.find(p => p.id === profil)?.label}` : ""}{niveau ? ` · Niveau : ${NIVEAUX_LABELS[niveau]?.split(" — ")[0]}` : ""}
+          </div>
+        </div>
+        <div style={{ background: pctLabel >= 80 ? "#ECFDF5" : "#FFFBEB", color: pctLabel >= 80 ? "#065F46" : "#92400E", fontSize: "12px", fontWeight: 500, padding: "4px 12px", borderRadius: "6px" }}>
+          Profil complété à {pctLabel} %
+        </div>
+      </div>
+
+      {/* Identité */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+          <i className="ti ti-user" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Identité</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div><label style={lStyle()}>Prénom</label><input value={prenom} onChange={e => setPrenom(e.target.value)} style={iStyle()} placeholder="Votre prénom" /></div>
+          <div><label style={lStyle()}>Nom</label><input value={nom} onChange={e => setNom(e.target.value)} style={iStyle()} placeholder="Votre nom" /></div>
+          <div><label style={lStyle()}>Téléphone</label><input value={telephone} onChange={e => setTelephone(e.target.value)} style={iStyle()} placeholder="06 XX XX XX XX" /></div>
+          <div><label style={lStyle()}>Poste / Fonction</label><input value={poste} onChange={e => setPoste(e.target.value)} style={iStyle()} placeholder="Ex : Directeur des risques" /></div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={lStyle()}>Email</label>
+            <input value={email} disabled style={iStyle(true)} />
+            <div style={{ fontSize: "11px", color: "#94A3B8", marginTop: "4px" }}>L'email ne peut pas être modifié ici</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Organisation */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+          <i className="ti ti-building" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Organisation</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div><label style={lStyle()}>Société</label><input value={societe} onChange={e => setSociete(e.target.value)} style={iStyle()} placeholder="Raison sociale" /></div>
+          <div>
+            <label style={lStyle()}>Type de structure</label>
+            <select value={profil} onChange={e => setProfil(e.target.value)} style={{ ...iStyle(), cursor: "pointer" }}>
+              <option value="">Choisir…</option>
+              {PROFILS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={lStyle()}>Adresse</label>
+            <input value={adresse} onChange={e => setAdresse(e.target.value)} style={iStyle()} placeholder="Adresse complète" />
+          </div>
+        </div>
+      </div>
+
+      {/* Mon parcours */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <i className="ti ti-route" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Mon parcours</div>
+          </div>
+          <button onClick={() => setEditParcours(!editParcours)} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#0369A1", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            <i className="ti ti-edit" style={{ fontSize: "14px" }} aria-hidden="true" />
+            {editParcours ? "Fermer" : "Modifier"}
+          </button>
+        </div>
+
+        {!editParcours ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div>
+              <label style={lStyle()}>Enjeux prioritaires</label>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {enjeux.length > 0
+                  ? enjeux.map(e => <span key={e} style={{ background: "#ECFDF5", color: "#065F46", fontSize: "12px", padding: "3px 10px", borderRadius: "4px" }}>{ENJEUX_LABELS[e] || e}</span>)
+                  : <span style={{ fontSize: "13px", color: "#94A3B8" }}>Non défini</span>
+                }
               </div>
             </div>
             <div>
-              <label style={labelStyle()}>Email</label>
-              <input type="email" value={email} disabled style={inputStyle(true)} />
-              <div style={{ fontSize: "11px", color: "#94A3B8", marginTop: "4px" }}>L'email ne peut pas être modifié ici</div>
+              <label style={lStyle()}>Niveau</label>
+              <span style={{ background: "#EFF6FF", color: "#1E40AF", fontSize: "12px", padding: "3px 10px", borderRadius: "4px" }}>
+                {niveau ? NIVEAUX_LABELS[niveau] : "Non défini"}
+              </span>
             </div>
           </div>
-        </div>
-
-        {/* Aperçu raccourcis */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>
-            <i className="ti ti-layout-grid" style={{ fontSize: "15px", color: "#94A3B8", marginRight: "8px" }} aria-hidden="true" />
-            Raccourcis dans l'accueil
-          </div>
-          {profilSelectionne ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "4px" }}>
-                Avec le profil <strong style={{ color: "#0F172A" }}>{PROFILS.find(p => p.id === profilSelectionne)?.label}</strong>, votre accueil affichera :
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div>
+              <label style={lStyle()}>Enjeux prioritaires</label>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {Object.entries(ENJEUX_LABELS).map(([id, label]) => (
+                  <button key={id} onClick={() => setEnjeux(enjeux.includes(id) ? enjeux.filter(e => e !== id) : [...enjeux, id])} style={{ padding: "5px 12px", borderRadius: "6px", border: enjeux.includes(id) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: enjeux.includes(id) ? "#ECFDF5" : "white", color: enjeux.includes(id) ? "#065F46" : "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                    {label}
+                  </button>
+                ))}
               </div>
-              {RACCOURCIS[profilSelectionne]?.map((r, i) => (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  padding: "10px 14px", borderRadius: "8px",
-                  background: i === 0 ? "#ECFDF5" : "#F8FAFC",
-                  border: `1px solid ${i === 0 ? "#A7F3D0" : "#E2E8F0"}`,
-                }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "7px", background: i === 0 ? "#DCFCE7" : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <i className={`ti ${r.icon}`} style={{ fontSize: "16px", color: i === 0 ? "#0F6E56" : "#94A3B8" }} aria-hidden="true" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{r.label}</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8", fontFamily: "'DM Mono', monospace" }}>{r.route}</div>
-                  </div>
-                  {i === 0 && (
-                    <span style={{ background: "#0F6E56", color: "white", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>Principal</span>
-                  )}
-                </div>
-              ))}
             </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "32px", color: "#94A3B8" }}>
-              <i className="ti ti-hand-click" style={{ fontSize: "32px", display: "block", marginBottom: "10px" }} aria-hidden="true" />
-              <div style={{ fontSize: "13px" }}>Sélectionnez un profil pour voir vos raccourcis</div>
+            <div>
+              <label style={lStyle()}>Niveau</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {Object.entries(NIVEAUX_LABELS).map(([id, label]) => (
+                  <button key={id} onClick={() => setNiveau(id)} style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: niveau === id ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: niveau === id ? "#ECFDF5" : "white", color: niveau === id ? "#065F46" : "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit", textAlign: "left" as const }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Choix du profil */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Type de compte</div>
-        <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "16px" }}>
-          Ce choix détermine les raccourcis affichés dans votre bandeau d'accueil.
+      {/* Sécurité */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+          <i className="ti ti-lock" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Sécurité</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px", marginBottom: "20px" }}>
-          {PROFILS.map(p => (
-            <div key={p.id} onClick={() => setProfilSelectionne(p.id as ProfilType)} style={{
-              display: "flex", alignItems: "center", gap: "14px",
-              padding: "14px 16px", borderRadius: "9px", cursor: "pointer",
-              border: `1px solid ${profilSelectionne === p.id ? "#0F6E56" : "#E2E8F0"}`,
-              background: profilSelectionne === p.id ? "#ECFDF5" : "white",
-              transition: "all 0.12s",
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: "9px", background: profilSelectionne === p.id ? "#DCFCE7" : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <i className={`ti ${p.icon}`} style={{ fontSize: "20px", color: profilSelectionne === p.id ? "#0F6E56" : "#94A3B8" }} aria-hidden="true" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "3px" }}>{p.label}</div>
-                <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.4 }}>{p.desc}</div>
-              </div>
-              {profilSelectionne === p.id && (
-                <i className="ti ti-circle-check" style={{ fontSize: "20px", color: "#0F6E56", flexShrink: 0 }} aria-hidden="true" />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-          <button onClick={() => navigate("/client")} style={{ background: "white", color: "#0F172A", border: "1px solid #E2E8F0", padding: "8px 18px", borderRadius: "7px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>
-            Annuler
-          </button>
-          <button onClick={sauvegarder} disabled={saving} style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: "#0F6E56", color: "white", border: "none",
-            padding: "8px 20px", borderRadius: "7px",
-            cursor: saving ? "wait" : "pointer", fontWeight: 500,
-            fontSize: "13px", fontFamily: "inherit", opacity: saving ? 0.7 : 1,
-          }}>
-            <i className="ti ti-device-floppy" style={{ fontSize: "15px" }} aria-hidden="true" />
-            {saving ? "Sauvegarde…" : "Sauvegarder"}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFC", borderRadius: "8px" }}>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "2px" }}>Mot de passe</div>
+            <div style={{ fontSize: "12px", color: "#94A3B8" }}>Modifiez votre mot de passe via l'email de réinitialisation</div>
+          </div>
+          <button
+            onClick={async () => {
+              const { data: { user } } = await supabase.auth.getUser()
+              if (user?.email) await supabase.auth.resetPasswordForEmail(user.email)
+              alert("Un email de réinitialisation vous a été envoyé.")
+            }}
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+            <i className="ti ti-mail" style={{ fontSize: "14px" }} aria-hidden="true" />
+            Envoyer le lien
           </button>
         </div>
       </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+        <button onClick={() => navigate("/")} style={{ background: "white", color: "#0F172A", border: "1px solid #E2E8F0", padding: "8px 18px", borderRadius: "7px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>
+          Annuler
+        </button>
+        <button onClick={sauvegarder} disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "8px 20px", borderRadius: "7px", cursor: saving ? "wait" : "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+          <i className="ti ti-device-floppy" style={{ fontSize: "15px" }} aria-hidden="true" />
+          {saving ? "Sauvegarde…" : "Sauvegarder"}
+        </button>
+      </div>
+
     </div>
   )
 }

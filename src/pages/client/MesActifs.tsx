@@ -26,7 +26,7 @@ async function loadActifs() {
     .eq("id", user.id)
     .single()
 
-  let query = supabase
+let query = supabase
     .from("actifs")
     .select("*, actifs_reglementaire(id, statut)")
     .order("created_at", { ascending: false })
@@ -35,6 +35,9 @@ async function loadActifs() {
   if (profil?.role !== "admin") {
     query = query.or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   }
+
+  // Exclure les actifs importés via campagne
+  query = query.neq("categorie", "import_csv")
 
   const { data } = await query
   setActifs(data || [])

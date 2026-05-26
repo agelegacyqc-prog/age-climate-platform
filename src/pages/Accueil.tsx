@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import CartePortefeuille from "../components/CartePortefeuille"
 
-type Profil = "banque" | "assurance" | "particulier" | "collectivite" | "entreprise" | "expert" | null
+type Profil = "banque" | "assureur" | "particulier" | "collectivite" | "entreprise" | "expert" | null
 
 interface ProfilConfig {
   sousTitre: string
@@ -32,7 +32,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/sensibilisation",   icon: "ti-leaf",           titre: "Obligations réglementaires", desc: "CSRD, Décret tertiaire, BACS, Bilan GES et Brown Value" },
     ],
   },
-  assurance: {
+  assureur: {
     sousTitre: "Analysez l'exposition climatique de vos assurés",
     boutons: [
       { label: "Mes campagnes",  route: "/client/campagnes",      icon: "ti-speakerphone" },
@@ -145,7 +145,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
 }
 
 const LABEL_PROFIL: Record<string, string> = {
-  banque: "Banque", assurance: "Assurance", particulier: "Particulier",
+  banque: "Banque", assureur: "Assurance", particulier: "Particulier",
   collectivite: "Collectivité", entreprise: "Entreprise", expert: "Expert",
 }
 
@@ -173,7 +173,7 @@ const ALERTES_PAR_PROFIL: Record<string, AlerteRegl[]> = {
     { label: "SFDR — classification portefeuille", echeance: "31/12/2025",      niveau: "orange" },
     { label: "Brown Value — mise à jour actifs",   echeance: "01/10/2025",      niveau: "bleu"   },
   ],
-  assurance: [
+  assureur: [
     { label: "SFDR — reporting durabilité",        echeance: "30/06/2025",      niveau: "rouge"  },
     { label: "CSRD — obligations 2025",            echeance: "31/12/2025",      niveau: "orange" },
     { label: "Score risque — révision annuelle",   echeance: "01/10/2025",      niveau: "bleu"   },
@@ -195,6 +195,7 @@ export default function Accueil() {
   const [prenom, setPrenom]   = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
+  const [alertesDynamiques, setAlertesDynamiques] = useState<AlerteRegl[]>([])
 
   useEffect(() => { chargerProfil() }, [])
 
@@ -217,10 +218,60 @@ export default function Accueil() {
     .select("roadmap")
     .eq("id", user.id)
     .single()
-  if (clientData?.roadmap) setRoadmap(clientData.roadmap)
+if (clientData?.roadmap) setRoadmap(clientData.roadmap)
 
-  setLoading(false)
-  return
+// Charger les alertes réglementaires dynamiques
+const { data: actifsData } = await supabase
+  .from("actifs")
+  .select("id")
+  .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+  .neq("categorie", "import_csv")
+
+if (actifsData && actifsData.length > 0) {
+  const actifIds = actifsData.map(a => a.id)
+  const { data: reglemData } = await supabase
+    .from("actifs_reglementaire")
+    .select("reglementation, statut, echeance")
+    .in("actif_id", actifIds)
+    .eq("statut", "eligible")
+    .not("echeance", "is", null)
+    .order("echeance", { ascending: true })
+
+  if (reglemData) {
+    // Dédupliquer par reglementation
+    const vus = new Set<string>()
+    const alertes: AlerteRegl[] = []
+    for (const r of reglemData) {
+      if (!vus.has(r.reglementation)) {
+        vus.add(r.reglementation)
+        const echeance = new Date(r.echeance)
+        const today = new Date()
+        const diffJours = Math.ceil((echeance.getTime() - today.getTime()) / 86400000)
+        const niveau: "rouge" | "orange" | "bleu" = diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu"
+        const labels: Record<string, string> = {
+          tertiaire: "Décret Tertiaire — rapport annuel",
+          bacs: "Décret BACS — mise en conformité",
+          audit_energetique: "Audit énergétique — renouvellement",
+          csrd: "CSRD — reporting durabilité",
+          eu_taxonomy: "EU Taxonomy — alignement",
+          sfdr: "SFDR — classification portefeuille",
+          esrs: "ESRS — reporting durabilité",
+          ifrs_s2: "IFRS S2 — reporting climatique",
+          iso50001: "ISO 50001 — management énergie",
+        }
+        alertes.push({
+          label: labels[r.reglementation] || r.reglementation,
+          echeance: echeance.toLocaleDateString("fr-FR"),
+          niveau,
+        })
+      }
+    }
+    setAlertesDynamiques(alertes)
+  }
+}
+
+setLoading(false)
+return
 }
 
     const { data: profilClient } = await supabase
@@ -233,7 +284,7 @@ export default function Accueil() {
         banque_assurance: profilClient.sous_profil || "banque",
         proprietaire: "particulier", collectivite: "collectivite",
         entreprise: "entreprise", expert: "expert",
-        banque: "banque", assurance: "assurance",
+        banque: "banque", assurance: "assureur",
       }
       setProfil((mapping[profilClient.type_client] || profilClient.type_client) as Profil)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
@@ -245,7 +296,7 @@ export default function Accueil() {
   }
 
   const config  = PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut
-  const alertes = ALERTES_PAR_PROFIL[profil || ""] || []
+  const alertes = alertesDynamiques.length > 0 ? alertesDynamiques : ALERTES_PAR_PROFIL[profil || ""] || []
   const today   = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   const niveauStyle = {

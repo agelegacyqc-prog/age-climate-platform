@@ -16,6 +16,7 @@ import MonProfil from "./pages/client/MonProfil"
 import Onboarding from "./pages/client/Onboarding"
 import ClientCampagnes from "./pages/client/MesCampagnes"
 import ClientDemandes from "./pages/client/Demandes"
+import BiensCampagnes from "./pages/client/BiensCampagnes"
 import ClientReporting from "./pages/client/Reporting"
 import ClientMessagerie from "./pages/client/Messagerie"
 import DashboardMetier from "./pages/metier/DashboardMetier"
@@ -34,6 +35,7 @@ import PartenaireMissions from "./pages/partenaire/PartenaireMissions"
 import PartenaireMessages from "./pages/partenaire/PartenaireMessages"
 import PartenaireDocuments from "./pages/partenaire/PartenaireDocuments"
 import PartenaireLayout from "./components/PartenaireLayout"
+
 
 export default function App() {
   return (
@@ -57,6 +59,7 @@ export default function App() {
           <Route path="client/campagnes" element={<ProtectedRoute><ClientCampagnes /></ProtectedRoute>} />
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
           <Route path="client/reporting" element={<ProtectedRoute><ClientReporting /></ProtectedRoute>} />
+          <Route path="client/biens-campagnes" element={<ProtectedRoute><BiensCampagnes /></ProtectedRoute>} />
           <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
