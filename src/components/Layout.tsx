@@ -217,7 +217,7 @@ console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" 
     {labelProfil === "Assurance" && (
       <>
       <NavItem to="/client/biens-campagnes" icon="ti-shield" label="Biens assurés" />
-        <NavItem to="/client/actifs/patrimoine" icon="ti-building" label="Mon Patrimoine" />
+        <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
       </>
     )}
 
