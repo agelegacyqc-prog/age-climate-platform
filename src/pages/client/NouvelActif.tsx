@@ -297,39 +297,44 @@ setEtape(2)
     setEtape(3)
   }
 
-  async function saveEtape3() {
-    if (actifId) {
-      const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
-      if (eligibles.length > 0) {
-       const echeancesMap: Record<string, string> = {
-  tertiaire:        "2026-09-30",
-  bacs:             "2026-01-01",
-  audit_energetique:"2026-11-01",
-  csrd:             "2026-12-31",
-  eu_taxonomy:      "2026-12-31",
-  sfdr:             "2026-06-30",
-  esrs:             "2026-12-31",
-  ifrs_s2:          "2026-12-31",
-  iso50001:         "2026-12-31",
-  loi_climat:       "2026-12-31",
-  bilan_ges:        "2026-12-31",
-}
+async function saveEtape3() {
+  if (actifId) {
+    const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
 
-await supabase.from("actifs_reglementaire").insert(
-  eligibles.map(r => ({
-    actif_id:      actifId,
-    reglementation: r.id,
-    statut:        r.statut,
-    score:         r.statut === "eligible" ? 0 : 50,
-    details:       r.raison,
-    echeance:      echeancesMap[r.id] || null,
-  }))
-)
-      }
+    const echeancesMap: Record<string, string> = {
+      tertiaire:         "2026-09-30",
+      bacs:              "2026-01-01",
+      audit_energetique: "2026-11-01",
+      csrd:              "2026-12-31",
+      eu_taxonomy:       "2026-12-31",
+      sfdr:              "2026-06-30",
+      esrs:              "2026-12-31",
+      ifrs_s2:           "2026-12-31",
+      iso50001:          "2026-12-31",
+      loi_climat:        "2026-12-31",
+      bilan_ges:         "2026-12-31",
     }
-    setEtape(4)
-  }
 
+    if (eligibles.length > 0) {
+      await supabase.from("actifs_reglementaire").insert(
+        eligibles.map(r => ({
+          actif_id:       actifId,
+          reglementation: r.id,
+          statut:         r.statut,
+          score:          r.statut === "eligible" ? 0 : 50,
+          details:        r.raison,
+          echeance:       echeancesMap[r.id] || null,
+        }))
+      )
+
+      // Calculer et sauvegarder le score climatique
+      const nbEligibles = eligibles.filter(r => r.statut === "eligible").length
+      const scoreCalcule = Math.min(100, Math.round((nbEligibles / 11) * 100))
+      await supabase.from("actifs").update({ score_climatique: scoreCalcule }).eq("id", actifId)
+    }
+  }
+  setEtape(4)
+}
   function toggleDocument(id: string) {
     setDocumentsUploades(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
