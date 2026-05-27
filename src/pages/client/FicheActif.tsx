@@ -42,6 +42,8 @@ export default function FicheActif() {
   const [loading, setLoading] = useState(true)
   const [onglet, setOnglet] = useState("synthese")
   const [ajoutDoc, setAjoutDoc] = useState(false)
+  const [rapports, setRapports]   = useState<any[]>([])
+  const [demandes, setDemandes]   = useState<any[]>([])
 
   useEffect(() => {
     loadActif()
@@ -64,10 +66,19 @@ export default function FicheActif() {
       .select("*")
       .eq("actif_id", id)
 
-    setActif(actifData)
-    setReglementations(reglData || [])
-    setDocuments(docData || [])
-    setLoading(false)
+    const { data: { user } } = await supabase.auth.getUser()
+
+const [{ data: rapportsData }, { data: demandesData }] = await Promise.all([
+  supabase.from("rapports_client").select("id, statut, type_rapport").eq("actif_id", id).eq("statut", "disponible"),
+  supabase.from("demandes_marketplace").select("id").eq("actif_id", id).eq("client_id", user?.id || ""),
+])
+
+setActif(actifData)
+setReglementations(reglData || [])
+setDocuments(docData || [])
+setRapports(rapportsData || [])
+setDemandes(demandesData || [])
+setLoading(false)
   }
 
   if (loading) return <div style={{padding:"2rem",color:"#666"}}>Chargement...</div>
@@ -114,11 +125,80 @@ export default function FicheActif() {
           {id:"reglementaire",label:"⚖️ Réglementaire"},
           {id:"climatique",label:"🌡️ Climatique"},
           {id:"documents",label:"📄 Documents"}
+          ,{id:"roadmap",label:"🗺️ Roadmap"}
         ].map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)} style={{padding:"0.6rem 1.25rem",borderRadius:"8px",border:"none",cursor:"pointer",fontWeight:"600",fontSize:"0.9rem",background:onglet===o.id?"#1a3a2a":"white",color:onglet===o.id?"white":"#666",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>{o.label}</button>
         ))}
       </div>
+{/* Onglet Roadmap */}
+{onglet==="roadmap" && (
+  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
+    {/* Progression globale */}
+    {(() => {
+      const etapes = [
+        { id: "enregistrement", label: "Enregistrement de l'actif",     done: true },
+        { id: "reglementaire",  label: "Analyse réglementaire",         done: reglementations.length > 0 },
+        { id: "scoring",        label: "Score climatique",               done: (actif.score_climatique || 0) > 0 },
+        { id: "rapport",        label: "Rapport réglementaire",          done: rapports.length > 0 },
+        { id: "marketplace",    label: "Marketplace — trouver un expert", done: demandes.length > 0 },
+      ]
+      const nbDone = etapes.filter(e => e.done).length
+      const pct    = Math.round((nbDone / etapes.length) * 100)
+      return (
+        <>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Progression de l'actif</div>
+              <span style={{ fontSize: "12px", color: "#64748B" }}>{nbDone} / {etapes.length} étapes</span>
+            </div>
+            <div style={{ background: "#F1F5F9", borderRadius: "3px", height: "8px", overflow: "hidden", marginBottom: "4px" }}>
+              <div style={{ background: "#0F6E56", width: `${pct}%`, height: "100%", borderRadius: "3px" }} />
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748B" }}>{pct} % complété</div>
+          </div>
+
+          {/* Étapes */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {etapes.map((e, i) => {
+             const routes: Record<string, string> = {
+  rapport:     "/client/reporting",
+  marketplace: "/marketplace",
+}
+
+const onglets: Record<string, string> = {
+  reglementaire: "reglementaire",
+  scoring:       "climatique",
+}
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: e.done ? "#ECFDF5" : "#F8FAFC", borderRadius: "8px", border: `1px solid ${e.done ? "#A7F3D0" : "#E2E8F0"}` }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: e.done ? "#0F6E56" : "#E2E8F0" }}>
+                    {e.done
+                      ? <i className="ti ti-check" style={{ fontSize: "12px", color: "white" }} aria-hidden="true" />
+                      : <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8" }}>{i + 1}</span>
+                    }
+                  </div>
+                  <span style={{ flex: 1, fontSize: "13px", color: e.done ? "#065F46" : "#0F172A", fontWeight: e.done ? 500 : 400 }}>{e.label}</span>
+                  {e.done
+                    ? <span style={{ fontSize: "11px", color: "#065F46" }}>Complété</span>
+                    : (routes[e.id] || onglets[e.id]) && (
+                      <button onClick={() => { 
+  if (onglets[e.id]) setOnglet(onglets[e.id])
+  else { const r = routes[e.id]; if (r) navigate(r) }
+}} style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "6px", border: "none", background: "#0F6E56", color: "white", cursor: "pointer", fontFamily: "inherit" }}>
+                        Démarrer
+                      </button>
+                    )
+                  }
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )
+    })()}
+  </div>
+)}
       {/* Onglet Synthèse */}
       {onglet==="synthese" && (
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem"}}>

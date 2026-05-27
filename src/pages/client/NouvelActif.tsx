@@ -168,14 +168,21 @@ export default function NouvelActif() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [autresDocuments, setAutresDocuments] = useState<File[]>([])
   const searchRef = useRef<any>(null)
-
+interface SiteSupplementaire {
+  nom: string
+  adresse: string
+  ville: string
+  code_postal: string
+  surface: string
+  type_batiment: string
+}
   const [infos, setInfos] = useState<Infos>({
     nom:"", raison_sociale:"", siren:"", siret:"", code_naf:"",
     classification:"", adresse:"", ville:"", code_postal:"",
     surface:"", type_batiment:"", annee_construction:"",
     effectifs:"", chiffre_affaires:"", secteur_activite:"", nb_sites:"1"
   })
-
+const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -234,6 +241,7 @@ export default function NouvelActif() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase.from("actifs").insert([{
       user_id: user?.id,
+      client_id: user?.id,
       nom: infos.nom,
       raison_sociale: infos.raison_sociale,
       siren: infos.siren,
@@ -251,9 +259,36 @@ export default function NouvelActif() {
       nb_sites: parseInt(infos.nb_sites)||1,
       statut_analyse: "en_attente"
     }]).select()
-    if (data && data[0]) setActifId(data[0].id)
-    setLoading(false)
-    setEtape(2)
+   if (data && data[0]) {
+  setActifId(data[0].id)
+
+  // Sauvegarder les sites supplémentaires
+  if (sitesSupp.length > 0) {
+    const sitesValides = sitesSupp.filter(s => s.nom && s.adresse && s.ville)
+    if (sitesValides.length > 0) {
+      await supabase.from("actifs").insert(
+        sitesValides.map(s => ({
+          user_id:        user?.id,
+          client_id:      user?.id,
+          nom:            s.nom,
+          adresse:        s.adresse,
+          ville:          s.ville,
+          code_postal:    s.code_postal,
+          surface:        parseInt(s.surface) || 0,
+          type_batiment:  s.type_batiment,
+          statut_analyse: "en_attente",
+          categorie:      "patrimoine_propre",
+          effectifs:      parseInt(infos.effectifs) || 0,
+          secteur_activite: infos.secteur_activite,
+          siren:          infos.siren,
+          classification: infos.classification,
+        }))
+      )
+    }
+  }
+}
+setLoading(false)
+setEtape(2)
   }
 
   function goToEtape3() {
@@ -266,15 +301,30 @@ export default function NouvelActif() {
     if (actifId) {
       const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
       if (eligibles.length > 0) {
-        await supabase.from("actifs_reglementaire").insert(
-          eligibles.map(r => ({
-            actif_id: actifId,
-            reglementation: r.id,
-            statut: r.statut,
-            score: r.statut === "eligible" ? 0 : 50,
-            details: r.raison
-          }))
-        )
+       const echeancesMap: Record<string, string> = {
+  tertiaire:        "2026-09-30",
+  bacs:             "2026-01-01",
+  audit_energetique:"2026-11-01",
+  csrd:             "2026-12-31",
+  eu_taxonomy:      "2026-12-31",
+  sfdr:             "2026-06-30",
+  esrs:             "2026-12-31",
+  ifrs_s2:          "2026-12-31",
+  iso50001:         "2026-12-31",
+  loi_climat:       "2026-12-31",
+  bilan_ges:        "2026-12-31",
+}
+
+await supabase.from("actifs_reglementaire").insert(
+  eligibles.map(r => ({
+    actif_id:      actifId,
+    reglementation: r.id,
+    statut:        r.statut,
+    score:         r.statut === "eligible" ? 0 : 50,
+    details:       r.raison,
+    echeance:      echeancesMap[r.id] || null,
+  }))
+)
       }
     }
     setEtape(4)
@@ -317,7 +367,10 @@ export default function NouvelActif() {
 
       {/* Étape 1 — Informations */}
       {etape===1 && (
-        <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+  <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}} onKeyDown={e => { 
+  const tag = (e.target as HTMLElement).tagName
+  if (e.key === "Enter" && tag !== "TEXTAREA" && tag !== "INPUT") e.preventDefault()
+}}>
           <h3 style={{color:"#1a3a2a",marginBottom:"1.5rem"}}>📋 Informations du site</h3>
 
           {/* Recherche entreprise */}
@@ -404,11 +457,65 @@ export default function NouvelActif() {
             </div>
             <div>
               <label style={{display:"block",marginBottom:"0.4rem",fontWeight:"600",fontSize:"0.85rem",color:"#1a3a2a"}}>Nombre de sites</label>
-              <input value={infos.nb_sites} onChange={e => setInfos({...infos,nb_sites:e.target.value})} placeholder="1" type="number" style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}} />
+              <input 
+  value={infos.nb_sites} 
+  onChange={e => {
+    const nb = parseInt(e.target.value) || 1
+    setInfos({...infos, nb_sites: e.target.value})
+    const nouveauxSites: SiteSupplementaire[] = Array.from({ length: Math.max(0, nb - 1) }, (_, i) => 
+      sitesSupp[i] || { nom: "", adresse: "", ville: "", code_postal: "", surface: "", type_batiment: "" }
+    )
+    setSitesSupp(nouveauxSites)
+  }} 
+  placeholder="1" 
+  type="number" 
+  style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}} 
+/>
             </div>
           </div>
+          {sitesSupp.length > 0 && (
+  <div style={{ marginTop: "1.5rem" }} onClick={e => e.stopPropagation()}>
+    <div style={{ fontSize: "14px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px", padding: "10px 16px", background: "#f0f4f0", borderRadius: "8px" }}>
+      Sites supplémentaires ({sitesSupp.length})
+    </div>
+    {sitesSupp.map((site, i) => (
+      <div key={i} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px" }}>Site {i + 2}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <div style={{ gridColumn: "1/-1" }}>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Nom du site</label>
+            <input value={site.nom} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], nom: e.target.value}; setSitesSupp(s) }} placeholder="Ex: Entrepôt Nord" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+          </div>
+          <div style={{ gridColumn: "1/-1" }}>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Adresse</label>
+            <input value={site.adresse} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], adresse: e.target.value}; setSitesSupp(s) }} placeholder="Adresse complète" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Ville</label>
+            <input value={site.ville} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], ville: e.target.value}; setSitesSupp(s) }} placeholder="Ville" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Code postal</label>
+            <input value={site.code_postal} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], code_postal: e.target.value}; setSitesSupp(s) }} placeholder="75000" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Surface (m²)</label>
+            <input value={site.surface} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], surface: e.target.value}; setSitesSupp(s) }} placeholder="Ex: 1500" type="number" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Type de bâtiment</label>
+            <select value={site.type_batiment} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], type_batiment: e.target.value}; setSitesSupp(s) }} style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", background: "white", boxSizing: "border-box" as const }}>
+              <option value="">Choisir…</option>
+              {typesBatiments.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:"1.5rem"}}>
-            <button onClick={saveEtape1} disabled={!infos.nom||!infos.adresse||!infos.ville||loading} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700",opacity:(!infos.nom||!infos.adresse||!infos.ville)?0.5:1}}>
+            <button type="button" onClick={saveEtape1} disabled={!infos.nom||!infos.adresse||!infos.ville||loading} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700",opacity:(!infos.nom||!infos.adresse||!infos.ville)?0.5:1}}>
               {loading?"Enregistrement...":"Suivant →"}
             </button>
           </div>
