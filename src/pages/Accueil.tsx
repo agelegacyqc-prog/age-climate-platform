@@ -205,10 +205,15 @@ export default function Accueil() {
 
     const { data: profilAGE } = await supabase
       .from("profils")
-      .select("profil, prenom")
+      .select("profil, prenom, role")
       .eq("id", user.id)
       .single()
   if (profilAGE) {
+  // Rediriger les admins vers l'espace métier
+  if (profilAGE.role === 'admin' || profilAGE.role === 'consultant') {
+    navigate('/metier')
+    return
+  }
   setProfil(profilAGE.profil as Profil)
   setPrenom(profilAGE.prenom || null)
 

@@ -23,7 +23,8 @@ const ETAPES_SUIVI = ["Soumise", "En qualification", "Validée", "En cours", "Te
 const COLONNES_TEMPLATE = [
   "nom", "adresse", "ville", "code_postal",
   "type_batiment", "surface", "annee_construction",
-  "valeur_marche", "type_bien", "telephone_client", "score_climatique"
+  "valeur_marche", "type_bien", "telephone_client",
+  "email_client", "nom_proprietaire", "score_climatique"
 ]
 
 interface FormCampagne {
@@ -46,6 +47,8 @@ interface ActifImporte {
   valeur_marche?: number
   type_bien?: string
   telephone_client?: string
+  email_client?: string
+nom_proprietaire?: string
   score_climatique?: number
   _erreur?: string
 }
@@ -83,8 +86,8 @@ export default function MesCampagnes() {
 
   function downloadTemplate() {
     const csvContent = COLONNES_TEMPLATE.join(",") + "\n" +
-      "Résidence Les Pins,12 rue des Lilas,Dax,40100,appartement,65,1998,180000,résidentiel,0612345678,42"
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+     "Résidence Les Pins,12 rue des Lilas,Dax,40100,appartement,65,1998,180000,résidentiel,0612345678,marie.dupont@email.fr,Dupont Marie,42"
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
@@ -99,8 +102,9 @@ export default function MesCampagnes() {
     const ext = file.name.split(".").pop()?.toLowerCase()
     if (ext === "csv") {
       Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
+  header: true,
+  skipEmptyLines: true,
+  encoding: "UTF-8",
         complete: (result) => { traiterLignes(result.data as Record<string, string>[]) },
         error: () => setImportErreur("Erreur lors de la lecture du fichier CSV."),
       })
@@ -128,20 +132,22 @@ export default function MesCampagnes() {
       if (!row.adresse) erreurs.push("adresse manquante")
       if (!row.ville) erreurs.push("ville manquante")
       if (!row.code_postal) erreurs.push("code postal manquant")
-      return {
-        nom:               row.nom || "",
-        adresse:           row.adresse || "",
-        ville:             row.ville || "",
-        code_postal:       row.code_postal || "",
-        type_batiment:     row.type_batiment || undefined,
-        surface:           row.surface ? parseInt(row.surface) : undefined,
-        annee_construction: row.annee_construction ? parseInt(row.annee_construction) : undefined,
-        valeur_marche:     row.valeur_marche ? parseFloat(row.valeur_marche) : undefined,
-        type_bien:         row.type_bien || undefined,
-        telephone_client:  row.telephone_client || undefined,
-        score_climatique:  row.score_climatique ? parseInt(row.score_climatique) : undefined,
-        _erreur:           erreurs.length > 0 ? `Ligne ${i + 2} : ${erreurs.join(", ")}` : undefined,
-      }
+     return {
+  nom:               row.nom || "",
+  adresse:           row.adresse || "",
+  ville:             row.ville || "",
+  code_postal:       row.code_postal || "",
+  type_batiment:     row.type_batiment || undefined,
+  surface:           row.surface ? parseInt(row.surface) : undefined,
+  annee_construction: row.annee_construction ? parseInt(row.annee_construction) : undefined,
+  valeur_marche:     row.valeur_marche ? parseFloat(row.valeur_marche) : undefined,
+  type_bien:         row.type_bien || undefined,
+  telephone_client:  row.telephone_client || undefined,
+  email_client:      row.email_client || undefined,
+  nom_proprietaire:  row.nom_proprietaire || undefined,
+  score_climatique:  row.score_climatique ? parseInt(row.score_climatique) : undefined,
+  _erreur:           erreurs.length > 0 ? `Ligne ${i + 2} : ${erreurs.join(", ")}` : undefined,
+}
     })
     setActifsImportes(actifs)
   }

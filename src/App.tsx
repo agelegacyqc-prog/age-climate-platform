@@ -17,6 +17,8 @@ import Onboarding from "./pages/client/Onboarding"
 import ClientCampagnes from "./pages/client/MesCampagnes"
 import ClientDemandes from "./pages/client/Demandes"
 import BiensCampagnes from "./pages/client/BiensCampagnes"
+import FicheCampagne from "./pages/metier/FicheCampagne"
+import FicheBienCampagne from "./pages/metier/FicheBienCampagne"
 import ClientReporting from "./pages/client/Reporting"
 import ClientMessagerie from "./pages/client/Messagerie"
 import DashboardMetier from "./pages/metier/DashboardMetier"
@@ -60,6 +62,8 @@ export default function App() {
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
           <Route path="client/reporting" element={<ProtectedRoute><ClientReporting /></ProtectedRoute>} />
           <Route path="client/biens-campagnes" element={<ProtectedRoute><BiensCampagnes /></ProtectedRoute>} />
+          <Route path="metier/campagnes/:id" element={<ProtectedRoute><FicheCampagne /></ProtectedRoute>} />
+<Route path="metier/campagnes/:id/biens/:bienId" element={<ProtectedRoute><FicheBienCampagne /></ProtectedRoute>} />
           <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />

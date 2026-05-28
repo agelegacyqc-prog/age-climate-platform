@@ -67,14 +67,36 @@ export default function Campagnes() {
     if (data && data.length > 0) setSelected(data[0])
   }
 
-  async function loadDemandesClient() {
-    const { data } = await supabase
-      .from("campagnes")
-      .select("*")
-      .eq("origine", "client")
-      .order("created_at", { ascending: false })
-    setDemandesClient(data || [])
-  }
+async function loadDemandesClient() {
+  const { data: campagnesData } = await supabase
+    .from("campagnes")
+    .select("*")
+    .eq("origine", "client")
+    .order("created_at", { ascending: false })
+
+  if (!campagnesData) { setDemandesClient([]); return }
+
+  const campagnesAvecDetails = await Promise.all(
+    campagnesData.map(async (c) => {
+      // Charger le profil du client
+      const { data: clientData } = await supabase
+        .from("profils")
+        .select("id, prenom, nom, profil")
+        .eq("id", c.client_id)
+        .single()
+
+      // Charger les actifs liés
+      const { data: actifs } = await supabase
+        .from("campagnes_actifs")
+        .select("actif:actif_id(id, nom, adresse, ville, surface, type_batiment)")
+        .eq("campagne_id", c.id)
+
+      return { ...c, client: clientData, campagnes_actifs: actifs || [] }
+    })
+  )
+
+  setDemandesClient(campagnesAvecDetails)
+}
 
   async function handleCreerCampagne() {
     if (!form.nom || !form.type_campagne) return
@@ -332,16 +354,53 @@ export default function Campagnes() {
             const type   = TYPE_CONFIG[d.type_campagne]
             const estTraitee = ["validee", "en_cours", "terminee"].includes(d.statut)
             return (
-              <div key={d.id} style={{ background: "#FFFFFF", border: `1px solid ${d.statut === "soumise" ? "#FDE68A" : "#E2E8F0"}`, borderRadius: "10px", overflow: "hidden", opacity: estTraitee ? 0.75 : 1 }}>
+              <div key={d.id} onClick={() => navigate(`/metier/campagnes/${d.id}`)} style={{ background: "#FFFFFF", border: `1px solid ${d.statut === "soumise" ? "#FDE68A" : "#E2E8F0"}`, borderRadius: "10px", overflow: "hidden", opacity: estTraitee ? 0.75 : 1, cursor: "pointer" }}>
                 <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                       <span style={{ background: statut.bg, color: statut.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>{statut.label}</span>
                       {type && <span style={{ background: type.bg, color: type.color, padding: "2px 6px", borderRadius: "3px", fontSize: "10px", fontWeight: 500 }}>{type.label}</span>}
                     </div>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "3px" }}>{d.nom || "Campagne sans nom"}</div>
-                    {d.zone_geo && <div style={{ fontSize: "12px", color: "#64748B" }}><i className="ti ti-map-pin" style={{ fontSize: "12px" }} aria-hidden="true" /> {d.zone_geo}</div>}
-                    {d.description && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px" }}>{d.description}</div>}
+<div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "3px" }}>{d.nom || "Campagne sans nom"}</div>
+
+{/* Identité client */}
+{d.client && (
+  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+    <i className="ti ti-user" style={{ fontSize: "12px", color: "#94A3B8" }} aria-hidden="true" />
+    <span style={{ fontSize: "12px", color: "#64748B" }}>
+      {d.client.prenom} {d.client.nom}
+    </span>
+    {d.client.profil && (
+      <span style={{ background: "#EFF6FF", color: "#1E40AF", fontSize: "10px", fontWeight: 500, padding: "1px 6px", borderRadius: "3px" }}>
+        {d.client.profil}
+      </span>
+    )}
+  </div>
+)}
+
+{d.zone_geo && <div style={{ fontSize: "12px", color: "#64748B" }}><i className="ti ti-map-pin" style={{ fontSize: "12px" }} aria-hidden="true" /> {d.zone_geo}</div>}
+
+{/* Liste des biens liés */}
+{d.campagnes_actifs && d.campagnes_actifs.length > 0 && (
+  <div style={{ marginTop: "8px" }}>
+    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "4px" }}>
+      {d.campagnes_actifs.length} bien{d.campagnes_actifs.length > 1 ? "s" : ""} concerné{d.campagnes_actifs.length > 1 ? "s" : ""}
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+      {d.campagnes_actifs.slice(0, 3).map((ca: any, i: number) => (
+        <div key={i} style={{ fontSize: "11px", color: "#64748B", display: "flex", alignItems: "center", gap: "5px" }}>
+          <i className="ti ti-building" style={{ fontSize: "11px", color: "#94A3B8" }} aria-hidden="true" />
+          {ca.actif?.nom} — {ca.actif?.ville} {ca.actif?.surface ? `· ${ca.actif.surface} m²` : ""}
+        </div>
+      ))}
+      {d.campagnes_actifs.length > 3 && (
+        <div style={{ fontSize: "11px", color: "#94A3B8" }}>+ {d.campagnes_actifs.length - 3} autre{d.campagnes_actifs.length - 3 > 1 ? "s" : ""}</div>
+      )}
+    </div>
+  </div>
+)}
+
+{d.description && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px" }}>{d.description}</div>}
                   </div>
                   {!estTraitee && (
                     <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
