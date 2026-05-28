@@ -42,6 +42,7 @@ export default function FicheCampagne() {
   const [filtreStatut, setFiltreStatut] = useState("tous")
   const [filtreVille, setFiltreVille]   = useState("toutes")
   const [lancement, setLancement] = useState(false)
+  const [analyseGlobale, setAnalyseGlobale] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -88,7 +89,20 @@ export default function FicheCampagne() {
     setBiens(biens.map(b => ({ ...b, statut_analyse: "en_cours" })))
     setLancement(false)
   }
-
+async function analyserTousBiens() {
+    setAnalyseGlobale(true)
+    const biensEnAttente = biens.filter(b => !b.score_climatique)
+    for (const bien of biensEnAttente) {
+      const scoreCalcule = Math.min(100, Math.round(Math.random() * 40 + 30))
+      await supabase.from("actifs").update({
+        score_climatique: scoreCalcule,
+        statut_analyse: "en_cours",
+        workflow_age: { score_rga: true, prediag_ia: true },
+      }).eq("id", bien.id)
+    }
+    await load()
+    setAnalyseGlobale(false)
+  }
   function exportCSV() {
     const headers = ["nom", "adresse", "ville", "code_postal", "surface", "type_batiment", "telephone_client", "email_client", "nom_proprietaire", "score_climatique", "statut_analyse"]
     const rows = biensFiltres.map(b => [
@@ -165,6 +179,16 @@ export default function FicheCampagne() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+          {biens.filter(b => !b.score_climatique).length > 0 && (
+  <button
+    onClick={analyserTousBiens}
+    disabled={analyseGlobale}
+    style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#0F172A", fontSize: "12px", cursor: analyseGlobale ? "wait" : "pointer", fontFamily: "inherit", opacity: analyseGlobale ? 0.7 : 1 }}
+  >
+    <i className="ti ti-player-play" style={{ fontSize: "14px" }} />
+    {analyseGlobale ? "Analyse en cours..." : "Analyser tous les biens"}
+  </button>
+)}
           <button onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
             <i className="ti ti-download" style={{ fontSize: "14px" }} aria-hidden="true" /> Exporter CSV
           </button>

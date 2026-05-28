@@ -33,26 +33,24 @@ export default function CarteBienRisques({ adresse, ville, codePostal, lat, lng 
       maxZoom: 19,
     }).addTo(map)
 
-    // Couche RGA — BRGM
-    const rgaLayer = L.tileLayer.wms("https://mapsref.brgm.fr/wxs/georisques/risques", {
-      layers:      "ALEA_ARGILES",
-      format:      "image/png",
-      transparent: true,
-      opacity:     0.55,
-      version:     "1.3.0",
-      attribution: "© BRGM Géorisques",
-    }).addTo(map)
-
-    // Couche PPRi — BRGM
-    const ppriLayer = L.tileLayer.wms("https://mapsref.brgm.fr/wxs/georisques/risques", {
-      layers:      "lt_pprn_commune",
-      format:      "image/png",
-      transparent: true,
-      opacity:     0.4,
-      version:     "1.3.0",
-      attribution: "© BRGM Géorisques",
-    }).addTo(map)
-
+// Couche RGA
+const rgaLayer = L.tileLayer.wms("https://georisques.gouv.fr/services", {
+  layers:      "ALEARG_REALISE",
+  format:      "image/png",
+  transparent: true,
+  opacity:     0.6,
+  version:     "1.3.0",
+  attribution: "BRGM Georisques",
+}).addTo(map)
+// Couche PPRi
+const ppriLayer = L.tileLayer.wms("https://georisques.gouv.fr/services", {
+  layers:      "lt_pprn_commune",
+  format:      "image/png",
+  transparent: true,
+  opacity:     0.5,
+  version:     "1.3.0",
+  attribution: "BRGM Georisques",
+}).addTo(map)
     // Contrôle des couches
     L.control.layers(
       { "OpenStreetMap": osmLayer },
