@@ -282,7 +282,7 @@ export default function Campagnes() {
               const taux   = c.courriers_envoyes > 0 ? Math.round(c.reponses / c.courriers_envoyes * 100) : 0
               const isSelected = selected?.id === c.id
               return (
-                <div key={c.id} onClick={() => setSelected(c)} style={{ background: "#FFFFFF", border: "1px solid " + (isSelected ? "#0F6E56" : "#E2E8F0"), borderRadius: "10px", padding: "14px 16px", cursor: "pointer" }}>
+                <div key={c.id} onClick={() => navigate("/metier/campagnes-age/" + c.id)} style={{ background: "#FFFFFF", border: "1px solid " + (isSelected ? "#0F6E56" : "#E2E8F0"), borderRadius: "10px", padding: "14px 16px", cursor: "pointer" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                     <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", flex: 1, paddingRight: "8px" }}>{c.nom}</div>
                     <span style={{ background: statut.bg, color: statut.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>{statut.label}</span>
