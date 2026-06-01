@@ -32,6 +32,7 @@ import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
 import GED from "./pages/metier/GED"
+import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
 import PartenaireDashboard from "./pages/partenaire/PartenaireDashboard"
 import PartenaireMissions from "./pages/partenaire/PartenaireMissions"
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
         </Route>
+        <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
         {/* ── Portail Partenaire ── */}
         <Route path="/partenaire/login" element={<PartenaireLogin />} />

@@ -3,130 +3,197 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import "../styles/Layout.css"
 
+// ─── Page titles ────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
-  "/":                    "Accueil",
-  "/dashboard":           "Dashboard",
-  "/sensibilisation":     "Sensibilisation",
-  "/projets":             "Projets",
-  "/marketplace":         "Marketplace",
-  "/client":              "Mon compte",
-  "/client/actifs":       "Mon Patrimoine",
-  "/client/campagnes":    "Mes Campagnes",
-  "/client/demandes":     "Mes Demandes",
-  "/client/profil":       "Mon profil",
-  "/client/messagerie":   "Messagerie",
-  "/metier":              "Dashboard métier",
-  "/metier/portefeuille": "Portefeuille",
-  "/metier/campagnes":    "Campagnes",
-  "/metier/missions":     "Missions",
-  "/metier/messagerie":   "Messagerie",
-  "/metier/financement":  "Financement",
-  "/metier/reporting":    "Reporting",
-  "/metier/ged":          "Documents",
-  "/metier/admin":        "Administration",
+  "/":                           "Accueil",
+  "/dashboard":                  "Dashboard",
+  "/sensibilisation":            "Sensibilisation",
+  "/marketplace":                "Marketplace",
+  "/client":                     "Mon compte",
+  "/client/actifs":              "Mon Patrimoine",
+  "/client/campagnes":           "Mes Campagnes",
+  "/client/demandes":            "Mes Demandes",
+  "/client/profil":              "Mon profil",
+  "/client/messagerie":          "Messagerie",
+  "/metier":                     "Dashboard métier",
+  "/metier/file-attente":        "File d'attente",
+  "/metier/campagnes":           "Campagnes",
+  "/metier/missions":            "Missions",
+  "/metier/equipe":              "Mon équipe",
+  "/metier/clients":             "Clients",
+  "/metier/utilisateurs":        "Utilisateurs",
+  "/metier/messagerie":          "Messagerie",
+  "/metier/reporting":           "Reporting",
+  "/metier/ged":                 "Documents",
+  "/metier/admin":               "Administration",
 }
 
+// ─── Types ───────────────────────────────────────────────────────────────────
 type EspaceType = "metier" | "client" | "public"
+
+/**
+ * Sous-rôles AGE — étendent le champ `role` de la table `profils`.
+ * `admin`       → mappé sur `admin_national` (rétrocompatibilité)
+ * `consultant`  → inchangé
+ * Nouveau : `responsable_regional`
+ */
+type RoleAGE = "admin_national" | "responsable_regional" | "consultant"
 
 interface NavItemProps {
   to: string
   icon: string
   label: string
+  badge?: number
   end?: boolean
 }
 
-function NavItem({ to, icon, label, end }: NavItemProps) {
+// ─── NavItem ─────────────────────────────────────────────────────────────────
+function NavItem({ to, icon, label, badge, end }: NavItemProps) {
   return (
     <NavLink
       to={to}
       end={end}
-      className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
+      className={({ isActive }) =>
+        isActive ? "nav-item nav-item--active" : "nav-item"
+      }
     >
       <i className={`ti ${icon} nav-item__icon`} aria-hidden="true" />
       <span className="nav-item__label">{label}</span>
+      {badge != null && badge > 0 && (
+        <span
+          style={{
+            marginLeft: "auto",
+            background: "#B91C1C",
+            color: "white",
+            fontSize: "10px",
+            fontWeight: 600,
+            padding: "1px 5px",
+            borderRadius: "10px",
+            minWidth: "16px",
+            textAlign: "center",
+          }}
+        >
+          {badge}
+        </span>
+      )}
     </NavLink>
   )
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+/** Normalise le champ `role` Supabase vers un RoleAGE typé. */
+function resolveRoleAGE(role: string): RoleAGE {
+  if (role === "admin") return "admin_national"          // rétrocompatibilité
+  if (role === "responsable_regional") return "responsable_regional"
+  return "consultant"
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────────────
 export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
+
   const [initiales, setInitiales]               = useState("--")
   const [prenom, setPrenom]                     = useState("")
   const [labelProfil, setLabelProfil]           = useState("")
   const [espace, setEspace]                     = useState<EspaceType>("public")
-  const [nbDemandes, setNbDemandes]             = useState(0)
-  const [nbMessagesNonLus, setNbMessagesNonLus] = useState(0)
-  const [nbMessagesClient, setNbMessagesClient] = useState(0)
-  const [nbCampagnes, setNbCampagnes]           = useState(0)
+  const [roleAGE, setRoleAGE]                   = useState<RoleAGE>("consultant")
   const [authChecked, setAuthChecked]           = useState(false)
+
+  // Badges
+  const [nbFileAttente, setNbFileAttente]       = useState(0)  // admin_national : demandes clients
+  const [nbCampagnes, setNbCampagnes]           = useState(0)  // campagnes à traiter
+  const [nbMissions, setNbMissions]             = useState(0)  // missions à traiter
+  const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)  // messages non lus AGE
+  const [nbMessagesClient, setNbMessagesClient] = useState(0)  // messages non lus client
 
   useEffect(() => {
     async function chargerProfil() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       if (!user) {
         navigate("/login")
         return
       }
-console.log("user:", user?.id, user?.email)
+
+      // ── Profil AGE ──────────────────────────────────────────────────────
       const { data: profilAGE } = await supabase
         .from("profils")
-        .select("prenom, nom, profil, role")
+        .select("prenom, nom, profil, role, region")
         .eq("id", user.id)
         .single()
 
- if (profilAGE) {
+      if (profilAGE) {
         const p = profilAGE.prenom || ""
         const n = profilAGE.nom || ""
         setPrenom(p)
-        setInitiales(`${p[0] || ""}${n[0] || ""}`.toUpperCase() || user.email![0].toUpperCase())
+        setInitiales(
+          `${p[0] || ""}${n[0] || ""}`.toUpperCase() ||
+            user.email![0].toUpperCase()
+        )
 
-       const labels: Record<string, string> = {
-  banque: "Banque", assureur: "Assurance",
-  particulier: "Particulier", collectivite: "Collectivité",
-  entreprise: "Entreprise", foncieres: "Foncières",
-}
-        setLabelProfil(profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Client")
-console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" ? "Administrateur" : labels[profilAGE.profil] || "Client")
-        if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
-          setEspace("metier")
+        const role = resolveRoleAGE(profilAGE.role)
+        setRoleAGE(role)
+        setLabelProfil(
+          role === "admin_national"
+            ? "Admin national"
+            : role === "responsable_regional"
+            ? `Resp. régional — ${profilAGE.region || ""}`
+            : "Consultant"
+        )
+        setEspace("metier")
 
-          const { count } = await supabase
+        // ── Badges selon rôle ────────────────────────────────────────────
+        if (role === "admin_national") {
+          // File d'attente : demandes clients non assignées
+          const { count: countFile } = await supabase
             .from("demandes_marketplace")
             .select("id", { count: "exact", head: true })
             .eq("statut", "soumise")
-          setNbDemandes(count || 0)
+          setNbFileAttente(countFile || 0)
 
-          const { count: countCampagnes } = await supabase
+          // Campagnes soumises par clients en attente de dispatch
+          const { count: countCamp } = await supabase
             .from("campagnes")
             .select("id", { count: "exact", head: true })
             .eq("origine", "client")
             .eq("statut", "soumise")
-          setNbCampagnes(countCampagnes || 0)
-
-          const { count: countMessages } = await supabase
-            .from("messages")
-            .select("id", { count: "exact", head: true })
-            .eq("lu", false)
-            .neq("expediteur_id", user.id)
-          setNbMessagesNonLus(countMessages || 0)
-
-        } else {
-          setEspace("client")
-
-          const { count: countMsgClient } = await supabase
-            .from("messages")
-            .select("id", { count: "exact", head: true })
-            .eq("lu", false)
-            .eq("client_id", user.id)
-            .neq("expediteur_id", user.id)
-          setNbMessagesClient(countMsgClient || 0)
+          setNbCampagnes(countCamp || 0)
         }
+
+        if (role === "responsable_regional" && profilAGE.region) {
+          // Campagnes de la région non assignées à un consultant
+          const { count: countCampRegion } = await supabase
+            .from("campagnes")
+            .select("id", { count: "exact", head: true })
+            .eq("region", profilAGE.region)
+            .is("consultant_id", null)
+          setNbCampagnes(countCampRegion || 0)
+
+          // Missions de la région non assignées
+          const { count: countMissRegion } = await supabase
+            .from("missions")
+            .select("id", { count: "exact", head: true })
+            .eq("region", profilAGE.region)
+            .is("consultant_id", null)
+          setNbMissions(countMissRegion || 0)
+        }
+
+        // Messages non lus (tous rôles AGE)
+        const { count: countMsg } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("lu", false)
+          .neq("expediteur_id", user.id)
+        setNbMessagesAGE(countMsg || 0)
 
         setAuthChecked(true)
         return
       }
+
+      // ── Profil client ────────────────────────────────────────────────────
       const { data: profilClient } = await supabase
         .from("profils_client")
         .select("type_client")
@@ -135,8 +202,10 @@ console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" 
 
       if (profilClient) {
         const labels: Record<string, string> = {
-          banque: "Banque", assurance: "Assurance",
-          entreprise: "Entreprise", collectivite: "Collectivité",
+          banque: "Banque",
+          assurance: "Assurance",
+          entreprise: "Entreprise",
+          collectivite: "Collectivité",
         }
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
@@ -157,6 +226,7 @@ console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" 
       setAuthChecked(true)
       setEspace("public")
     }
+
     chargerProfil()
   }, [])
 
@@ -167,13 +237,27 @@ console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" 
 
   const pageTitle = PAGE_TITLES[location.pathname] || "AGE Climate"
 
-  if (!authChecked) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
+  if (!authChecked)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          color: "#64748B",
+          fontSize: "14px",
+        }}
+      >
+        Chargement…
+      </div>
+    )
 
   return (
     <div className="app-container">
-
       <aside className="sidebar">
 
+        {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo__mark">
             <i className="ti ti-leaf" aria-hidden="true" />
@@ -186,127 +270,167 @@ console.log("profil:", profilAGE.profil, "| label:", profilAGE.role === "admin" 
 
         <nav className="sidebar-nav">
 
-          {/* ── Plateforme ── */}
+          {/* ── Section Plateforme (commune) ──────────────────────────── */}
           <div className="nav-section">Plateforme</div>
           <NavItem to="/" icon="ti-home" label="Accueil" end />
           <NavItem to="/dashboard" icon="ti-chart-bar" label="Dashboard" />
+
+          {/*
+            Sensibilisation :
+            - AGE  : accès édition (route gérée côté page)
+            - client : lecture seule (même route, droits différents)
+          */}
           <NavItem to="/sensibilisation" icon="ti-plant-2" label="Sensibilisation" />
-          <NavItem to="/projets" icon="ti-clipboard-list" label="Projets" />
-          <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
-          <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
 
-{/* ── Espace Client ── */}
-{espace === "client" && (
-  <>
-    <div className="nav-section">Mon espace</div>
-    <NavItem to="/client/campagnes" icon="ti-speakerphone" label="Mes Campagnes" />
+          {/*
+            Marketplace :
+            - admin_national : édition
+            - client         : lecture seule
+            - responsable_regional + consultant : masqué
+          */}
+          {(espace === "client" || roleAGE === "admin_national") && (
+            <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
+          )}
 
-    {/* Patrimoine selon profil */}
-    {(labelProfil === "Entreprise" || labelProfil === "Particulier") && (
-      <NavItem to="/client/actifs" icon="ti-building" label={labelProfil === "Particulier" ? "Mon bien" : "Mon Patrimoine"} />
-    )}
-    {labelProfil === "Collectivité" && (
-      <NavItem to="/client/actifs" icon="ti-map" label="Mon Territoire" />
-    )}
-    {labelProfil === "Banque" && (
-      <>
-        <NavItem to="/client/biens-campagnes" icon="ti-building-bank" label="Biens financés" />
-        <NavItem to="/client/actifs?vue=patrimoine" icon="ti-building" label="Mon Patrimoine" />
-      </>
-    )}
-    {labelProfil === "Assurance" && (
-      <>
-      <NavItem to="/client/biens-campagnes" icon="ti-shield" label="Biens assurés" />
-        <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
-      </>
-    )}
+          {/*
+            Portefeuille :
+            - client : visible (inchangé)
+            - AGE    : supprimé
+          */}
+          {espace === "client" && (
+            <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
+          )}
 
-    <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
-    <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" />
-    <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
-    <NavLink
-      to="/client/messagerie"
-      className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
-    >
-      <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
-      <span className="nav-item__label">Messagerie</span>
-      {nbMessagesClient > 0 && (
-        <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-          <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-            {nbMessagesClient}
-          </span>
-        </span>
-      )}
-    </NavLink>
-  </>
-)}
+          {/* ── Espace Client ──────────────────────────────────────────── */}
+          {espace === "client" && (
+            <>
+              <div className="nav-section">Mon espace</div>
+              <NavItem to="/client/campagnes" icon="ti-speakerphone" label="Mes Campagnes" />
 
-          {/* ── Espace Métier ── */}
+              {(labelProfil === "Entreprise" || labelProfil === "Particulier") && (
+                <NavItem
+                  to="/client/actifs"
+                  icon="ti-building"
+                  label={labelProfil === "Particulier" ? "Mon bien" : "Mon Patrimoine"}
+                />
+              )}
+              {labelProfil === "Collectivité" && (
+                <NavItem to="/client/actifs" icon="ti-map" label="Mon Territoire" />
+              )}
+              {labelProfil === "Banque" && (
+                <>
+                  <NavItem to="/client/biens-campagnes" icon="ti-building-bank" label="Biens financés" />
+                  <NavItem to="/client/actifs?vue=patrimoine" icon="ti-building" label="Mon Patrimoine" />
+                </>
+              )}
+              {labelProfil === "Assurance" && (
+                <>
+                  <NavItem to="/client/biens-campagnes" icon="ti-shield" label="Biens assurés" />
+                  <NavItem to="/client/actifs" icon="ti-building" label="Mon Patrimoine" />
+                </>
+              )}
+
+              <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
+              <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" />
+              <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
+              <NavItem
+                to="/client/messagerie"
+                icon="ti-message-circle"
+                label="Messagerie"
+                badge={nbMessagesClient}
+              />
+            </>
+          )}
+
+          {/* ── Espace Métier AGE ──────────────────────────────────────── */}
           {espace === "metier" && (
             <>
               <div className="nav-section">Espace métier</div>
               <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
 
-              <NavLink
-                to="/metier/campagnes"
-                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
-              >
-                <i className="ti ti-speakerphone nav-item__icon" aria-hidden="true" />
-                <span className="nav-item__label">Campagnes</span>
-                {nbCampagnes > 0 && (
-                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-                      {nbCampagnes}
-                    </span>
-                  </span>
-                )}
-              </NavLink>
+              {/* File d'attente — admin national uniquement */}
+              {roleAGE === "admin_national" && (
+                <NavItem
+                  to="/metier/file-attente"
+                  icon="ti-inbox"
+                  label="File d'attente"
+                  badge={nbFileAttente + nbCampagnes}
+                />
+              )}
 
-              <NavLink
-                to="/metier/missions"
-                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
-              >
-                <i className="ti ti-briefcase nav-item__icon" aria-hidden="true" />
-                <span className="nav-item__label">Missions</span>
-                {nbDemandes > 0 && (
-                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-                    <i className="ti ti-bell" style={{ fontSize: "13px", color: "#D97706" }} aria-hidden="true" />
-                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-                      {nbDemandes}
-                    </span>
-                  </span>
-                )}
-              </NavLink>
+              {/* Campagnes — admin_national et responsable_regional */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <NavItem
+                  to="/metier/campagnes"
+                  icon="ti-speakerphone"
+                  label="Campagnes"
+                  badge={roleAGE === "responsable_regional" ? nbCampagnes : 0}
+                />
+              )}
 
-              <NavLink
+              {/* Missions — admin_national et responsable_regional */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <NavItem
+                  to="/metier/missions"
+                  icon="ti-briefcase"
+                  label="Missions"
+                  badge={roleAGE === "responsable_regional" ? nbMissions : 0}
+                />
+              )}
+
+              {/* Mes missions — consultant uniquement */}
+              {roleAGE === "consultant" && (
+                <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" />
+              )}
+
+              {/* Mon équipe — responsable_regional uniquement */}
+              {roleAGE === "responsable_regional" && (
+                <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
+              )}
+
+              {/* Clients — admin_national uniquement */}
+              {roleAGE === "admin_national" && (
+                <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
+              )}
+
+              {/* Messagerie — tous les rôles AGE */}
+              <NavItem
                 to="/metier/messagerie"
-                className={({ isActive }) => isActive ? "nav-item nav-item--active" : "nav-item"}
-              >
-                <i className="ti ti-message-circle nav-item__icon" aria-hidden="true" />
-                <span className="nav-item__label">Messagerie</span>
-                {nbMessagesNonLus > 0 && (
-                  <span style={{ display: "flex", alignItems: "center", gap: "3px", marginLeft: "auto" }}>
-                    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", minWidth: "16px", textAlign: "center" }}>
-                      {nbMessagesNonLus}
-                    </span>
-                  </span>
-                )}
-              </NavLink>
+                icon="ti-message-circle"
+                label="Messagerie"
+                badge={nbMessagesAGE}
+              />
 
-              <NavItem to="/metier/financement" icon="ti-coin" label="Financement" />
-              <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
+              {/* Reporting — admin_national et responsable_regional */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
+              )}
+
+              {/* Documents — tous les rôles AGE */}
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
-              <NavItem to="/metier/admin" icon="ti-adjustments-horizontal" label="Administration" />
+
+              {/* Utilisateurs — admin_national uniquement */}
+              {roleAGE === "admin_national" && (
+                <NavItem to="/metier/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
+              )}
+
+              {/* Administration — admin_national uniquement */}
+              {roleAGE === "admin_national" && (
+                <NavItem to="/metier/admin" icon="ti-adjustments-horizontal" label="Administration" />
+              )}
             </>
           )}
 
         </nav>
 
+        {/* Profil utilisateur */}
         <div className="sidebar-user">
           <div className="sidebar-user__avatar">{initiales}</div>
           <div className="sidebar-user__info">
             <span className="sidebar-user__name">{prenom || "Mon compte"}</span>
-            {labelProfil && <span className="sidebar-user__profil">{labelProfil}</span>}
+            {labelProfil && (
+              <span className="sidebar-user__profil">{labelProfil}</span>
+            )}
           </div>
           <button
             className="sidebar-user__logout"

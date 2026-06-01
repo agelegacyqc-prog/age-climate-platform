@@ -1,96 +1,194 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* ============================================================
+   AGE Climate Platform — index.css
+   Reset Vite + Variables CSS + Bases typographiques
+   v1.0 — 01/06/2026
+   ============================================================ */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ── 1. Reset ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: var(--age-bg);
+  color: var(--age-text);
+  font-family: 'Inter', system-ui, Helvetica, Arial, sans-serif;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+a {
+  color: var(--age-brown);
+  text-decoration: none;
+  font-weight: 500;
+}
+a:hover {
+  color: var(--age-brown-dark);
 }
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', system-ui, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--age-text);
+  letter-spacing: -0.01em;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #3178c6aa);
-}
+h1 { font-size: 24px; letter-spacing: -0.02em; }
+h2 { font-size: 20px; letter-spacing: -0.02em; }
+h3 { font-size: 17px; }
+h4 { font-size: 15px; }
 
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+p {
+  font-size: 14px;
+  color: var(--age-text);
+  line-height: 1.6;
 }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  font-family: 'Inter', system-ui, Helvetica, Arial, sans-serif;
+  font-size: 14px;
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  border: none;
+  background: none;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+input, select, textarea {
+  font-family: 'Inter', system-ui, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 2. Variables AGE (espace métier) ─────────────────────── */
+:root {
+  /* Primaire */
+  --age-brown:          #B25C2A;
+  --age-brown-10:       #F9F0EA;
+  --age-brown-20:       #F0DDD0;
+  --age-brown-dark:     #8C4720;
+
+  /* Neutrals */
+  --age-bg:             #F4F3F0;
+  --age-surface:        #FFFFFF;
+  --age-border:         #E2DDD8;
+  --age-border-strong:  #C9C3BB;
+  --age-text:           #111827;
+  --age-muted:          #6B7280;
+  --age-subtle:         #9CA3AF;
+
+  /* Accent sombre */
+  --age-accent:         #0F172A;
+  --age-accent-hover:   #1E293B;
+
+  /* Sidebar */
+  --sidebar-bg:         #0F172A;
+  --sidebar-text:       #94A3B8;
+  --sidebar-active:     #FFFFFF;
+  --sidebar-section:    #475569;
+  --sidebar-border:     #B25C2A;
+  --sidebar-hover:      #1E293B;
+
+  /* Impact (héritage Workplace — NE PAS MODIFIER) */
+  --impact-green:       #2F7D5C;
+  --impact-green-bg:    #F0FDF4;
+  --impact-amber:       #D97706;
+  --impact-amber-bg:    #FFFBEB;
+  --impact-red:         #B91C1C;
+  --impact-red-bg:      #FEF2F2;
+  --impact-sky:         #0369A1;
+  --impact-sky-bg:      #F0F9FF;
+
+  /* ── Variables Workplace Client (NE PAS MODIFIER) ── */
+  --wcc-primary:        #B25C2A;
+  --wcc-bg:             #F8F7F4;
+  --wcc-surface:        #FFFFFF;
+  --wcc-border:         #E5E1DA;
+  --wcc-text:           #1F2937;
+  --wcc-muted:          #78716C;
+  --wcc-forest:         #2F7D5C;
+  --wcc-amber:          #D97706;
+  --wcc-crimson:        #B91C1C;
+  --wcc-sky:            #0369A1;
+}
+
+/* ── 3. Utilitaires typographiques ────────────────────────── */
+
+/* Label de section (uppercase, tracking) */
+.label-section {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--age-muted);
+}
+
+/* Valeur métrique / KPI */
+.metric {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--age-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* Valeur financière inline */
+.value-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Texte secondaire */
+.text-muted {
+  color: var(--age-muted);
+  font-size: 13px;
+}
+
+/* ── 4. Utilitaires layout ────────────────────────────────── */
+.page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.grid-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* ── 5. Scrollbar (discret) ───────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--age-border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--age-muted);
 }
