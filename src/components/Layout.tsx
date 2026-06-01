@@ -15,6 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/client/demandes":            "Mes Demandes",
   "/client/profil":              "Mon profil",
   "/client/messagerie":          "Messagerie",
+"/client/utilisateurs":        "Gestion des utilisateurs",
   "/metier":                     "Dashboard métier",
   "/metier/file-attente":        "File d'attente",
   "/metier/campagnes":           "Campagnes",
@@ -98,6 +99,7 @@ export default function Layout() {
   const [labelProfil, setLabelProfil]           = useState("")
   const [espace, setEspace]                     = useState<EspaceType>("public")
   const [roleAGE, setRoleAGE]                   = useState<RoleAGE>("consultant")
+  const [monProfilClient, setMonProfilClient] = useState<any>(null)
   const [authChecked, setAuthChecked]           = useState(false)
 
   // Badges
@@ -123,7 +125,7 @@ export default function Layout() {
         .from("profils")
         .select("prenom, nom, profil, role, region")
         .eq("id", user.id)
-        .single()
+        .maybeSingle() 
 
       if (profilAGE) {
         const p = profilAGE.prenom || ""
@@ -195,10 +197,10 @@ export default function Layout() {
 
       // ── Profil client ────────────────────────────────────────────────────
       const { data: profilClient } = await supabase
-        .from("profils_client")
-        .select("type_client")
-        .eq("id", user.id)
-        .single()
+  .from("profils_client")
+  .select("type_client, role_client")
+  .eq("id", user.id)
+  .maybeSingle()
 
       if (profilClient) {
         const labels: Record<string, string> = {
@@ -210,7 +212,7 @@ export default function Layout() {
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
         setEspace("client")
-
+setMonProfilClient(profilClient)
         const { count: countMsgClient } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
@@ -339,14 +341,18 @@ export default function Layout() {
                 label="Messagerie"
                 badge={nbMessagesClient}
               />
+              {/* Gestion utilisateurs — admin_client uniquement */}
+{monProfilClient?.role_client === "admin_client" && (
+  <NavItem to="/client/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
+)}
             </>
+            
           )}
 
           {/* ── Espace Métier AGE ──────────────────────────────────────── */}
           {espace === "metier" && (
             <>
-              <div className="nav-section">Espace métier</div>
-              <NavItem to="/metier" icon="ti-layout-dashboard" label="Dashboard" end />
+          
 
               {/* File d'attente — admin national uniquement */}
               {roleAGE === "admin_national" && (

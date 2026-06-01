@@ -2,27 +2,29 @@ import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
-const enjeuxMap: any = {
-  energie:       { label: "Énergie",    icon: "ti-bolt",         color: "#D97706" },
-  environnement: { label: "Carbone",    icon: "ti-plant-2",      color: "#065F46" },
-  prevention:    { label: "Risques",    icon: "ti-shield",       color: "#991B1B" },
-  resilience:    { label: "Résilience", icon: "ti-refresh",      color: "#1E40AF" },
-  financement:   { label: "Aides",      icon: "ti-coin",         color: "#5B21B6" },
-  reporting:     { label: "Reporting",  icon: "ti-file-analytics",color: "#0F172A" },
+const enjeuxMap: Record<string, { label: string; icon: string; color: string }> = {
+  energie:       { label: "Énergie",    icon: "ti-bolt",          color: "#D97706" },
+  environnement: { label: "Carbone",    icon: "ti-plant-2",       color: "#065F46" },
+  prevention:    { label: "Risques",    icon: "ti-shield",        color: "#991B1B" },
+  resilience:    { label: "Résilience", icon: "ti-refresh",       color: "#1E40AF" },
+  financement:   { label: "Aides",      icon: "ti-coin",          color: "#5B21B6" },
+  reporting:     { label: "Reporting",  icon: "ti-file-analytics", color: "#0F172A" },
 }
 
-const profilsMap: any = {
-  entreprise:      { label: "Entreprise",        icon: "ti-building" },
-  banque_assurance:{ label: "Banque / Assurance", icon: "ti-building-bank" },
-  proprietaire:    { label: "Propriétaire",       icon: "ti-home" },
-  collectivite:    { label: "Collectivité",       icon: "ti-building-community" },
-  expert:          { label: "Expert",             icon: "ti-search" },
+const profilsMap: Record<string, { label: string; icon: string }> = {
+  entreprise:       { label: "Entreprise",        icon: "ti-building" },
+  banque_assurance: { label: "Banque / Assurance", icon: "ti-building-bank" },
+  banque:           { label: "Banque",             icon: "ti-building-bank" },
+  assurance:        { label: "Assurance",          icon: "ti-shield" },
+  proprietaire:     { label: "Propriétaire",       icon: "ti-home" },
+  collectivite:     { label: "Collectivité",       icon: "ti-building-community" },
+  expert:           { label: "Expert",             icon: "ti-search" },
 }
 
-const niveauxMap: any = {
-  debutant: { label: "Débutant",  color: "#991B1B" },
-  en_cours: { label: "En cours",  color: "#D97706" },
-  avance:   { label: "Avancé",    color: "#065F46" },
+const niveauxMap: Record<string, { label: string; color: string }> = {
+  debutant: { label: "Débutant", color: "#991B1B" },
+  en_cours: { label: "En cours", color: "#D97706" },
+  avance:   { label: "Avancé",   color: "#065F46" },
 }
 
 const alertes = [
@@ -32,15 +34,83 @@ const alertes = [
 ]
 
 const actionsRapides = [
-  { label: "Mes actifs",         icon: "ti-building",       path: "/client/actifs" },
-  { label: "Marketplace",        icon: "ti-building-store", path: "/marketplace" },
-  { label: "Consulting Climat",  icon: "ti-leaf",           path: "/marketplace" },
-  { label: "Modifier mon profil",icon: "ti-settings",       path: "/client/profil" },
+  { label: "Mes actifs",          icon: "ti-building",       path: "/client/actifs" },
+  { label: "Marketplace",         icon: "ti-building-store", path: "/marketplace" },
+  { label: "Consulting Climat",   icon: "ti-leaf",           path: "/marketplace" },
+  { label: "Modifier mon profil", icon: "ti-settings",       path: "/client/profil" },
 ]
 
+// ─── Bloc KPI réutilisable ────────────────────────────────────────────────────
+interface KpiBloc {
+  titre: string
+  accentColor: string
+  accentBg: string
+  kpis: { label: string; val: string | number; icon: string; color: string }[]
+}
+
+function BlocKPI({ titre, accentColor, accentBg, kpis }: KpiBloc) {
+  return (
+    <div style={{ marginBottom: "4px" }}>
+      {/* Titre de section */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "8px",
+        marginBottom: "10px",
+      }}>
+        <div style={{
+          width: "3px", height: "16px", borderRadius: "2px",
+          background: accentColor, flexShrink: 0,
+        }} />
+        <span style={{
+          fontSize: "11px", fontWeight: 600, color: "#94A3B8",
+          textTransform: "uppercase", letterSpacing: "0.07em",
+        }}>
+          {titre}
+        </span>
+      </div>
+
+      {/* Grille KPI */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        {kpis.map((k, i) => (
+          <div key={i} style={{
+            background: "#FFFFFF", border: "1px solid #E2E8F0",
+            borderRadius: "10px", padding: "18px 20px",
+            borderTop: `2px solid ${accentColor}`,
+          }}>
+            <div style={{
+              display: "flex", alignItems: "center",
+              justifyContent: "space-between", marginBottom: "12px",
+            }}>
+              <div style={{
+                fontSize: "11px", fontWeight: 600, color: "#94A3B8",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>
+                {k.label}
+              </div>
+              <div style={{
+                width: 32, height: 32, borderRadius: "8px",
+                background: accentBg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: accentColor }} aria-hidden="true" />
+              </div>
+            </div>
+            <div style={{
+              fontSize: "26px", fontWeight: 500,
+              color: k.color, fontFamily: "'DM Mono', monospace",
+            }}>
+              {k.val}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Dashboard principal ──────────────────────────────────────────────────────
 export default function DashboardClient() {
   const navigate = useNavigate()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser]     = useState<any>(null)
   const [profil, setProfil] = useState<any>(null)
   const [actifs, setActifs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,9 +132,11 @@ export default function DashboardClient() {
       return
     }
 
-    setProfil(profilData)
+  setProfil(profilData)
+console.log("TYPE CLIENT →", profilData?.type_client)
+console.log("PROFIL COMPLET →", profilData)
 
-    const { data: actifsData } = await supabase
+const { data: actifsData } = await supabase
       .from("actifs")
       .select("*")
       .eq("user_id", user?.id)
@@ -81,36 +153,155 @@ export default function DashboardClient() {
     })
   }
 
-  if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
+  if (loading) return (
+    <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>
+      Chargement…
+    </div>
+  )
 
+  const typeClient = profil?.type_client as string
+
+  // ─── Segmentation actifs par catégorie ──────────────────────────────────────
+  const actifsPropres   = actifs.filter((a: any) => a.categorie === "patrimoine_propre")
+  const actifsAssures   = actifs.filter((a: any) => a.categorie === "biens_assures")
+  const actifsFinances  = actifs.filter((a: any) => a.categorie === "biens_finances")
+
+  // ─── Roadmap ────────────────────────────────────────────────────────────────
   const roadmap = profil?.roadmap ? getRoadmapWithProgress(profil.roadmap) : []
   const roadmapComplete = roadmap.filter((e: any) => e.statut === "complete").length
-  const roadmapTotal = roadmap.length
-  const progression = roadmapTotal > 0 ? Math.round((roadmapComplete / roadmapTotal) * 100) : 0
+  const roadmapTotal    = roadmap.length
+  const progression     = roadmapTotal > 0 ? Math.round((roadmapComplete / roadmapTotal) * 100) : 0
+
+  // ─── KPI helpers ────────────────────────────────────────────────────────────
+  function kpisForSegment(segment: any[]) {
+    return [
+      {
+        label: "Actifs enregistrés",
+        val: segment.length,
+        icon: "ti-building",
+        color: "#0F172A",
+      },
+      {
+        label: "Alertes réglementaires",
+        val: alertes.length,
+        icon: "ti-alert-triangle",
+        color: "#D97706",
+      },
+      {
+        label: "Analyses complétées",
+        val: segment.filter((a: any) => a.statut_analyse === "complete").length,
+        icon: "ti-circle-check",
+        color: "#065F46",
+      },
+      {
+        label: "Progression roadmap",
+        val: `${progression} %`,
+        icon: "ti-map",
+        color: "#1E40AF",
+      },
+    ]
+  }
+
+  // ─── Rendu des KPI selon profil ──────────────────────────────────────────────
+  function renderKPIs() {
+    // Banque : 2 blocs — Mon Patrimoine + Biens financés
+    if (typeClient === "banque") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <BlocKPI
+            titre="Mon Patrimoine"
+            accentColor="#0F6E56"
+            accentBg="#ECFDF5"
+            kpis={kpisForSegment(actifsPropres)}
+          />
+          <BlocKPI
+            titre="Biens financés"
+            accentColor="#0369A1"
+            accentBg="#EFF6FF"
+            kpis={kpisForSegment(actifsFinances)}
+          />
+        </div>
+      )
+    }
+
+    // Assurance : 2 blocs — Mon Patrimoine + Biens assurés
+    if (typeClient === "assurance") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <BlocKPI
+            titre="Mon Patrimoine"
+            accentColor="#0F6E56"
+            accentBg="#ECFDF5"
+            kpis={kpisForSegment(actifsPropres)}
+          />
+          <BlocKPI
+            titre="Biens assurés"
+            accentColor="#7C3AED"
+            accentBg="#F5F3FF"
+            kpis={kpisForSegment(actifsAssures)}
+          />
+        </div>
+      )
+    }
+
+    // Tous les autres profils : 1 bloc générique
+    return (
+      <BlocKPI
+        titre="Mon Patrimoine"
+        accentColor="#0F6E56"
+        accentBg="#ECFDF5"
+        kpis={kpisForSegment(actifsPropres.length > 0 ? actifsPropres : actifs)}
+      />
+    )
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-      {/* Hero sobre */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <div style={{
+        background: "#FFFFFF", border: "1px solid #E2E8F0",
+        borderRadius: "12px", padding: "20px 24px",
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between", gap: "16px",
+      }}>
         <div>
-          <div style={{ fontSize: "18px", fontWeight: 500, color: "#0F172A", marginBottom: "6px", letterSpacing: "-0.01em" }}>
+          <div style={{
+            fontSize: "18px", fontWeight: 500, color: "#0F172A",
+            marginBottom: "6px", letterSpacing: "-0.01em",
+          }}>
             Bonjour{user?.email ? ` — ${user.email}` : ""}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             {profil?.type_client && (
-              <span style={{ display: "flex", alignItems: "center", gap: "5px", background: "#ECFDF5", color: "#065F46", padding: "3px 10px", borderRadius: "4px", fontSize: "12px", fontWeight: 500, border: "1px solid #A7F3D0" }}>
+              <span style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                background: "#ECFDF5", color: "#065F46",
+                padding: "3px 10px", borderRadius: "4px",
+                fontSize: "12px", fontWeight: 500,
+                border: "1px solid #A7F3D0",
+              }}>
                 <i className={`ti ${profilsMap[profil.type_client]?.icon}`} style={{ fontSize: "13px" }} aria-hidden="true" />
                 {profilsMap[profil.type_client]?.label}
               </span>
             )}
             {profil?.niveau && (
-              <span style={{ background: "#F1F5F9", color: niveauxMap[profil.niveau]?.color || "#64748B", padding: "3px 10px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>
+              <span style={{
+                background: "#F1F5F9",
+                color: niveauxMap[profil.niveau]?.color || "#64748B",
+                padding: "3px 10px", borderRadius: "4px",
+                fontSize: "12px", fontWeight: 500,
+              }}>
                 {niveauxMap[profil.niveau]?.label}
               </span>
             )}
             {profil?.enjeux?.map((e: string) => (
-              <span key={e} style={{ display: "flex", alignItems: "center", gap: "4px", background: "#F8FAFC", color: "#64748B", padding: "3px 10px", borderRadius: "4px", fontSize: "12px", border: "1px solid #E2E8F0" }}>
+              <span key={e} style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                background: "#F8FAFC", color: "#64748B",
+                padding: "3px 10px", borderRadius: "4px",
+                fontSize: "12px", border: "1px solid #E2E8F0",
+              }}>
                 <i className={`ti ${enjeuxMap[e]?.icon}`} style={{ fontSize: "12px" }} aria-hidden="true" />
                 {enjeuxMap[e]?.label}
               </span>
@@ -119,57 +310,76 @@ export default function DashboardClient() {
         </div>
         <button
           onClick={() => navigate("/client/actifs/nouveau")}
-          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "9px 18px", borderRadius: "8px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "#0F6E56", color: "white", border: "none",
+            padding: "9px 18px", borderRadius: "8px", cursor: "pointer",
+            fontWeight: 500, fontSize: "13px", fontFamily: "inherit",
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}
+        >
           <i className="ti ti-plus" style={{ fontSize: "15px" }} aria-hidden="true" />
           Créer un actif
         </button>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-        {[
-          { label: "Actifs enregistrés",    val: actifs.length,                                                   icon: "ti-building",       color: "#0F172A" },
-          { label: "Alertes réglementaires",val: alertes.length,                                                  icon: "ti-alert-triangle", color: "#D97706" },
-          { label: "Analyses complétées",   val: actifs.filter((a: any) => a.statut_analyse === "complete").length, icon: "ti-circle-check",   color: "#065F46" },
-          { label: "Progression roadmap",   val: `${progression} %`,                                              icon: "ti-map",            color: "#1E40AF" },
-        ].map((k, i) => (
-          <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "18px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>{k.label}</div>
-              <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: "#0F6E56" }} aria-hidden="true" />
-              </div>
-            </div>
-            <div style={{ fontSize: "26px", fontWeight: 500, color: k.color, fontFamily: "'DM Mono', monospace" }}>{k.val}</div>
-          </div>
-        ))}
-      </div>
+      {/* ── KPIs (1 ou 2 blocs selon profil) ─────────────────────────────── */}
+      {renderKPIs()}
 
+      {/* ── Corps principal ───────────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
 
         {/* Roadmap */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Votre roadmap personnalisée</div>
-            <span style={{ fontSize: "12px", color: "#94A3B8", fontFamily: "'DM Mono', monospace" }}>{roadmapComplete}/{roadmapTotal} étapes</span>
+        <div style={{
+          background: "#FFFFFF", border: "1px solid #E2E8F0",
+          borderRadius: "10px", padding: "20px",
+        }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: "16px",
+          }}>
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>
+              Votre roadmap personnalisée
+            </div>
+            <span style={{
+              fontSize: "12px", color: "#94A3B8",
+              fontFamily: "'DM Mono', monospace",
+            }}>
+              {roadmapComplete}/{roadmapTotal} étapes
+            </span>
           </div>
 
-          {/* Barre progression */}
-          <div style={{ background: "#F1F5F9", borderRadius: "4px", height: "6px", overflow: "hidden", marginBottom: "16px" }}>
-            <div style={{ background: "#0F6E56", width: `${progression}%`, height: "100%", borderRadius: "4px", transition: "width 0.5s" }} />
+          <div style={{
+            background: "#F1F5F9", borderRadius: "4px",
+            height: "6px", overflow: "hidden", marginBottom: "16px",
+          }}>
+            <div style={{
+              background: "#0F6E56", width: `${progression}%`,
+              height: "100%", borderRadius: "4px", transition: "width 0.5s",
+            }} />
           </div>
 
           {roadmap.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "24px", color: "#94A3B8", fontSize: "13px" }}>
+            <div style={{
+              textAlign: "center", padding: "24px",
+              color: "#94A3B8", fontSize: "13px",
+            }}>
               Aucune roadmap —{" "}
-              <button onClick={() => navigate("/onboarding")} style={{ color: "#0F6E56", background: "none", border: "none", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>
+              <button
+                onClick={() => navigate("/onboarding")}
+                style={{
+                  color: "#0F6E56", background: "none", border: "none",
+                  cursor: "pointer", fontWeight: 500, fontSize: "13px",
+                  fontFamily: "inherit",
+                }}
+              >
                 Compléter votre profil
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {roadmap.map((etape: any, i: number) => {
-                const isDone = etape.statut === "complete"
+                const isDone   = etape.statut === "complete"
                 const isActive = etape.statut === "en_cours"
                 return (
                   <div key={i} style={{
@@ -187,18 +397,28 @@ export default function DashboardClient() {
                     }}>
                       {isDone ? <i className="ti ti-check" aria-hidden="true" /> : i + 1}
                     </div>
-                    <div style={{ flex: 1, fontSize: "13px", fontWeight: isDone ? 400 : 500, color: isDone ? "#065F46" : "#0F172A" }}>
+                    <div style={{
+                      flex: 1, fontSize: "13px",
+                      fontWeight: isDone ? 400 : 500,
+                      color: isDone ? "#065F46" : "#0F172A",
+                    }}>
                       {etape.label}
                     </div>
                     {etape.statut === "a_faire" && (
                       <button
                         onClick={() => {
-                          if (etape.id === "actif") navigate("/client/actifs/nouveau")
-                          else if (etape.id === "aides") navigate("/client/aides")
+                          if (etape.id === "actif")       navigate("/client/actifs/nouveau")
+                          else if (etape.id === "aides")  navigate("/client/aides")
                           else if (etape.id === "marketplace") navigate("/marketplace")
                           else navigate("/client/actifs")
                         }}
-                        style={{ background: "#0F6E56", color: "white", border: "none", padding: "5px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                        style={{
+                          background: "#0F6E56", color: "white", border: "none",
+                          padding: "5px 12px", borderRadius: "6px", cursor: "pointer",
+                          fontSize: "12px", fontWeight: 500, fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         Démarrer
                       </button>
                     )}
@@ -212,16 +432,39 @@ export default function DashboardClient() {
         {/* Colonne droite */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
-          {/* Alertes */}
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Alertes réglementaires</div>
+          {/* Alertes réglementaires */}
+          <div style={{
+            background: "#FFFFFF", border: "1px solid #E2E8F0",
+            borderRadius: "10px", padding: "16px 20px",
+          }}>
+            <div style={{
+              fontSize: "14px", fontWeight: 500,
+              color: "#0F172A", marginBottom: "12px",
+            }}>
+              Alertes réglementaires
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {alertes.map((a, i) => (
-                <div key={i} style={{ display: "flex", gap: "10px", padding: "10px 12px", background: a.bg, borderRadius: "0 7px 7px 0", borderLeft: `3px solid ${a.color}` }}>
-                  <i className={`ti ${a.icon}`} style={{ fontSize: "15px", color: a.color, flexShrink: 0, marginTop: "1px" }} aria-hidden="true" />
+                <div key={i} style={{
+                  display: "flex", gap: "10px",
+                  padding: "10px 12px", background: a.bg,
+                  borderRadius: "0 7px 7px 0",
+                  borderLeft: `3px solid ${a.color}`,
+                }}>
+                  <i className={`ti ${a.icon}`} style={{
+                    fontSize: "15px", color: a.color,
+                    flexShrink: 0, marginTop: "1px",
+                  }} aria-hidden="true" />
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 500, color: "#0F172A", marginBottom: "2px" }}>{a.texte}</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>Échéance : {a.echeance}</div>
+                    <div style={{
+                      fontSize: "12px", fontWeight: 500,
+                      color: "#0F172A", marginBottom: "2px",
+                    }}>
+                      {a.texte}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>
+                      Échéance : {a.echeance}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -229,18 +472,29 @@ export default function DashboardClient() {
           </div>
 
           {/* Actions rapides */}
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Actions rapides</div>
+          <div style={{
+            background: "#FFFFFF", border: "1px solid #E2E8F0",
+            borderRadius: "10px", padding: "16px 20px",
+          }}>
+            <div style={{
+              fontSize: "14px", fontWeight: 500,
+              color: "#0F172A", marginBottom: "12px",
+            }}>
+              Actions rapides
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               {actionsRapides.map((a, i) => (
-                <button key={i} onClick={() => navigate(a.path)} style={{
-                  display: "flex", alignItems: "center", gap: "10px",
-                  padding: "9px 12px", borderRadius: "7px",
-                  border: "1px solid #E2E8F0", background: "white",
-                  cursor: "pointer", textAlign: "left", width: "100%",
-                  fontSize: "13px", color: "#0F172A", fontFamily: "inherit",
-                  transition: "background 0.12s",
-                }}
+                <button
+                  key={i}
+                  onClick={() => navigate(a.path)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "9px 12px", borderRadius: "7px",
+                    border: "1px solid #E2E8F0", background: "white",
+                    cursor: "pointer", textAlign: "left", width: "100%",
+                    fontSize: "13px", color: "#0F172A", fontFamily: "inherit",
+                    transition: "background 0.12s",
+                  }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#F8FAFC")}
                   onMouseLeave={e => (e.currentTarget.style.background = "white")}
                 >
