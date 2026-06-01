@@ -51,6 +51,15 @@ interface Reglementation {
   cadre: "france"|"europe"
 }
 
+interface SiteSupplementaire {
+  nom: string
+  adresse: string
+  ville: string
+  code_postal: string
+  surface: string
+  type_batiment: string
+}
+
 function getClassification(effectifs: number, ca: number): string {
   if (effectifs >= 5000 || ca >= 1500) return "Grand groupe"
   if (effectifs >= 250 || ca >= 50) return "ETI"
@@ -67,7 +76,6 @@ function calculerEligibilite(infos: Infos): Reglementation[] {
   const classification = getClassification(effectifs, ca)
 
   return [
-    // France
     {
       id:"tertiaire", label:"Décret Tertiaire", icone:"⚡", cadre:"france",
       desc:"Réduction consommation énergétique bâtiments tertiaires >1000m²",
@@ -113,7 +121,6 @@ function calculerEligibilite(infos: Infos): Reglementation[] {
       statut: "potentiel",
       raison: "Démarche volontaire — Recommandée pour tous les actifs"
     },
-    // Europe
     {
       id:"csrd", label:"CSRD", icone:"📊", cadre:"europe",
       desc:"Reporting de durabilité entreprises (Corporate Sustainability Reporting Directive)",
@@ -165,24 +172,20 @@ export default function NouvelActif() {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [analyseIA, setAnalyseIA] = useState<any>(null)
+  const [analyseLoading, setAnalyseLoading] = useState(false)
+  const [analyseErreur, setAnalyseErreur] = useState("")
   const [autresDocuments, setAutresDocuments] = useState<File[]>([])
   const searchRef = useRef<any>(null)
-interface SiteSupplementaire {
-  nom: string
-  adresse: string
-  ville: string
-  code_postal: string
-  surface: string
-  type_batiment: string
-}
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
   const [infos, setInfos] = useState<Infos>({
     nom:"", raison_sociale:"", siren:"", siret:"", code_naf:"",
     classification:"", adresse:"", ville:"", code_postal:"",
     surface:"", type_batiment:"", annee_construction:"",
     effectifs:"", chiffre_affaires:"", secteur_activite:"", nb_sites:"1"
   })
-const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -210,7 +213,7 @@ const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
   function selectEntreprise(entreprise: any) {
     const siege = entreprise.siege || {}
     const effectifs = entreprise.tranche_effectif_salarie || ""
-    const effectifsMap:any = {
+    const effectifsMap: any = {
       "00":"0","01":"2","02":"6","03":"10","11":"20","12":"50",
       "21":"100","22":"200","31":"250","32":"500","41":"1000",
       "42":"2000","51":"5000","52":"10000","53":"20000"
@@ -259,90 +262,181 @@ const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
       nb_sites: parseInt(infos.nb_sites)||1,
       statut_analyse: "en_attente"
     }]).select()
-   if (data && data[0]) {
-  setActifId(data[0].id)
 
-  // Sauvegarder les sites supplémentaires
-  if (sitesSupp.length > 0) {
-    const sitesValides = sitesSupp.filter(s => s.nom && s.adresse && s.ville)
-    if (sitesValides.length > 0) {
-      await supabase.from("actifs").insert(
-        sitesValides.map(s => ({
-          user_id:        user?.id,
-          client_id:      user?.id,
-          nom:            s.nom,
-          adresse:        s.adresse,
-          ville:          s.ville,
-          code_postal:    s.code_postal,
-          surface:        parseInt(s.surface) || 0,
-          type_batiment:  s.type_batiment,
-          statut_analyse: "en_attente",
-          categorie:      "patrimoine_propre",
-          effectifs:      parseInt(infos.effectifs) || 0,
-          secteur_activite: infos.secteur_activite,
-          siren:          infos.siren,
-          classification: infos.classification,
-        }))
+    if (data && data[0]) {
+      setActifId(data[0].id)
+      if (sitesSupp.length > 0) {
+        const sitesValides = sitesSupp.filter(s => s.nom && s.adresse && s.ville)
+        if (sitesValides.length > 0) {
+          await supabase.from("actifs").insert(
+            sitesValides.map(s => ({
+              user_id:          user?.id,
+              client_id:        user?.id,
+              nom:              s.nom,
+              adresse:          s.adresse,
+              ville:            s.ville,
+              code_postal:      s.code_postal,
+              surface:          parseInt(s.surface) || 0,
+              type_batiment:    s.type_batiment,
+              statut_analyse:   "en_attente",
+              categorie:        "patrimoine_propre",
+              effectifs:        parseInt(infos.effectifs) || 0,
+              secteur_activite: infos.secteur_activite,
+              siren:            infos.siren,
+              classification:   infos.classification,
+            }))
+          )
+        }
+      }
+    }
+    setLoading(false)
+    setEtape(2)
+  }
+
+  async function lancerAnalyseIA() {
+    setAnalyseLoading(true)
+    setAnalyseErreur("")
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { data: profil } = await supabase
+        .from("profils_client")
+        .select("organisation_id")
+        .eq("id", user?.id)
+        .maybeSingle()
+
+      const prompt =
+        "Tu es un expert en transition climatique et reglementaire immobilier.\n\n" +
+        "Voici les donnees d'un actif immobilier :\n" +
+        "- Nom : " + infos.nom + "\n" +
+        "- Adresse : " + infos.adresse + ", " + infos.code_postal + " " + infos.ville + "\n" +
+        "- Type de batiment : " + infos.type_batiment + "\n" +
+        "- Surface : " + infos.surface + " m2\n" +
+        "- Annee de construction : " + infos.annee_construction + "\n" +
+        "- Effectifs : " + infos.effectifs + " salaries\n" +
+        "- Chiffre d'affaires : " + infos.chiffre_affaires + " M euros\n" +
+        "- Secteur d'activite : " + infos.secteur_activite + "\n" +
+        "- Classification : " + infos.classification + "\n" +
+        "- Documents disponibles : " + (documentsUploades.join(", ") || "aucun") + "\n\n" +
+        "Genere une roadmap de decarbonation et d'adaptation climatique pour cet actif.\n" +
+        "Reponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, sans commentaires.\n" +
+        '{"etapes":[{"categorie":"string","label":"string","description":"string","priorite":1,"echeance":"YYYY-MM-DD ou null","icone":"emoji","source":"ia"}],"synthese":"string"}'
+
+      const { data: { session } } = await supabase.auth.getSession()
+console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/functions/v1/analyse-actif")
+      const response = await fetch(
+        "https://vkclvfsblsjpuycjfiso.supabase.co/functions/v1/analyse-actif",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + (session?.access_token ?? ""),
+          },
+          body: JSON.stringify({ prompt }),
+        }
       )
+
+      const rawText = await response.text()
+      console.log("RAW RESPONSE →", rawText)
+
+      if (!response.ok) {
+        throw new Error("Edge Function error: " + response.status + " " + rawText)
+      }
+
+      const data = JSON.parse(rawText)
+      const text = data?.content?.find((b: any) => b.type === "text")?.text || ""
+      console.log("TEXT IA →", text)
+
+      if (!text) throw new Error("Réponse IA vide")
+
+      let parsed: any
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        const clean = text.replace(/```json|```/g, "").trim()
+        if (!clean) throw new Error("Contenu IA vide après nettoyage")
+        parsed = JSON.parse(clean)
+      }
+
+      setAnalyseIA(parsed)
+
+      if (actifId && profil?.organisation_id && parsed.etapes?.length > 0) {
+        await supabase.from("roadmap_etapes").insert(
+          parsed.etapes.map((e: any) => ({
+            organisation_id: profil.organisation_id,
+            actif_id:        actifId,
+            source:          "ia",
+            categorie:       e.categorie,
+            label:           e.label,
+            description:     e.description || null,
+            priorite:        e.priorite || 3,
+            echeance:        e.echeance || null,
+            icone:           e.icone || "📋",
+            statut:          "a_faire",
+            created_by:      user?.id,
+          }))
+        )
+      }
+
+    } catch (err: any) {
+      console.error("ERREUR ANALYSE IA →", err)
+      setAnalyseErreur("L'analyse IA a échoué. Vous pouvez continuer sans elle.")
+    } finally {
+      setAnalyseLoading(false)
     }
   }
-}
-setLoading(false)
-setEtape(2)
-  }
 
-  function goToEtape3() {
+  async function goToEtape3() {
     const reglsCalculees = calculerEligibilite(infos)
     setReglementations(reglsCalculees)
+    await lancerAnalyseIA()
     setEtape(3)
   }
 
-async function saveEtape3() {
-  if (actifId) {
-    const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
-
-    const echeancesMap: Record<string, string> = {
-      tertiaire:         "2026-09-30",
-      bacs:              "2026-01-01",
-      audit_energetique: "2026-11-01",
-      csrd:              "2026-12-31",
-      eu_taxonomy:       "2026-12-31",
-      sfdr:              "2026-06-30",
-      esrs:              "2026-12-31",
-      ifrs_s2:           "2026-12-31",
-      iso50001:          "2026-12-31",
-      loi_climat:        "2026-12-31",
-      bilan_ges:         "2026-12-31",
+  async function saveEtape3() {
+    if (actifId) {
+      const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
+      const echeancesMap: Record<string, string> = {
+        tertiaire:         "2026-09-30",
+        bacs:              "2026-01-01",
+        audit_energetique: "2026-11-01",
+        csrd:              "2026-12-31",
+        eu_taxonomy:       "2026-12-31",
+        sfdr:              "2026-06-30",
+        esrs:              "2026-12-31",
+        ifrs_s2:           "2026-12-31",
+        iso50001:          "2026-12-31",
+        loi_climat:        "2026-12-31",
+        bilan_ges:         "2026-12-31",
+      }
+      if (eligibles.length > 0) {
+        await supabase.from("actifs_reglementaire").insert(
+          eligibles.map(r => ({
+            actif_id:       actifId,
+            reglementation: r.id,
+            statut:         r.statut,
+            score:          r.statut === "eligible" ? 0 : 50,
+            details:        r.raison,
+            echeance:       echeancesMap[r.id] || null,
+          }))
+        )
+        const nbEligibles = eligibles.filter(r => r.statut === "eligible").length
+        const scoreCalcule = Math.min(100, Math.round((nbEligibles / 11) * 100))
+        await supabase.from("actifs").update({ score_climatique: scoreCalcule }).eq("id", actifId)
+      }
     }
-
-    if (eligibles.length > 0) {
-      await supabase.from("actifs_reglementaire").insert(
-        eligibles.map(r => ({
-          actif_id:       actifId,
-          reglementation: r.id,
-          statut:         r.statut,
-          score:          r.statut === "eligible" ? 0 : 50,
-          details:        r.raison,
-          echeance:       echeancesMap[r.id] || null,
-        }))
-      )
-
-      // Calculer et sauvegarder le score climatique
-      const nbEligibles = eligibles.filter(r => r.statut === "eligible").length
-      const scoreCalcule = Math.min(100, Math.round((nbEligibles / 11) * 100))
-      await supabase.from("actifs").update({ score_climatique: scoreCalcule }).eq("id", actifId)
-    }
+    setEtape(4)
   }
-  setEtape(4)
-}
+
   function toggleDocument(id: string) {
     setDocumentsUploades(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  const statutStyle:any = {
-    eligible: {bg:"#dcfce7",color:"#2d6a4f",icone:"✅",label:"Éligible — Obligatoire"},
-    potentiel: {bg:"#fef3c7",color:"#d97706",icone:"⚠️",label:"Potentiellement éligible"},
-    non_eligible: {bg:"#f0f0f0",color:"#999",icone:"❌",label:"Non éligible"}
+  const statutStyle: any = {
+    eligible:     { bg:"#dcfce7", color:"#2d6a4f", icone:"✅", label:"Éligible — Obligatoire" },
+    potentiel:    { bg:"#fef3c7", color:"#d97706", icone:"⚠️", label:"Potentiellement éligible" },
+    non_eligible: { bg:"#f0f0f0", color:"#999",    icone:"❌", label:"Non éligible" }
   }
 
   const reglsFrance = reglementations.filter(r => r.cadre === "france")
@@ -372,13 +466,12 @@ async function saveEtape3() {
 
       {/* Étape 1 — Informations */}
       {etape===1 && (
-  <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}} onKeyDown={e => { 
-  const tag = (e.target as HTMLElement).tagName
-  if (e.key === "Enter" && tag !== "TEXTAREA" && tag !== "INPUT") e.preventDefault()
-}}>
+        <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}} onKeyDown={e => {
+          const tag = (e.target as HTMLElement).tagName
+          if (e.key === "Enter" && tag !== "TEXTAREA" && tag !== "INPUT") e.preventDefault()
+        }}>
           <h3 style={{color:"#1a3a2a",marginBottom:"1.5rem"}}>📋 Informations du site</h3>
 
-          {/* Recherche entreprise */}
           <div style={{background:"#f0f4f0",padding:"1.25rem",borderRadius:"12px",marginBottom:"1.5rem",border:"2px solid #2d6a4f"}} ref={searchRef}>
             <label style={{display:"block",marginBottom:"0.5rem",fontWeight:"700",fontSize:"0.9rem",color:"#1a3a2a"}}>🔍 Rechercher votre entreprise</label>
             <p style={{fontSize:"0.8rem",color:"#666",marginBottom:"0.75rem"}}>Tapez le nom de votre société — les données sont récupérées automatiquement</p>
@@ -397,9 +490,7 @@ async function saveEtape3() {
                     onMouseEnter={e => (e.currentTarget.style.background="#f0f4f0")}
                     onMouseLeave={e => (e.currentTarget.style.background="white")}>
                     <div style={{fontWeight:"600",color:"#1a3a2a",marginBottom:"0.25rem"}}>{s.nom_complet||s.nom_raison_sociale}</div>
-                    <div style={{fontSize:"0.8rem",color:"#666"}}>
-                      SIREN : {s.siren} • {s.activite_principale} • {s.siege?.libelle_commune}
-                    </div>
+                    <div style={{fontSize:"0.8rem",color:"#666"}}>SIREN : {s.siren} • {s.activite_principale} • {s.siege?.libelle_commune}</div>
                   </div>
                 ))}
               </div>
@@ -462,63 +553,65 @@ async function saveEtape3() {
             </div>
             <div>
               <label style={{display:"block",marginBottom:"0.4rem",fontWeight:"600",fontSize:"0.85rem",color:"#1a3a2a"}}>Nombre de sites</label>
-              <input 
-  value={infos.nb_sites} 
-  onChange={e => {
-    const nb = parseInt(e.target.value) || 1
-    setInfos({...infos, nb_sites: e.target.value})
-    const nouveauxSites: SiteSupplementaire[] = Array.from({ length: Math.max(0, nb - 1) }, (_, i) => 
-      sitesSupp[i] || { nom: "", adresse: "", ville: "", code_postal: "", surface: "", type_batiment: "" }
-    )
-    setSitesSupp(nouveauxSites)
-  }} 
-  placeholder="1" 
-  type="number" 
-  style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}} 
-/>
+              <input
+                value={infos.nb_sites}
+                onChange={e => {
+                  const nb = parseInt(e.target.value) || 1
+                  setInfos({...infos, nb_sites: e.target.value})
+                  const nouveauxSites: SiteSupplementaire[] = Array.from({ length: Math.max(0, nb - 1) }, (_, i) =>
+                    sitesSupp[i] || { nom: "", adresse: "", ville: "", code_postal: "", surface: "", type_batiment: "" }
+                  )
+                  setSitesSupp(nouveauxSites)
+                }}
+                placeholder="1"
+                type="number"
+                style={{width:"100%",padding:"0.75rem",borderRadius:"8px",border:"1px solid #e5e1da",fontSize:"0.9rem",outline:"none"}}
+              />
             </div>
           </div>
+
           {sitesSupp.length > 0 && (
-  <div style={{ marginTop: "1.5rem" }} onClick={e => e.stopPropagation()}>
-    <div style={{ fontSize: "14px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px", padding: "10px 16px", background: "#f0f4f0", borderRadius: "8px" }}>
-      Sites supplémentaires ({sitesSupp.length})
-    </div>
-    {sitesSupp.map((site, i) => (
-      <div key={i} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px", marginBottom: "12px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px" }}>Site {i + 2}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-          <div style={{ gridColumn: "1/-1" }}>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Nom du site</label>
-            <input value={site.nom} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], nom: e.target.value}; setSitesSupp(s) }} placeholder="Ex: Entrepôt Nord" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
-          </div>
-          <div style={{ gridColumn: "1/-1" }}>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Adresse</label>
-            <input value={site.adresse} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], adresse: e.target.value}; setSitesSupp(s) }} placeholder="Adresse complète" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Ville</label>
-            <input value={site.ville} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], ville: e.target.value}; setSitesSupp(s) }} placeholder="Ville" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Code postal</label>
-            <input value={site.code_postal} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], code_postal: e.target.value}; setSitesSupp(s) }} placeholder="75000" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Surface (m²)</label>
-            <input value={site.surface} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], surface: e.target.value}; setSitesSupp(s) }} placeholder="Ex: 1500" type="number" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Type de bâtiment</label>
-            <select value={site.type_batiment} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], type_batiment: e.target.value}; setSitesSupp(s) }} style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", background: "white", boxSizing: "border-box" as const }}>
-              <option value="">Choisir…</option>
-              {typesBatiments.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)}
+            <div style={{ marginTop: "1.5rem" }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px", padding: "10px 16px", background: "#f0f4f0", borderRadius: "8px" }}>
+                Sites supplémentaires ({sitesSupp.length})
+              </div>
+              {sitesSupp.map((site, i) => (
+                <div key={i} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px", marginBottom: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a3a2a", marginBottom: "12px" }}>Site {i + 2}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ gridColumn: "1/-1" }}>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Nom du site</label>
+                      <input value={site.nom} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], nom: e.target.value}; setSitesSupp(s) }} placeholder="Ex: Entrepôt Nord" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+                    </div>
+                    <div style={{ gridColumn: "1/-1" }}>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Adresse</label>
+                      <input value={site.adresse} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], adresse: e.target.value}; setSitesSupp(s) }} placeholder="Adresse complète" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Ville</label>
+                      <input value={site.ville} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], ville: e.target.value}; setSitesSupp(s) }} placeholder="Ville" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Code postal</label>
+                      <input value={site.code_postal} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], code_postal: e.target.value}; setSitesSupp(s) }} placeholder="75000" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Surface (m²)</label>
+                      <input value={site.surface} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], surface: e.target.value}; setSitesSupp(s) }} placeholder="Ex: 1500" type="number" style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "4px", fontWeight: 600, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Type de bâtiment</label>
+                      <select value={site.type_batiment} onChange={e => { const s = [...sitesSupp]; s[i] = {...s[i], type_batiment: e.target.value}; setSitesSupp(s) }} style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", background: "white", boxSizing: "border-box" as const }}>
+                        <option value="">Choisir…</option>
+                        {typesBatiments.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:"1.5rem"}}>
             <button type="button" onClick={saveEtape1} disabled={!infos.nom||!infos.adresse||!infos.ville||loading} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700",opacity:(!infos.nom||!infos.adresse||!infos.ville)?0.5:1}}>
               {loading?"Enregistrement...":"Suivant →"}
@@ -544,39 +637,56 @@ async function saveEtape3() {
               </div>
             ))}
           </div>
-<label style={{ border: "2px dashed #2d6a4f", borderRadius: "12px", padding: "1.5rem", textAlign: "center", cursor: "pointer", background: "#f0fdf4", marginBottom: "1rem", display: "block" }}>
-  <input
-    type="file"
-    accept=".pdf,.doc,.docx,.xls,.xlsx"
-    multiple
-    style={{ display: "none" }}
-    onChange={e => {
-      const files = Array.from(e.target.files || [])
-      setAutresDocuments(prev => [...prev, ...files])
-    }}
-  />
-  <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>➕</div>
-  <div style={{ fontWeight: "600", color: "#2d6a4f", fontSize: "0.9rem", marginBottom: "0.25rem" }}>Ajouter un autre document</div>
-  <div style={{ fontSize: "0.75rem", color: "#666" }}>PDF, Word, Excel — tout format accepté</div>
-  {autresDocuments.length > 0 && (
-    <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-      {autresDocuments.map((f, i) => (
-        <div key={i} style={{ fontSize: "0.8rem", color: "#2d6a4f", fontWeight: "600" }}>✅ {f.name}</div>
-      ))}
-    </div>
-  )}
-</label>
+          <label style={{ border: "2px dashed #2d6a4f", borderRadius: "12px", padding: "1.5rem", textAlign: "center", cursor: "pointer", background: "#f0fdf4", marginBottom: "1rem", display: "block" }}>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx"
+              multiple
+              style={{ display: "none" }}
+              ref={fileInputRef}
+              onChange={e => {
+                const files = Array.from(e.target.files || [])
+                setAutresDocuments(prev => [...prev, ...files])
+              }}
+            />
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>➕</div>
+            <div style={{ fontWeight: "600", color: "#2d6a4f", fontSize: "0.9rem", marginBottom: "0.25rem" }}>Ajouter un autre document</div>
+            <div style={{ fontSize: "0.75rem", color: "#666" }}>PDF, Word, Excel — tout format accepté</div>
+            {autresDocuments.length > 0 && (
+              <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                {autresDocuments.map((f, i) => (
+                  <div key={i} style={{ fontSize: "0.8rem", color: "#2d6a4f", fontWeight: "600" }}>✅ {f.name}</div>
+                ))}
+              </div>
+            )}
+          </label>
           <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1"}}>
             💡 Vous pourrez ajouter d'autres documents à tout moment depuis la fiche de votre actif.
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
             <button onClick={() => setEtape(1)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
-            <button onClick={goToEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Suivant →</button>
+            <button
+              onClick={goToEtape3}
+              disabled={analyseLoading}
+              style={{
+                background: analyseLoading ? "#94A3B8" : "#1a3a2a",
+                color: "white", border: "none",
+                padding: "0.875rem 2rem", borderRadius: "8px",
+                cursor: analyseLoading ? "not-allowed" : "pointer",
+                fontWeight: "700", display: "flex",
+                alignItems: "center", gap: "8px",
+              }}
+            >
+              {analyseLoading
+                ? <><i className="ti ti-loader-2 ti-spin" aria-hidden="true" /> Analyse IA en cours…</>
+                : "Suivant →"
+              }
+            </button>
           </div>
         </div>
       )}
 
-      {/* Étape 3 — Réglementaire automatique */}
+      {/* Étape 3 — Réglementaire */}
       {etape===3 && (
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
           <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>⚖️ Analyse réglementaire</h3>
@@ -595,8 +705,6 @@ async function saveEtape3() {
               </div>
             ))}
           </div>
-
-          {/* France */}
           <div style={{marginBottom:"1.5rem"}}>
             <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.75rem"}}>
               <span style={{fontSize:"1.25rem"}}>🇫🇷</span>
@@ -619,8 +727,6 @@ async function saveEtape3() {
               ))}
             </div>
           </div>
-
-          {/* Europe */}
           <div style={{marginBottom:"1.5rem"}}>
             <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.75rem"}}>
               <span style={{fontSize:"1.25rem"}}>🇪🇺</span>
@@ -643,7 +749,6 @@ async function saveEtape3() {
               ))}
             </div>
           </div>
-
           <div style={{display:"flex",justifyContent:"space-between"}}>
             <button onClick={() => setEtape(2)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
             <button onClick={saveEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Analyser le score climatique →</button>
@@ -699,6 +804,20 @@ async function saveEtape3() {
             <p style={{color:"#666",marginBottom:"0.5rem"}}>Votre actif a été enregistré et l'analyse préliminaire est disponible.</p>
             <p style={{color:"#666",fontSize:"0.85rem",marginBottom:"2rem"}}>L'analyse complète avec IA sera disponible sous 24h.</p>
             <div style={{background:"#f8f7f4",padding:"1.5rem",borderRadius:"12px",marginBottom:"2rem",textAlign:"left"}}>
+              {analyseIA?.synthese && (
+                <div style={{background:"#ECFDF5",border:"1px solid #A7F3D0",borderRadius:"10px",padding:"16px 20px",marginBottom:"16px",display:"flex",gap:"12px"}}>
+                  <i className="ti ti-sparkles" style={{fontSize:"18px",color:"#0F6E56",flexShrink:0,marginTop:"2px"}} aria-hidden="true" />
+                  <div>
+                    <div style={{fontSize:"12px",fontWeight:600,color:"#065F46",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.07em"}}>Analyse IA</div>
+                    <div style={{fontSize:"13px",color:"#065F46",lineHeight:"1.6"}}>{analyseIA.synthese}</div>
+                  </div>
+                </div>
+              )}
+              {analyseErreur && (
+                <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:"10px",padding:"12px 16px",marginBottom:"16px",fontSize:"12px",color:"#991B1B"}}>
+                  <i className="ti ti-alert-triangle" aria-hidden="true" /> {analyseErreur}
+                </div>
+              )}
               <h4 style={{color:"#1a3a2a",marginBottom:"1rem"}}>Récapitulatif</h4>
               <div style={{display:"flex",flexDirection:"column",gap:"0.5rem"}}>
                 {[
