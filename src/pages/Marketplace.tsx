@@ -121,13 +121,23 @@ export default function Marketplace() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: profil } = await supabase
-        .from("profils")
-        .select("role")
-        .eq("id", user.id)
-        .single()
+const { data: profilAGE } = await supabase
+  .from("profils")
+  .select("role")
+  .eq("id", user.id)
+  .maybeSingle()
 
-      const role = (profil?.role as UserRole) ?? null
+const { data: profilClient } = await supabase
+  .from("profils_client")
+  .select("type_client")
+  .eq("id", user.id)
+  .maybeSingle()
+
+const role: UserRole | null = profilAGE?.role
+  ? (profilAGE.role as UserRole)
+  : profilClient
+  ? "client"
+  : null
 
       let statutPro: StatutPro = null
       if (role === "partenaire") {

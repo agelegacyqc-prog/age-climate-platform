@@ -46,16 +46,18 @@ export default function ClientMessagerie() {
       setConversations(data || [])
       if (data && data.length > 0) setSelected(data[0])
       else setSelected(null)
-    } else if (onglet === "actifs") {
-      const { data } = await supabase
-        .from("actifs")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-      setConversations(data || [])
-      if (data && data.length > 0) setSelected(data[0])
-      else setSelected(null)
-    }
+  } else if (onglet === "actifs") {
+  const { data } = await supabase
+    .from("actifs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("categorie", "patrimoine_propre")
+    .eq("actif", true)
+    .order("created_at", { ascending: false })
+  setConversations(data || [])
+  if (data && data.length > 0) setSelected(data[0])
+  else setSelected(null)
+}
   }
 
   async function loadMessages() {

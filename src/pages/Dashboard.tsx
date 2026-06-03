@@ -228,7 +228,7 @@ export default function Dashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
           <StatCard label="Actifs analysés" valeur={`${stats.actifsAnalyses} / ${stats.totalActifs}`} icon="ti-building" color="#0F6E56" bg="#ECFDF5" tendance="Du portefeuille total" onClick={() => navigate("/client/actifs")} />
           <StatCard label="Score risque moyen" valeur={stats.scoreMoyen > 0 ? `${stats.scoreMoyen} / 100` : "—"} icon="ti-chart-bar" color="#1E40AF" bg="#EFF6FF" tendance="Score climatique moyen" />
-          <StatCard label="Campagnes actives" valeur={stats.campagnesActives} icon="ti-speakerphone" color="#D97706" bg="#FFFBEB" tendance="En cours" onClick={() => navigate("/metier/campagnes")} />
+          <StatCard label="Campagnes actives" valeur={stats.campagnesActives} icon="ti-speakerphone" color="#D97706" bg="#FFFBEB" tendance="En cours" onClick={() => navigate("/client/campagnes")} />
           <StatCard label="Demandes en cours" valeur={stats.demandesEnCours} icon="ti-briefcase" color="#5B21B6" bg="#F5F3FF" tendance="Validées ou en cours" onClick={() => navigate("/marketplace")} />
         </div>
 
@@ -300,7 +300,7 @@ export default function Dashboard() {
         <div>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>Accès rapides</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-            <Raccourci icon="ti-speakerphone" titre="Nouvelle campagne" desc="Lancer une campagne de prévention pour vos clients" color="#D97706" bg="#FFFBEB" onClick={() => navigate("/metier/campagnes")} />
+            <Raccourci icon="ti-speakerphone" titre="Nouvelle campagne" desc="Lancer une campagne de prévention pour vos clients" color="#D97706" bg="#FFFBEB" onClick={() => navigate("/client/campagnes")} />
             <Raccourci icon="ti-building-store" titre="Marketplace" desc="Déposer une demande de prestation ou de mission" color="#5B21B6" bg="#F5F3FF" onClick={() => navigate("/marketplace")} />
             <Raccourci icon="ti-building" titre="Mes actifs" desc="Consulter et gérer votre portefeuille d'actifs" color="#0F6E56" bg="#ECFDF5" onClick={() => navigate("/client/actifs")} />
           </div>

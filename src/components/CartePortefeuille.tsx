@@ -24,14 +24,14 @@ const LABELS_RISQUE: Record<string, string> = {
 
 interface Bien {
   id: string
+  nom: string
   adresse: string
   ville: string
   code_postal: string
-  niveau_risque: string
-  score_risque: number
+  score_climatique: number | null
   latitude: number | null
   longitude: number | null
-  geocode_status: string
+  categorie: string
 }
 
 // Géocodage d'un bien via api-adresse.data.gouv.fr
@@ -59,40 +59,58 @@ const satelliteLayerRef = useRef<any>(null)
   const [loading, setLoading] = useState(true)
   const [geocoding, setGeocoding] = useState(false)
   const [stats, setStats] = useState({ total: 0, geocodes: 0 })
-  const [vueSatellite, setVueSatellite] = useState(false)
+  const [vueSatellite, setVueSatellite] = useState(true)
 
   // Chargement des biens
   useEffect(() => {
     async function charger() {
-      const { data } = await supabase
-        .from("biens")
-        .select("id, adresse, ville, code_postal, niveau_risque, score_risque, latitude, longitude, geocode_status")
-        .order("created_at", { ascending: false })
+     const { data: { user } } = await supabase.auth.getUser()
+
+const { data: profilClient } = await supabase
+  .from("profils_client")
+  .select("type_client")
+  .eq("id", user?.id)
+  .maybeSingle()
+
+const typeClient = profilClient?.type_client
+
+// Filtrer sur les biens de campagne selon le profil
+const categories = typeClient === "banque"
+  ? ["biens_finances"]
+  : typeClient === "assurance"
+  ? ["biens_assures"]
+  : ["patrimoine_propre"]
+
+const { data } = await supabase
+  .from("actifs")
+  .select("id, adresse, ville, code_postal, score_climatique, latitude, longitude, categorie, nom")
+  .eq("user_id", user?.id)
+  .in("categorie", categories)
+  .order("created_at", { ascending: false })
 
       if (data) {
         setBiens(data)
-        setStats({
-          total: data.length,
-          geocodes: data.filter(b => b.latitude !== null).length,
-        })
+       setStats({
+  total: data.length,
+  geocodes: data.filter((b: any) => b.latitude !== null).length,
+})
 
         // Géocoder les biens sans coordonnées
-        const aGeocoer = data.filter(b => b.geocode_status === "pending" && b.adresse)
+       const aGeocoer = data.filter((b: any) => b.latitude === null && b.adresse)
         if (aGeocoer.length > 0) {
           setGeocoding(true)
           for (const bien of aGeocoer) {
             const coords = await geocoderBien(bien)
             if (coords) {
-              await supabase.from("biens").update({
-                latitude: coords.lat,
-                longitude: coords.lng,
-                geocode_status: "done",
-              }).eq("id", bien.id)
-              bien.latitude = coords.lat
-              bien.longitude = coords.lng
-              bien.geocode_status = "done"
-            } else {
-              await supabase.from("biens").update({ geocode_status: "error" }).eq("id", bien.id)
+              await supabase.from("actifs").update({
+  latitude: coords.lat,
+  longitude: coords.lng,
+}).eq("id", bien.id)
+            
+              await supabase.from("actifs").update({
+  latitude: coords.lat,
+  longitude: coords.lng,
+}).eq("id", bien.id)
             }
           }
           setGeocoding(false)
@@ -125,7 +143,7 @@ useEffect(() => {
       center: [46.8, 2.3],
       zoom: 5,
       zoomControl: true,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,
     })
 
     osmLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -138,14 +156,15 @@ useEffect(() => {
       maxZoom: 19,
     })
 
-    osmLayerRef.current.addTo(map)
+    satelliteLayerRef.current.addTo(map)
 
     // Marqueurs
     const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
     const bounds: [number, number][] = []
 
     biensCoordonnes.forEach(bien => {
-      const couleur = COULEURS_RISQUE[bien.niveau_risque] || "#78716C"
+      const score = Number(bien.score_climatique) || 0
+const couleur = score >= 70 ? "#B91C1C" : score >= 40 ? "#D97706" : "#2F7D5C"
       const lat = bien.latitude as number
       const lng = bien.longitude as number
 
@@ -161,7 +180,7 @@ useEffect(() => {
             display: flex; align-items: center; justify-content: center;
             font-size: 10px; font-weight: 700; color: white;
             font-family: Inter, sans-serif;
-          ">${bien.score_risque || "?"}</div>
+          ">${bien.score_climatique || "?"}</div>
         `,
         iconSize: [28, 28],
         iconAnchor: [14, 14],
@@ -179,10 +198,10 @@ useEffect(() => {
           <div style="display: flex; align-items: center; gap: 6px;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: ${couleur};"></div>
             <span style="font-size: 11px; font-weight: 600; color: ${couleur};">
-              ${LABELS_RISQUE[bien.niveau_risque] || bien.niveau_risque}
+              ${bien.nom || bien.adresse}
             </span>
             <span style="margin-left: auto; font-size: 11px; color: #78716C;">
-              Score ${bien.score_risque}/100
+              Score ${bien.score_climatique || "—"}/100
             </span>
           </div>
         </div>

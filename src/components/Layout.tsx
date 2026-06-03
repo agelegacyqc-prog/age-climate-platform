@@ -294,14 +294,7 @@ setMonProfilClient(profilClient)
             <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
           )}
 
-          {/*
-            Portefeuille :
-            - client : visible (inchangé)
-            - AGE    : supprimé
-          */}
-          {espace === "client" && (
-            <NavItem to="/metier/portefeuille" icon="ti-building-bank" label="Portefeuille" />
-          )}
+     
 
           {/* ── Espace Client ──────────────────────────────────────────── */}
           {espace === "client" && (

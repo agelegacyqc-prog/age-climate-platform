@@ -35,7 +35,14 @@ export default function BiensCampagnes() {
   const [filtreStatut, setFiltreStatut]   = useState("tous")
 
   useEffect(() => { load() }, [])
-
+async function archiverCampagne(campagneId: string) {
+  if (!confirm("Archiver cette campagne ? Elle ne sera plus visible dans la liste active.")) return
+  await supabase
+    .from("campagnes")
+    .update({ archivee: true, archivee_at: new Date().toISOString() })
+    .eq("id", campagneId)
+  setCampagnes(prev => prev.filter(c => c.id !== campagneId))
+}
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -56,6 +63,7 @@ export default function BiensCampagnes() {
       .from("campagnes")
       .select("id, nom, statut, date_debut, date_fin")
       .eq("client_id", user.id)
+      .eq("archivee", false)
       .order("created_at", { ascending: false })
 
     if (!campagnesData) { setLoading(false); return }
@@ -166,7 +174,21 @@ export default function BiensCampagnes() {
                 <span style={{ fontSize: "11px", color: sc.color, background: "white", padding: "2px 8px", borderRadius: "4px" }}>{c.actifs.length} bien{c.actifs.length > 1 ? "s" : ""}</span>
                 {(c.date_debut || c.date_fin) && (
                   <span style={{ fontSize: "11px", color: sc.color }}>{c.date_debut || "—"} → {c.date_fin || "—"}</span>
+                
                 )}
+                <button
+  onClick={e => { e.stopPropagation(); archiverCampagne(c.id) }}
+  style={{
+    display: "flex", alignItems: "center", gap: "4px",
+    background: "white", border: "1px solid #E2E8F0",
+    padding: "3px 10px", borderRadius: "6px",
+    fontSize: "11px", color: "#64748B",
+    cursor: "pointer", fontFamily: "inherit",
+  }}
+>
+  <i className="ti ti-archive" style={{ fontSize: "12px" }} aria-hidden="true" />
+  Archiver
+</button>
               </div>
 
               {/* Actifs de la campagne */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 const enjeuxMap: Record<string, { label: string; icon: string; color: string }> = {
@@ -35,8 +35,8 @@ const alertes = [
 
 const actionsRapides = [
   { label: "Mes actifs",          icon: "ti-building",       path: "/client/actifs" },
+  { label: "Nouvelle campagne",   icon: "ti-speakerphone",   path: "/client/campagnes" },
   { label: "Marketplace",         icon: "ti-building-store", path: "/marketplace" },
-  { label: "Consulting Climat",   icon: "ti-leaf",           path: "/marketplace" },
   { label: "Modifier mon profil", icon: "ti-settings",       path: "/client/profil" },
 ]
 
@@ -110,12 +110,13 @@ function BlocKPI({ titre, accentColor, accentBg, kpis }: KpiBloc) {
 // ─── Dashboard principal ──────────────────────────────────────────────────────
 export default function DashboardClient() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [user, setUser]     = useState<any>(null)
   const [profil, setProfil] = useState<any>(null)
   const [actifs, setActifs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [location.pathname])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()

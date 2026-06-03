@@ -51,6 +51,8 @@ export default function Portefeuille() {
   const [filtreStatut, setFiltreStatut]         = useState("tous")
   const [filtreTypeClient, setFiltreTypeClient] = useState("tous")
   const [recherche, setRecherche]               = useState("")
+  const [filtreCampagne, setFiltreCampagne] = useState("toutes")
+const [filtreDept, setFiltreDept]         = useState("tous")
 
   useEffect(() => { loadActifs() }, [])
 
@@ -59,19 +61,24 @@ export default function Portefeuille() {
     setFiltreStatut("tous")
     setFiltreTypeClient("tous")
     setRecherche("")
+    setFiltreCampagne("toutes")
+setFiltreDept("tous")
   }, [onglet])
 
-  async function loadActifs() {
-    const { data } = await supabase.from("actifs").select("*").order("created_at", { ascending: false })
-    setActifs(data || [])
-    setLoading(false)
-  }
+async function loadActifs() {
+  const { data } = await supabase
+    .from("actifs")
+    .select("*, campagnes_actifs(campagne:campagne_id(id, nom))")
+    .order("created_at", { ascending: false })
+  setActifs(data || [])
+  setLoading(false)
+}
 
-  const actifsOnglet = actifs.filter(a =>
-    onglet === "patrimoine_propre"
-      ? (a.categorie === "patrimoine_propre" || !a.categorie)
-      : a.categorie === "patrimoine_client"
-  )
+const actifsOnglet = actifs.filter(a =>
+  onglet === "patrimoine_propre"
+    ? (a.categorie === "patrimoine_propre" || !a.categorie)
+    : (a.categorie === "biens_assures" || a.categorie === "biens_finances")
+)
 
   const actifsFiltres = actifsOnglet.filter(a => {
     if (filtreScore !== "tous") {
@@ -86,11 +93,40 @@ export default function Portefeuille() {
       const q = recherche.toLowerCase()
       if (!`${a.nom} ${a.adresse} ${a.ville} ${a.nom_client}`.toLowerCase().includes(q)) return false
     }
+    if (onglet === "patrimoine_client") {
+  if (filtreCampagne !== "toutes") {
+    const campagneIds = (a.campagnes_actifs || []).map((ca: any) => ca.campagne?.id)
+    if (!campagneIds.includes(filtreCampagne)) return false
+  }
+  if (filtreDept !== "tous") {
+    const dept = String(a.code_postal || "").substring(0, 2)
+    if (dept !== filtreDept) return false
+  }
+}
     return true
   })
+// Campagnes disponibles pour les biens tiers
+const campagnesDisponibles = Array.from(
+  new Map(
+    actifs
+      .filter(a => a.categorie === "biens_assures" || a.categorie === "biens_finances")
+      .flatMap((a: any) => a.campagnes_actifs || [])
+      .filter((ca: any) => ca.campagne)
+      .map((ca: any) => [ca.campagne.id, ca.campagne])
+  ).values()
+)
 
+// Départements disponibles pour les biens tiers
+const departementsDisponibles = Array.from(
+  new Set(
+    actifs
+      .filter(a => (a.categorie === "biens_assures" || a.categorie === "biens_finances") && a.code_postal)
+      .map((a: any) => String(a.code_postal).substring(0, 2))
+      .filter(Boolean)
+  )
+).sort()
   const countPropre  = actifs.filter(a => a.categorie === "patrimoine_propre" || !a.categorie).length
-  const countClients = actifs.filter(a => a.categorie === "patrimoine_client").length
+const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.categorie === "biens_finances").length
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
@@ -118,7 +154,7 @@ export default function Portefeuille() {
       <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
         {([
           { key: "patrimoine_propre", label: "Mon Patrimoine",     count: countPropre,  icon: "ti-building" },
-          { key: "patrimoine_client", label: "Patrimoine clients", count: countClients, icon: "ti-users" },
+          { key: "patrimoine_client", label: "Biens assurés & financés", count: countClients, icon: "ti-building-bank" },
         ] as const).map(o => (
           <button key={o.key} onClick={() => setOnglet(o.key)} style={{
             display: "flex", alignItems: "center", gap: "7px",
@@ -157,14 +193,36 @@ export default function Portefeuille() {
             />
           </div>
 
-          {onglet === "patrimoine_client" && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Client</span>
-              {["tous", "banque", "assurance", "entreprise", "collectivite"].map(t => (
-                <FilterPill key={t} active={filtreTypeClient === t} onClick={() => setFiltreTypeClient(t)} label={t === "tous" ? "Tous" : TYPE_CLIENT_CONFIG[t]?.label || t} />
-              ))}
-            </div>
-          )}
+      {onglet === "patrimoine_client" && (
+  <>
+    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campagne</span>
+      <select
+        value={filtreCampagne}
+        onChange={e => setFiltreCampagne(e.target.value)}
+        style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+      >
+        <option value="toutes">Toutes</option>
+        {campagnesDisponibles.map((c: any) => (
+          <option key={c.id} value={c.id}>{c.nom}</option>
+        ))}
+      </select>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Département</span>
+      <select
+        value={filtreDept}
+        onChange={e => setFiltreDept(e.target.value)}
+        style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+      >
+        <option value="tous">Tous</option>
+        {departementsDisponibles.map(d => (
+          <option key={d} value={d}>{d}</option>
+        ))}
+      </select>
+    </div>
+  </>
+)}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Risque</span>
@@ -189,7 +247,7 @@ export default function Portefeuille() {
             <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
               {(onglet === "patrimoine_propre"
                 ? ["Actif", "Adresse", "Type", "Score climatique", "Statut", ""]
-                : ["Actif", "Adresse", "Type", "Client", "Score climatique", "Statut", ""]
+                : ["Actif", "Adresse", "Type", "Propriétaire", "Score climatique", "Statut", ""]
               ).map((h, i) => (
                 <th key={i} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
               ))}
@@ -229,12 +287,12 @@ export default function Portefeuille() {
 
                   {onglet === "patrimoine_client" && (
                    <td style={{ padding: "12px 16px" }}>
-  <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
-    {[a.prenom_client, a.nom_client].filter(Boolean).join(" ") || "—"}
-  </div>
-  {a.telephone_client && (
-    <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{a.telephone_client}</div>
-  )}
+<div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
+  {a.nom || "—"}
+</div>
+{a.telephone_client && (
+  <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{a.telephone_client}</div>
+)}
   {typeClient && (
     <span style={{ display: "inline-flex", background: typeClient.bg, color: typeClient.color, padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, marginTop: "3px" }}>
       {typeClient.label}

@@ -20,11 +20,17 @@ async function loadActifs() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
-  const { data: profil } = await supabase
-    .from("profils")
-    .select("role")
-    .eq("id", user.id)
-    .single()
+const { data: profilAGE } = await supabase
+  .from("profils")
+  .select("role")
+  .eq("id", user.id)
+  .maybeSingle()
+
+const { data: profilClient } = await supabase
+  .from("profils_client")
+  .select("type_client")
+  .eq("id", user.id)
+  .maybeSingle()
 
 let query = supabase
     .from("actifs")
@@ -32,18 +38,30 @@ let query = supabase
     .order("created_at", { ascending: false })
 
   // Admin voit tous les actifs, client voit les siens
-  if (profil?.role !== "admin") {
-    query = query.or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
-  }
-
-  // Exclure les actifs importés via campagne
-  query = query.neq("categorie", "import_csv")
+if (profilAGE?.role === "admin") {
+  // Admin voit tout
+} else if (profilClient?.type_client === "banque" || profilClient?.type_client === "assurance") {
+  // Banque et Assurance : uniquement leur patrimoine propre
+  query = query
+    .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+    .eq("categorie", "patrimoine_propre")
+} else {
+  // Autres clients : leurs actifs hors import_csv
+  query = query
+    .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+    .neq("categorie", "import_csv")
+    query = query.eq("actif", true)
+}
 
   const { data } = await query
   setActifs(data || [])
   setLoading(false)
 }
-
+async function desactiverActif(id: string) {
+  if (!confirm("Désactiver cet actif ? Il ne sera plus visible mais restera en base.")) return
+  await supabase.from("actifs").update({ actif: false }).eq("id", id)
+  setActifs(actifs.filter(a => a.id !== id))
+}
   async function supprimerActif(id: string) {
     if (!confirm("Supprimer cet actif ? Cette action est irréversible.")) return
     await supabase.from("actifs").delete().eq("id", id)
@@ -158,12 +176,20 @@ let query = supabase
                       <div style={{ fontSize: "10px", color: "#94A3B8" }}>/ 100</div>
                     </div>
                   )}
-                  <button
-                    onClick={e => { e.stopPropagation(); supprimerActif(a.id) }}
-                    style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
-                    <i className="ti ti-trash" style={{ fontSize: "13px" }} aria-hidden="true" />
-                    Supprimer
-                  </button>
+                 <div style={{ display: "flex", gap: "6px" }}>
+  <button
+    onClick={e => { e.stopPropagation(); desactiverActif(a.id) }}
+    style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+    <i className="ti ti-eye-off" style={{ fontSize: "13px" }} aria-hidden="true" />
+    Désactiver
+  </button>
+  <button
+    onClick={e => { e.stopPropagation(); supprimerActif(a.id) }}
+    style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+    <i className="ti ti-trash" style={{ fontSize: "13px" }} aria-hidden="true" />
+    Supprimer
+  </button>
+</div>
                 </div>
               </div>
             )

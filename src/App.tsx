@@ -41,7 +41,6 @@ import PartenaireMessages from "./pages/partenaire/PartenaireMessages"
 import PartenaireDocuments from "./pages/partenaire/PartenaireDocuments"
 import PartenaireLayout from "./components/PartenaireLayout"
 
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -56,6 +55,8 @@ export default function App() {
           <Route path="sensibilisation" element={<Sensibilisation />} />
           <Route path="projets" element={<Projets />} />
           <Route path="marketplace" element={<Marketplace />} />
+
+          {/* ── Routes client ── */}
           <Route path="client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
           <Route path="client/actifs" element={<ProtectedRoute><MesActifs /></ProtectedRoute>} />
           <Route path="client/actifs/nouveau" element={<ProtectedRoute><NouvelActif /></ProtectedRoute>} />
@@ -65,15 +66,17 @@ export default function App() {
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
           <Route path="client/reporting" element={<ProtectedRoute><ClientReporting /></ProtectedRoute>} />
           <Route path="client/biens-campagnes" element={<ProtectedRoute><BiensCampagnes /></ProtectedRoute>} />
-          <Route path="client/utilisateurs" element={<ProtectedRoute><GestionUtilisateurs /></ProtectedRoute>} />
-          <Route path="metier/campagnes/:id" element={<ProtectedRoute><FicheCampagne /></ProtectedRoute>} />
-          <Route path="metier/campagnes-age/:id" element={<ProtectedRoute><FicheCampagneAGE /></ProtectedRoute>} />
-<Route path="metier/campagnes/:id/biens/:bienId" element={<ProtectedRoute><FicheBienCampagne /></ProtectedRoute>} />
           <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
+          <Route path="client/utilisateurs" element={<ProtectedRoute><GestionUtilisateurs /></ProtectedRoute>} />
+
+          {/* ── Routes métier ── */}
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
+          <Route path="metier/campagnes/:id" element={<ProtectedRoute><FicheCampagne /></ProtectedRoute>} />
+          <Route path="metier/campagnes-age/:id" element={<ProtectedRoute><FicheCampagneAGE /></ProtectedRoute>} />
+          <Route path="metier/campagnes/:id/biens/:bienId" element={<ProtectedRoute><FicheBienCampagne /></ProtectedRoute>} />
           <Route path="metier/missions" element={<ProtectedRoute><Missions /></ProtectedRoute>} />
           <Route path="metier/messagerie" element={<ProtectedRoute><Messagerie /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
@@ -81,6 +84,7 @@ export default function App() {
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
         </Route>
+
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
         {/* ── Portail Partenaire ── */}
