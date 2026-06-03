@@ -41,10 +41,11 @@ export default function ClientReporting() {
         .eq("client_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
-        .from("actifs")
-        .select("id, nom")
-        .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
-        .order("created_at", { ascending: false }),
+  .from("actifs")
+  .select("id, nom")
+  .eq("user_id", user.id)
+  .eq("categorie", "patrimoine_propre")
+  .order("created_at", { ascending: false }),
     ])
     setRapports(raps || [])
     setActifs(acts || [])
