@@ -155,6 +155,27 @@ export default function Layout() {
   .select("id", { count: "exact", head: true })
   .eq("statut", "soumise")
 
+const { count: countCampagnesAttente } = await supabase
+  .from("campagnes")
+  .select("id", { count: "exact", head: true })
+  .eq("origine", "client")
+  .eq("statut", "soumise")
+  .is("responsable_id", null)
+
+const { count: countRdvAttente } = await supabase
+  .from("demandes_rdv")
+  .select("id", { count: "exact", head: true })
+  .eq("lu_admin", false)
+  .eq("statut", "en_attente")
+
+const { count: countMissionsAttente } = await supabase
+  .from("missions")
+  .select("id", { count: "exact", head: true })
+  .is("consultant_id", null)
+  .in("statut", ["nouvelle", "en_cours"])
+
+setNbFileAttente((countFile || 0) + (countCampagnesAttente || 0) + (countRdvAttente || 0) + (countMissionsAttente || 0))
+
 const { count: countRdv } = await supabase
   .from("demandes_rdv")
   .select("id", { count: "exact", head: true })

@@ -168,14 +168,14 @@ console.log("campagnes:", campagnes, "missions:", missions, "rdvs:", rdvs)
     setAssignSuccess(false)
 
     // Charger les responsables de la région
-    let query = supabase
-      .from("profils")
-      .select("id, prenom, nom, region")
-      .eq("role", "responsable_regional")
+   let query = supabase
+  .from("profils")
+  .select("id, prenom, nom, region")
+  .in("role", ["responsable_regional", "consultant"])
 
-    if (d.region && !d.multi_region) {
-      query = query.eq("region", d.region)
-    }
+if (d.region && !d.multi_region) {
+  query = query.eq("region", d.region)
+}
 
     const { data } = await query
     setResponsables(data || [])
@@ -183,14 +183,15 @@ console.log("campagnes:", campagnes, "missions:", missions, "rdvs:", rdvs)
   }
 
   async function handleAssigner() {
-    if (!selectedDemande || !selectedResponsable) return
-    setAssignLoading(true)
-    try {
-      const table = selectedDemande.type === "campagne" ? "campagnes" : "missions"
-      await supabase
-        .from(table)
-        .update({ responsable_id: selectedResponsable, statut: "en_cours" })
-        .eq("id", selectedDemande.id)
+  if (!selectedDemande || !selectedResponsable) return
+  setAssignLoading(true)
+  try {
+    const table = selectedDemande.type === "campagne" ? "campagnes" : "missions"
+    const { error } = await supabase
+      .from(table)
+      .update({ responsable_id: selectedResponsable, statut: "en_cours" })
+      .eq("id", selectedDemande.id)
+    console.log("assignation error:", error)
 
       setAssignSuccess(true)
       charger()
