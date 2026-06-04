@@ -33,6 +33,7 @@ import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
 import Administration from "./pages/metier/Administration"
 import FileAttente from "./pages/metier/FileAttente"
+import Clients from "./pages/metier/Clients"
 import GED from "./pages/metier/GED"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
           <Route path="metier/file-attente" element={<ProtectedRoute><FileAttente /></ProtectedRoute>} />
+          <Route path="metier/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
         </Route>
 
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
