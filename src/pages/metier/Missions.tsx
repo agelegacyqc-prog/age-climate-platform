@@ -85,6 +85,7 @@ export default function Missions() {
   const [kpisForm, setKpisForm]           = useState<Record<string, string>>({})
   const [uploadingPdf, setUploadingPdf]   = useState<string | null>(null)
   const [savingRapport, setSavingRapport] = useState<string | null>(null)
+  const [regionAGE, setRegionAGE] = useState<string | null>(null)
 
   useEffect(() => { init() }, [])
 
@@ -92,18 +93,30 @@ export default function Missions() {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       setUserId(user.id)
-      const { data: profil } = await supabase.from("profils").select("role").eq("id", user.id).single()
-      if (profil) setUserRole(profil.role)
+      const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).single()
+      if (profil) {
+  setUserRole(profil.role)
+  setRegionAGE(profil.region || null)
+}
     }
     await Promise.all([loadMissions(user?.id), loadDemandes(), loadConsultants(), loadRapports()])
     setLoading(false)
   }
 
   async function loadMissions(uid?: string) {
-    const { data: profil } = uid ? await supabase.from("profils").select("role").eq("id", uid).single() : { data: null }
-    const query = profil?.role === "admin"
-      ? supabase.from("missions").select("*, consultant:consultant_id(prenom, nom)").order("created_at", { ascending: false })
-      : supabase.from("missions").select("*, consultant:consultant_id(prenom, nom)").eq("consultant_id", uid).order("created_at", { ascending: false })
+  const { data: profil } = uid
+    ? await supabase.from("profils").select("role, region").eq("id", uid).single()
+    : { data: null as { role: string; region: string | null } | null }
+    let query = supabase
+  .from("missions")
+  .select("*, consultant:consultant_id(prenom, nom)")
+  .order("created_at", { ascending: false })
+
+if (profil?.role === "consultant") {
+  query = query.eq("consultant_id", uid)
+} else if (profil?.role === "responsable_regional" && (profil as any).region) {
+  query = query.eq("region", (profil as any).region)
+}
     const { data } = await query
     setMissions(data || [])
   }
@@ -230,11 +243,13 @@ export default function Missions() {
 
       {/* Onglets */}
       <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
-        {([
-          { key: "missions", label: "Missions",             icon: "ti-briefcase",      count: missions.length,  badgeBg: "#ECFDF5", badgeColor: "#065F46" },
-          { key: "demandes", label: "Demandes Marketplace", icon: "ti-bell",           count: demandes.length,  badgeBg: demandesEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: demandesEnAttente > 0 ? "#991B1B" : "#065F46" },
-          { key: "rapports", label: "Rapports clients",     icon: "ti-file-analytics", count: rapports.length,  badgeBg: rapportsEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: rapportsEnAttente > 0 ? "#991B1B" : "#065F46" },
-        ] as const).map(o => (
+        {(([
+  { key: "missions", label: "Missions",             icon: "ti-briefcase",      count: missions.length,  badgeBg: "#ECFDF5", badgeColor: "#065F46" },
+  ...( userRole !== "responsable_regional" ? [
+    { key: "demandes", label: "Demandes Marketplace", icon: "ti-bell",           count: demandes.length,  badgeBg: demandesEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: demandesEnAttente > 0 ? "#991B1B" : "#065F46" },
+    { key: "rapports", label: "Rapports clients",     icon: "ti-file-analytics", count: rapports.length,  badgeBg: rapportsEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: rapportsEnAttente > 0 ? "#991B1B" : "#065F46" },
+  ] : []),
+]) as const).map(o => (
           <button key={o.key} onClick={() => { setOnglet(o.key); setSelected(null); setSelectedRapport(null) }} style={{
             display: "flex", alignItems: "center", gap: "7px",
             padding: "10px 20px", background: "transparent", border: "none",
