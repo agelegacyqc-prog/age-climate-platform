@@ -47,12 +47,29 @@ export default function Campagnes() {
   const [recherche, setRecherche] = useState("")
   const [filtreStatut, setFiltreStatut] = useState("tous")
   const [filtreType, setFiltreType] = useState("tous")
+  const [roleAGE, setRoleAGE]       = useState<string>("")
+const [regionAGE, setRegionAGE]   = useState<string | null>(null)
   const [form, setForm] = useState<FormCampagne>({
     nom: "", type_campagne: "", zone_geo: "",
     date_debut: "", date_fin: "", description: "",
   })
 
-  useEffect(() => { init() }, [])
+  useEffect(() => { chargerProfil() }, [])
+
+async function chargerProfil() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const { data: profil } = await supabase
+    .from("profils")
+    .select("role, region")
+    .eq("id", user.id)
+    .single()
+  if (profil) {
+    setRoleAGE(profil.role)
+    setRegionAGE(profil.region)
+  }
+  await init()
+}
 
   async function init() {
     await Promise.all([loadCampagnes(), loadDemandesClient()])
@@ -60,21 +77,33 @@ export default function Campagnes() {
   }
 
   async function loadCampagnes() {
-    const { data } = await supabase
-      .from("campagnes")
-      .select("*")
-      .eq("origine", "age")
-      .order("date_debut", { ascending: false })
+  let query = supabase
+  .from("campagnes")
+  .select("*")
+  .eq("origine", "age")
+  .order("date_debut", { ascending: false })
+
+if (regionAGE) {
+  query = query.eq("region", regionAGE)
+}
+
+const { data } = await query
     setCampagnes(data || [])
     if (data && data.length > 0) setSelected(data[0])
   }
 
   async function loadDemandesClient() {
-    const { data: campagnesData } = await supabase
-      .from("campagnes")
-      .select("*")
-      .eq("origine", "client")
-      .order("created_at", { ascending: false })
+   let queryClient = supabase
+  .from("campagnes")
+  .select("*")
+  .eq("origine", "client")
+  .order("created_at", { ascending: false })
+
+if (regionAGE) {
+  queryClient = queryClient.eq("region", regionAGE)
+}
+
+const { data: campagnesData } = await queryClient
 
     if (!campagnesData) { setDemandesClient([]); return }
 
@@ -177,10 +206,10 @@ export default function Campagnes() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E2E8F0" }}>
         <div style={{ display: "flex" }}>
-          {([
-            { key: "age",     label: "Campagnes AGE",    icon: "ti-speakerphone", count: campagnes.length,      badge: campagnesActives > 0 ? campagnesActives : null, badgeBg: "#ECFDF5", badgeColor: "#065F46" },
-            { key: "clients", label: "Demandes clients", icon: "ti-users",        count: demandesClient.length, badge: demandesEnAttente > 0 ? demandesEnAttente : null, badgeBg: "#FEF2F2", badgeColor: "#991B1B" },
-          ] as const).map(o => (
+          {(([
+  { key: "age",     label: "Campagnes AGE",    icon: "ti-speakerphone", count: campagnes.length,      badge: campagnesActives > 0 ? campagnesActives : null, badgeBg: "#ECFDF5", badgeColor: "#065F46" },
+  ...( roleAGE !== "responsable_regional" ? [{ key: "clients", label: "Demandes clients", icon: "ti-users", count: demandesClient.length, badge: demandesEnAttente > 0 ? demandesEnAttente : null, badgeBg: "#FEF2F2", badgeColor: "#991B1B" }] : []),
+]) as const).map(o => (
             <button key={o.key} onClick={() => { setOnglet(o.key); setSelected(null); setShowForm(false) }} style={{
               display: "flex", alignItems: "center", gap: "7px",
               padding: "10px 20px", background: "transparent", border: "none",
