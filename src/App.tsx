@@ -42,6 +42,8 @@ import PartenaireDashboard from "./pages/partenaire/PartenaireDashboard"
 import PartenaireMissions from "./pages/partenaire/PartenaireMissions"
 import PartenaireMessages from "./pages/partenaire/PartenaireMessages"
 import PartenaireDocuments from "./pages/partenaire/PartenaireDocuments"
+import PartenaireLivrables from "./pages/partenaire/PartenaireLivrables"
+import PartenaireFactures from "./pages/partenaire/PartenaireFactures"
 import PartenaireLayout from "./components/PartenaireLayout"
 
 export default function App() {
@@ -100,6 +102,8 @@ export default function App() {
           <Route path="missions" element={<PartenaireMissions />} />
           <Route path="messages" element={<PartenaireMessages />} />
           <Route path="documents" element={<PartenaireDocuments />} />
+          <Route path="livrables" element={<PartenaireLivrables />} />
+<Route path="factures" element={<PartenaireFactures />} />
         </Route>
 
       </Routes>

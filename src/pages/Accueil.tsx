@@ -213,10 +213,14 @@ export default function Accueil() {
       .single()
   if (profilAGE) {
   // Rediriger les admins vers l'espace métier
-  if (profilAGE.role === 'admin' || profilAGE.role === 'consultant') {
-    navigate('/metier')
-    return
-  }
+ if (profilAGE.role === 'partenaire') {
+  navigate('/partenaire/dashboard')
+  return
+}
+if (profilAGE.role === 'admin' || profilAGE.role === 'consultant' || profilAGE.role === 'admin_national' || profilAGE.role === 'responsable_regional') {
+  navigate('/metier')
+  return
+}
   setProfil(profilAGE.profil as Profil)
   setPrenom(profilAGE.prenom || null)
 

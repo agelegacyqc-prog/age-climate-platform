@@ -19,8 +19,8 @@ export default function PartenaireLayout() {
       .select("*")
       .eq("user_id", user.id)
       .single()
-
-    if (!data || !data.actif) { navigate("/partenaire/login"); return }
+console.log("partenaire data:", data, "user:", user?.id)
+    if (!data)
     setPartenaire(data)
 
     const { count } = await supabase
@@ -39,12 +39,14 @@ export default function PartenaireLayout() {
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
-  const navItems = [
-    { to: "/partenaire/dashboard",  icon: "ti-layout-dashboard", label: "Dashboard",    badge: null },
-    { to: "/partenaire/missions",   icon: "ti-briefcase",        label: "Mes missions", badge: null },
-    { to: "/partenaire/messages",   icon: "ti-message-circle",   label: "Messages",     badge: nbMessages > 0 ? nbMessages : null },
-    { to: "/partenaire/documents",  icon: "ti-file",             label: "Documents",    badge: null },
-  ]
+const navItems = [
+  { to: "/partenaire/dashboard",  icon: "ti-layout-dashboard", label: "Dashboard",    badge: null },
+  { to: "/partenaire/missions",   icon: "ti-briefcase",        label: "Mes missions", badge: null },
+  { to: "/partenaire/livrables",  icon: "ti-package",          label: "Livrables",    badge: null },
+  { to: "/partenaire/factures",   icon: "ti-coin",             label: "Facturation",  badge: null },
+  { to: "/partenaire/messages",   icon: "ti-message-circle",   label: "Messages",     badge: nbMessages > 0 ? nbMessages : null },
+  { to: "/partenaire/documents",  icon: "ti-file",             label: "Documents",    badge: null },
+]
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#F8FAFC", fontFamily: "inherit" }}>
@@ -55,7 +57,7 @@ export default function PartenaireLayout() {
         {/* Logo */}
         <div style={{ padding: "16px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <i className="ti ti-leaf" style={{ fontSize: "18px", color: "#0F6E56" }} aria-hidden="true" />
+            <i className="ti ti-leaf" style={{ fontSize: "18px", color: "#B25C2A" }} aria-hidden="true" />
           </div>
           <div>
             <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>AGE Climate</div>
@@ -75,7 +77,7 @@ export default function PartenaireLayout() {
                 padding: "8px", borderRadius: "7px", marginBottom: "2px",
                 textDecoration: "none", fontSize: "13px",
                 background: isActive ? "#ECFDF5" : "transparent",
-                color: isActive ? "#065F46" : "#64748B",
+                color: isActive ? "#8C4720" : "#64748B",
                 fontWeight: isActive ? 500 : 400,
               })}
             >
@@ -92,7 +94,7 @@ export default function PartenaireLayout() {
 
         {/* Profil */}
         <div style={{ padding: "12px", borderTop: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 600, color: "#065F46", flexShrink: 0 }}>
+          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 600, color: "#8C4720", flexShrink: 0 }}>
             {partenaire?.prenom?.[0]?.toUpperCase() || "P"}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -112,7 +114,7 @@ export default function PartenaireLayout() {
         <header style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E8F0", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A" }}>{partenaire?.societe || "Mon espace partenaire"}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ background: "#ECFDF5", color: "#065F46", padding: "3px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
+            <span style={{ background: "#ECFDF5", color: "#8C4720", padding: "3px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
               {partenaire?.type_structure || "Partenaire"}
             </span>
           </div>
