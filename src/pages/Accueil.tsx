@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import CartePortefeuille from "../components/CartePortefeuille"
+import ConsultantsRecommandes from "../components/ConsultantsRecommandes"
 
 type Profil = "banque" | "assureur" | "particulier" | "collectivite" | "entreprise" | "expert" | null
 
@@ -196,6 +197,8 @@ export default function Accueil() {
   const [loading, setLoading] = useState(true)
   const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
   const [alertesDynamiques, setAlertesDynamiques] = useState<AlerteRegl[]>([])
+  const [reglemRaw, setReglemRaw] = useState<{ reglementation: string }[]>([])
+
 
   useEffect(() => { chargerProfil() }, [])
 
@@ -272,6 +275,7 @@ if (actifsData && actifsData.length > 0) {
       }
     }
     setAlertesDynamiques(alertes)
+    setReglemRaw(reglemData.map((r: any) => ({ reglementation: r.reglementation })))
   }
 }
 
@@ -403,38 +407,10 @@ return
       {!loading && config.afficherRoadmap && (roadmap.length > 0 || alertes.length > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-          {/* Roadmap */}
-          {roadmap.length > 0 && (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Votre roadmap</div>
-                <span style={{ fontSize: "12px", color: "#94A3B8" }}>{etapesDone}/{etapesTotal} étapes</span>
-              </div>
-              <div style={{ background: "#F1F5F9", borderRadius: "3px", height: "6px", overflow: "hidden", marginBottom: "16px" }}>
-                <div style={{ background: "#0F6E56", width: `${pctRoadmap}%`, height: "100%", borderRadius: "3px" }} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {roadmap.map((e, i) => {
-                  const done = e.statut === "complete"
-                  return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "10px 12px", background: done ? "#ECFDF5" : "#F8FAFC", borderRadius: "8px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: done ? "#0F6E56" : "#E2E8F0", color: done ? "white" : "#94A3B8", fontSize: "11px", fontWeight: 600 }}>
-                          {done ? <i className="ti ti-check" style={{ fontSize: "12px" }} aria-hidden="true" /> : i + 1}
-                        </div>
-                        <span style={{ fontSize: "13px", color: done ? "#065F46" : "#0F172A", fontWeight: done ? 500 : 400 }}>{e.label}</span>
-                      </div>
-                      {!done && e.route && (
-                        <button onClick={() => navigate(e.route!)} style={{ background: "#0F6E56", color: "white", border: "none", padding: "4px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                          Démarrer
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+        {/* Consultants recommandés */}
+<ConsultantsRecommandes
+  alertesRegl={alertesDynamiques.map(a => ({ reglementation: a.label.split(" —")[0].toLowerCase().replace(/ /g, "_") }))}
+/>
 
           {/* Alertes réglementaires */}
           {alertes.length > 0 && (
