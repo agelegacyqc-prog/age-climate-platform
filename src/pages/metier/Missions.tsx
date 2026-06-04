@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface Mission {
+  id: string
+  societe: string
+  secteur: string | null
+  type_manager: string | null
+  format_mission: string | null
+  urgence: string | null
+  description: string | null
+  contact_nom: string | null
+  contact_email: string | null
+  contact_telephone: string | null
+  statut: string
+  phase: number
+  created_at: string
+  updated_at: string | null
+  consultant_id: string | null
+  origine: string
+  region: string | null
+  consultant?: { prenom: string; nom: string } | null
+}
 
 const phases = [
   { num: 1,  label: "Initialisation",    icon: "ti-rocket" },
@@ -14,10 +37,24 @@ const phases = [
   { num: 10, label: "Capitalisation",     icon: "ti-star" },
 ]
 
+const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  nouvelle: { label: "Nouvelle", color: "#0369A1", bg: "#EFF6FF", border: "#BFDBFE" },
+  en_cours: { label: "En cours", color: "#B25C2A", bg: "#F9F0EA", border: "#F0DDD0" },
+  terminee: { label: "Terminée", color: "#6B7280", bg: "#F4F3F0", border: "#E2DDD8" },
+  annulee:  { label: "Annulée",  color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA" },
+}
+
 const URGENCE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  "Standard (4-6 semaines)":   { label: "Standard",    color: "#065F46", bg: "#ECFDF5" },
-  "Urgent (2-3 semaines)":     { label: "Urgent",      color: "#92400E", bg: "#FFFBEB" },
-  "Très urgent (< 1 semaine)": { label: "Très urgent", color: "#991B1B", bg: "#FEF2F2" },
+  "Standard (4-6 semaines)":   { label: "Standard",    color: "#2F7D5C", bg: "#F0FDF4" },
+  "Urgent (2-3 semaines)":     { label: "Urgent",      color: "#D97706", bg: "#FFFBEB" },
+  "Très urgent (< 1 semaine)": { label: "Très urgent", color: "#B91C1C", bg: "#FEF2F2" },
+}
+
+const ORIGINE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  marketplace: { label: "Marketplace", color: "#0369A1", bg: "#EFF6FF" },
+  campagne:    { label: "Campagne",    color: "#D97706", bg: "#FFFBEB" },
+  patrimoine:  { label: "Patrimoine",  color: "#7C3AED", bg: "#F5F3FF" },
+  interne:     { label: "Interne",     color: "#2F7D5C", bg: "#F0FDF4" },
 }
 
 const STATUT_OPTIONS = [
@@ -27,699 +64,498 @@ const STATUT_OPTIONS = [
   { value: "annulee",  label: "Annulée" },
 ]
 
-const STATUT_DEMANDE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  soumise:            { label: "Soumise",            color: "#64748B", bg: "#F1F5F9" },
-  en_qualification:   { label: "En qualification",   color: "#92400E", bg: "#FFFBEB" },
-  entretien_planifie: { label: "Entretien planifié",  color: "#1E40AF", bg: "#EFF6FF" },
-  validee:            { label: "Validée",             color: "#065F46", bg: "#ECFDF5" },
-  dispatchee:         { label: "Dispatchée",          color: "#0369A1", bg: "#EFF6FF" },
-  en_cours:           { label: "En cours",            color: "#5B21B6", bg: "#F5F3FF" },
-  terminee:           { label: "Terminée",            color: "#065F46", bg: "#ECFDF5" },
-  refusee:            { label: "Refusée",             color: "#991B1B", bg: "#FEF2F2" },
+function formatDate(iso: string | null) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
-const ORIGINE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  marketplace: { label: "Marketplace", color: "#0369A1", bg: "#EFF6FF" },
-  campagne:    { label: "Campagne",    color: "#D97706", bg: "#FFFBEB" },
-  patrimoine:  { label: "Patrimoine",  color: "#5B21B6", bg: "#F5F3FF" },
-  interne:     { label: "Interne",     color: "#065F46", bg: "#ECFDF5" },
+function estBloquee(m: Mission) {
+  if (m.statut !== "en_cours") return false
+  const diff = Date.now() - new Date(m.updated_at || m.created_at).getTime()
+  return diff > 5 * 86400000
 }
 
-const STATUT_MISSION_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  nouvelle: { label: "Nouvelle", color: "#0369A1", bg: "#EFF6FF" },
-  en_cours: { label: "En cours", color: "#065F46", bg: "#ECFDF5" },
-  terminee: { label: "Terminée", color: "#475569", bg: "#F1F5F9" },
-  annulee:  { label: "Annulée",  color: "#991B1B", bg: "#FEF2F2" },
-}
-
-const TYPE_RAPPORT_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  bilan_ges:     { label: "Bilan GES — Scope 1, 2, 3", icon: "ti-leaf",           color: "#065F46", bg: "#ECFDF5" },
-  csrd:          { label: "CSRD / ESRS",                icon: "ti-file-analytics", color: "#92400E", bg: "#FFFBEB" },
-  bilan_carbone: { label: "Bilan Carbone",              icon: "ti-chart-pie",      color: "#1E40AF", bg: "#EFF6FF" },
-  brown_value:   { label: "Brown Value",                icon: "ti-home",           color: "#B25C2A", bg: "#FDF4EF" },
-}
-
-const STATUT_RAPPORT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  demande:    { label: "Demandé",    color: "#64748B", bg: "#F1F5F9" },
-  en_cours:   { label: "En cours",   color: "#92400E", bg: "#FFFBEB" },
-  disponible: { label: "Disponible", color: "#065F46", bg: "#ECFDF5" },
-}
-
-type Onglet = "missions" | "demandes" | "rapports"
-
+// ─── Composant ───────────────────────────────────────────────────────────────
 export default function Missions() {
-  const [onglet, setOnglet]               = useState<Onglet>("missions")
-  const [missions, setMissions]           = useState<any[]>([])
-  const [demandes, setDemandes]           = useState<any[]>([])
-  const [consultants, setConsultants]     = useState<any[]>([])
-  const [rapports, setRapports]           = useState<any[]>([])
-  const [loading, setLoading]             = useState(true)
-  const [selected, setSelected]           = useState<any>(null)
-  const [selectedRapport, setSelectedRapport] = useState<any>(null)
-  const [notes, setNotes]                 = useState<Record<string, string>>({})
-  const [dateEntretien, setDateEntretien] = useState<Record<string, string>>({})
-  const [filtreStatut, setFiltreStatut]   = useState("tous")
+  const navigate = useNavigate()
+  const [missions, setMissions]         = useState<Mission[]>([])
+  const [consultants, setConsultants]   = useState<any[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [userRole, setUserRole]         = useState<string>("")
+  const [userId, setUserId]             = useState<string>("")
+  const [regionAGE, setRegionAGE]       = useState<string | null>(null)
+
+  // Filtres
+  const [recherche, setRecherche]       = useState("")
+  const [filtreStatut, setFiltreStatut] = useState("tous")
   const [filtreOrigine, setFiltreOrigine] = useState("tous")
-  const [userRole, setUserRole]           = useState<string>("")
-  const [userId, setUserId]               = useState<string>("")
-  const [kpisForm, setKpisForm]           = useState<Record<string, string>>({})
-  const [uploadingPdf, setUploadingPdf]   = useState<string | null>(null)
-  const [savingRapport, setSavingRapport] = useState<string | null>(null)
-  const [regionAGE, setRegionAGE] = useState<string | null>(null)
+
+  // Drawer
+  const [drawerOpen, setDrawerOpen]     = useState(false)
+  const [selected, setSelected]         = useState<Mission | null>(null)
+  const [savingPhase, setSavingPhase]   = useState(false)
+  const [savingStatut, setSavingStatut] = useState(false)
 
   useEffect(() => { init() }, [])
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      setUserId(user.id)
-      const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).single()
-      if (profil) {
-  setUserRole(profil.role)
-  setRegionAGE(profil.region || null)
-}
+    if (!user) return
+    setUserId(user.id)
+
+    const { data: profil } = await supabase
+      .from("profils")
+      .select("role, region")
+      .eq("id", user.id)
+      .single()
+
+    if (profil) {
+      setUserRole(profil.role)
+      setRegionAGE(profil.region || null)
     }
-    await Promise.all([loadMissions(user?.id), loadDemandes(), loadConsultants(), loadRapports()])
+
+    await Promise.all([
+      loadMissions(user.id, profil?.role, profil?.region),
+      loadConsultants(),
+    ])
     setLoading(false)
   }
 
-  async function loadMissions(uid?: string) {
-  const { data: profil } = uid
-    ? await supabase.from("profils").select("role, region").eq("id", uid).single()
-    : { data: null as { role: string; region: string | null } | null }
+  async function loadMissions(uid: string, role?: string, region?: string | null) {
     let query = supabase
-  .from("missions")
-  .select("*, consultant:consultant_id(prenom, nom)")
-  .order("created_at", { ascending: false })
+      .from("missions")
+      .select("*, consultant:consultant_id(prenom, nom)")
+      .order("created_at", { ascending: false })
 
-if (profil?.role === "consultant") {
-  query = query.eq("consultant_id", uid)
-} else if (profil?.role === "responsable_regional" && (profil as any).region) {
-  query = query.eq("region", (profil as any).region)
-}
+    if (role === "consultant") {
+      query = query.eq("consultant_id", uid)
+    } else if (role === "responsable_regional" && region) {
+      query = query.eq("region", region)
+    }
+
     const { data } = await query
     setMissions(data || [])
   }
 
-  async function loadDemandes() {
-    const { data } = await supabase
-      .from("demandes_marketplace")
-      .select("*, actif:actif_id(nom, adresse)")
-      .order("created_at", { ascending: false })
-    setDemandes(data || [])
-  }
-
   async function loadConsultants() {
-    const { data } = await supabase.from("profils").select("id, prenom, nom").eq("role", "consultant")
+    const { data } = await supabase
+      .from("profils")
+      .select("id, prenom, nom")
+      .eq("role", "consultant")
     setConsultants(data || [])
   }
 
-  async function loadRapports() {
-    const { data } = await supabase
-      .from("rapports_client")
-      .select("*, actif:actif_id(nom)")
-      .order("created_at", { ascending: false })
-    setRapports(data || [])
+  async function updatePhase(missionId: string, phase: number) {
+    setSavingPhase(true)
+    await supabase
+      .from("missions")
+      .update({ phase, updated_at: new Date().toISOString() })
+      .eq("id", missionId)
+    setMissions(prev => prev.map(m => m.id === missionId ? { ...m, phase } : m))
+    if (selected?.id === missionId) setSelected(prev => prev ? { ...prev, phase } : null)
+    setSavingPhase(false)
   }
 
-  async function updateStatutRapport(id: string, statut: string) {
-    setSavingRapport(id)
-    await supabase.from("rapports_client").update({ statut, updated_at: new Date().toISOString() }).eq("id", id)
-    setRapports(rapports.map(r => r.id === id ? { ...r, statut } : r))
-    if (selectedRapport?.id === id) setSelectedRapport({ ...selectedRapport, statut })
-    setSavingRapport(null)
-  }
-
-  async function saveKpis(id: string) {
-    setSavingRapport(id)
-    const kpis: Record<string, string> = {}
-    Object.entries(kpisForm).forEach(([k, v]) => { if (k.startsWith(id + "__")) kpis[k.replace(id + "__", "")] = String(v) })
-    await supabase.from("rapports_client").update({ kpis, updated_at: new Date().toISOString() }).eq("id", id)
-    setRapports(rapports.map(r => r.id === id ? { ...r, kpis } : r))
-    if (selectedRapport?.id === id) setSelectedRapport({ ...selectedRapport, kpis })
-    setSavingRapport(null)
-  }
-
-  async function uploadPdf(id: string, file: File) {
-    setUploadingPdf(id)
-    const path = `rapports/${id}/${file.name}`
-    const { error } = await supabase.storage.from("documents-clients").upload(path, file, { upsert: true })
-    if (!error) {
-      const { data: urlData } = supabase.storage.from("documents-clients").getPublicUrl(path)
-      const fichier_url = urlData.publicUrl
-      await supabase.from("rapports_client").update({ fichier_url, updated_at: new Date().toISOString() }).eq("id", id)
-      setRapports(rapports.map(r => r.id === id ? { ...r, fichier_url } : r))
-      if (selectedRapport?.id === id) setSelectedRapport({ ...selectedRapport, fichier_url })
-    }
-    setUploadingPdf(null)
-  }
-
-  async function updatePhase(id: string, phase: number) {
-    await supabase.from("missions").update({ phase, updated_at: new Date().toISOString() }).eq("id", id)
-    setMissions(missions.map(m => m.id === id ? { ...m, phase } : m))
-    if (selected?.id === id) setSelected({ ...selected, phase })
-  }
-
-  async function updateStatut(id: string, statut: string) {
-    await supabase.from("missions").update({ statut, updated_at: new Date().toISOString() }).eq("id", id)
-    setMissions(missions.map(m => m.id === id ? { ...m, statut } : m))
-    if (selected?.id === id) setSelected({ ...selected, statut })
+  async function updateStatut(missionId: string, statut: string) {
+    setSavingStatut(true)
+    await supabase
+      .from("missions")
+      .update({ statut, updated_at: new Date().toISOString() })
+      .eq("id", missionId)
+    setMissions(prev => prev.map(m => m.id === missionId ? { ...m, statut } : m))
+    if (selected?.id === missionId) setSelected(prev => prev ? { ...prev, statut } : null)
+    setSavingStatut(false)
   }
 
   async function assignerConsultant(missionId: string, consultantId: string) {
-    await supabase.from("missions").update({ consultant_id: consultantId || null }).eq("id", missionId)
+    await supabase
+      .from("missions")
+      .update({ consultant_id: consultantId || null })
+      .eq("id", missionId)
     const consultant = consultants.find(c => c.id === consultantId)
-    setMissions(missions.map(m => m.id === missionId ? { ...m, consultant_id: consultantId, consultant } : m))
-    if (selected?.id === missionId) setSelected({ ...selected, consultant_id: consultantId, consultant })
+    setMissions(prev => prev.map(m => m.id === missionId ? { ...m, consultant_id: consultantId, consultant } : m))
+    if (selected?.id === missionId) setSelected(prev => prev ? { ...prev, consultant_id: consultantId, consultant } : null)
   }
 
-  async function updateStatutDemande(id: string, statut: string, note?: string, date?: string) {
-    const update: any = { statut }
-    if (note) update.note_age = note
-    if (date) update.date_entretien = date
-    await supabase.from("demandes_marketplace").update(update).eq("id", id)
-    setDemandes(demandes.map(d => d.id === id ? { ...d, ...update } : d))
-  }
-
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-  }
-
-  function tempsEcoule(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime()
-    const h = Math.floor(diff / 3600000)
-    if (h < 1) return "il y a moins d'1h"
-    if (h < 24) return `il y a ${h}h`
-    const j = Math.floor(h / 24)
-    if (j === 1) return "hier"
-    return `il y a ${j} jours`
-  }
-
-  function estBloquee(m: any) {
-    if (m.statut !== "en_cours") return false
-    const diff = Date.now() - new Date(m.updated_at || m.created_at).getTime()
-    return diff > 5 * 86400000
-  }
-
+  // Filtres
   const missionsFiltrees = missions.filter(m => {
     if (filtreStatut !== "tous" && m.statut !== filtreStatut) return false
     if (filtreOrigine !== "tous" && (m.origine || "marketplace") !== filtreOrigine) return false
+    if (recherche && !m.societe?.toLowerCase().includes(recherche.toLowerCase())) return false
     return true
   })
 
-  const demandesEnAttente = demandes.filter(d => d.statut === "soumise").length
-  const missionsBloquees  = missions.filter(m => estBloquee(m)).length
-  const rapportsEnAttente = rapports.filter(r => r.statut === "demande").length
+  const missionsBloquees = missions.filter(m => estBloquee(m)).length
+  const isAdmin = userRole === "admin" || userRole === "admin_national"
+  const isResponsable = userRole === "responsable_regional"
 
-  const iStyle: React.CSSProperties = {
-    padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px",
-    fontSize: "12px", color: "#0F172A", fontFamily: "inherit", outline: "none", background: "white",
-  }
-
-  if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
+  if (loading) return <div style={{ padding: "2rem", color: "#6B7280", fontSize: "14px" }}>Chargement…</div>
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+    <div className="page-wrapper">
 
-      {/* Onglets */}
-      <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
-        {(([
-  { key: "missions", label: "Missions",             icon: "ti-briefcase",      count: missions.length,  badgeBg: "#ECFDF5", badgeColor: "#065F46" },
-  ...( userRole !== "responsable_regional" ? [
-    { key: "demandes", label: "Demandes Marketplace", icon: "ti-bell",           count: demandes.length,  badgeBg: demandesEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: demandesEnAttente > 0 ? "#991B1B" : "#065F46" },
-    { key: "rapports", label: "Rapports clients",     icon: "ti-file-analytics", count: rapports.length,  badgeBg: rapportsEnAttente > 0 ? "#FEF2F2" : "#ECFDF5", badgeColor: rapportsEnAttente > 0 ? "#991B1B" : "#065F46" },
-  ] : []),
-]) as const).map(o => (
-          <button key={o.key} onClick={() => { setOnglet(o.key); setSelected(null); setSelectedRapport(null) }} style={{
-            display: "flex", alignItems: "center", gap: "7px",
-            padding: "10px 20px", background: "transparent", border: "none",
-            borderBottom: onglet === o.key ? "2px solid #0F6E56" : "2px solid transparent",
-            color: onglet === o.key ? "#0F6E56" : "#64748B",
-            fontWeight: onglet === o.key ? 600 : 400,
-            fontSize: "13px", cursor: "pointer", fontFamily: "inherit",
-            marginBottom: "-1px", transition: "color 0.12s",
-          }}>
-            <i className={`ti ${o.icon}`} style={{ fontSize: "15px" }} aria-hidden="true" />
-            {o.label}
-            <span style={{ background: o.badgeBg, color: o.badgeColor, fontSize: "11px", fontWeight: 600, padding: "1px 7px", borderRadius: "10px", fontFamily: "'DM Mono', monospace" }}>
-              {o.key === "demandes" && demandesEnAttente > 0 ? demandesEnAttente : o.key === "rapports" && rapportsEnAttente > 0 ? rapportsEnAttente : o.count}
-            </span>
-          </button>
-        ))}
+      {/* En-tête */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div>
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", letterSpacing: "-0.02em" }}>Missions</h1>
+          <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "2px" }}>
+            {missions.filter(m => m.statut === "en_cours").length} en cours · {missions.length} total
+          </p>
+        </div>
       </div>
 
-      {/* ── ONGLET MISSIONS ── */}
-      {onglet === "missions" && (
-        <>
-          {missionsBloquees > 0 && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <i className="ti ti-alert-triangle" style={{ fontSize: "16px", color: "#D97706" }} aria-hidden="true" />
-              <span style={{ fontSize: "13px", color: "#92400E", fontWeight: 500 }}>
-                {missionsBloquees} mission{missionsBloquees > 1 ? "s" : ""} sans activité depuis +5 jours
-              </span>
-            </div>
-          )}
+      {/* Alerte missions bloquées */}
+      {missionsBloquees > 0 && (
+        <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+          <i className="ti ti-alert-triangle" style={{ fontSize: "16px", color: "#D97706" }} />
+          <span style={{ fontSize: "13px", color: "#92400E", fontWeight: 500 }}>
+            {missionsBloquees} mission{missionsBloquees > 1 ? "s" : ""} sans activité depuis +5 jours
+          </span>
+        </div>
+      )}
 
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "12px 16px", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Statut</span>
-              {["tous", "nouvelle", "en_cours", "terminee", "annulee"].map(s => (
-                <button key={s} onClick={() => setFiltreStatut(s)} style={{
-                  padding: "4px 10px", borderRadius: "6px", fontSize: "12px",
-                  border: filtreStatut === s ? "1px solid #0F6E56" : "1px solid #E2E8F0",
-                  background: filtreStatut === s ? "#ECFDF5" : "white",
-                  color: filtreStatut === s ? "#065F46" : "#64748B",
-                  cursor: "pointer", fontFamily: "inherit", fontWeight: filtreStatut === s ? 600 : 400,
-                }}>
-                  {s === "tous" ? "Tous" : STATUT_MISSION_CONFIG[s]?.label || s}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Origine</span>
-              {["tous", "marketplace", "campagne", "patrimoine", "interne"].map(o => (
-                <button key={o} onClick={() => setFiltreOrigine(o)} style={{
-                  padding: "4px 10px", borderRadius: "6px", fontSize: "12px",
-                  border: filtreOrigine === o ? "1px solid #0F6E56" : "1px solid #E2E8F0",
-                  background: filtreOrigine === o ? "#ECFDF5" : "white",
-                  color: filtreOrigine === o ? "#065F46" : "#64748B",
-                  cursor: "pointer", fontFamily: "inherit", fontWeight: filtreOrigine === o ? 600 : 400,
-                }}>
-                  {o === "tous" ? "Toutes" : ORIGINE_CONFIG[o]?.label || o}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginLeft: "auto", fontSize: "13px", color: "#64748B" }}>
-              <span style={{ fontWeight: 500, color: "#0F172A" }}>{missionsFiltrees.length}</span> mission{missionsFiltrees.length > 1 ? "s" : ""}
-            </div>
+      {/* Filtres */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+          <i className="ti ti-search" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: "14px" }} />
+          <input
+            className="input"
+            style={{ paddingLeft: "32px" }}
+            placeholder="Rechercher une mission…"
+            value={recherche}
+            onChange={e => setRecherche(e.target.value)}
+          />
+        </div>
+        <select className="input" style={{ width: "150px" }} value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)}>
+          <option value="tous">Tous statuts</option>
+          {STATUT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        <select className="input" style={{ width: "150px" }} value={filtreOrigine} onChange={e => setFiltreOrigine(e.target.value)}>
+          <option value="tous">Toutes origines</option>
+          {Object.entries(ORIGINE_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <span style={{ fontSize: "13px", color: "#6B7280", marginLeft: "auto" }}>
+          <span style={{ fontWeight: 500, color: "#111827" }}>{missionsFiltrees.length}</span> mission{missionsFiltrees.length > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Tableau */}
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        {missionsFiltrees.length === 0 ? (
+          <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+            <i className="ti ti-briefcase-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
+            Aucune mission
           </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
+                {["Société", "Type / Secteur", "Origine", "Consultant", "Phase", "Statut", "Urgence", ""].map(h => (
+                  <th key={h} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {missionsFiltrees.map((m) => {
+                const statut  = STATUT_CONFIG[m.statut] || STATUT_CONFIG.nouvelle
+                const origine = ORIGINE_CONFIG[m.origine || "marketplace"]
+                const urgence = URGENCE_CONFIG[m.urgence || ""]
+                const bloquee = estBloquee(m)
+                const pct     = ((m.phase || 1) / 10) * 100
 
-          {missionsFiltrees.length === 0 ? (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
-              <i className="ti ti-briefcase" style={{ fontSize: "32px", color: "#94A3B8", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Aucune mission</div>
-              <div style={{ fontSize: "13px", color: "#94A3B8" }}>Modifiez les filtres ou attendez de nouvelles demandes.</div>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap: "16px", alignItems: "start" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {missionsFiltrees.map(m => {
-                  const urgence    = URGENCE_CONFIG[m.urgence]
-                  const origine    = ORIGINE_CONFIG[m.origine || "marketplace"]
-                  const statutConf = STATUT_MISSION_CONFIG[m.statut]
-                  const isSelected = selected?.id === m.id
-                  const bloquee    = estBloquee(m)
-                  const pct        = ((m.phase || 1) / 10) * 100
-                  return (
-                    <div key={m.id} onClick={() => setSelected(m)} style={{
-                      background: "#FFFFFF",
-                      border: `1px solid ${isSelected ? "#0F6E56" : bloquee ? "#FDE68A" : "#E2E8F0"}`,
-                      borderRadius: "10px", padding: "14px 16px",
-                      cursor: "pointer", transition: "border-color 0.12s",
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, paddingRight: "8px", flexWrap: "wrap" }}>
-                          <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{m.societe || "Mission"}</div>
-                          <span style={{ background: origine.bg, color: origine.color, padding: "1px 6px", borderRadius: "3px", fontSize: "10px", fontWeight: 500 }}>{origine.label}</span>
-                          {bloquee && <span style={{ background: "#FEF2F2", color: "#991B1B", padding: "1px 6px", borderRadius: "3px", fontSize: "10px", fontWeight: 500 }}>Bloquée</span>}
-                        </div>
-                        {urgence && <span style={{ background: urgence.bg, color: urgence.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, flexShrink: 0 }}>{urgence.label}</span>}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>{m.type_manager || "—"}</div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                        <div style={{ fontSize: "12px", color: "#94A3B8" }}>{m.format_mission || "—"} · {m.secteur || "—"}</div>
-                        {statutConf && <span style={{ background: statutConf.bg, color: statutConf.color, padding: "1px 6px", borderRadius: "3px", fontSize: "10px", fontWeight: 500 }}>{statutConf.label}</span>}
-                      </div>
-                      {m.consultant && (
-                        <div style={{ fontSize: "11px", color: "#0F6E56", marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <i className="ti ti-user-check" style={{ fontSize: "12px" }} aria-hidden="true" />
-                          {(m.consultant as any).prenom} {(m.consultant as any).nom}
-                        </div>
-                      )}
-                      <div style={{ background: "#F1F5F9", borderRadius: "3px", height: "4px", overflow: "hidden", marginBottom: "4px" }}>
-                        <div style={{ background: bloquee ? "#D97706" : "#0F6E56", width: `${pct}%`, height: "100%", borderRadius: "3px" }} />
-                      </div>
-                      <div style={{ fontSize: "11px", color: "#94A3B8" }}>Phase {m.phase || 1}/10 — {phases[(m.phase || 1) - 1]?.label}</div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {selected && (
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                        <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A" }}>{selected.societe}</div>
-                        {(() => {
-                          const o = ORIGINE_CONFIG[selected.origine || "marketplace"]
-                          return <span style={{ background: o.bg, color: o.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>{o.label}</span>
-                        })()}
-                      </div>
-                      <div style={{ fontSize: "13px", color: "#64748B" }}>{selected.contact_nom} · {selected.contact_email}</div>
-                      {selected.contact_telephone && <div style={{ fontSize: "13px", color: "#64748B" }}>{selected.contact_telephone}</div>}
-                    </div>
-                    <button onClick={() => setSelected(null)} style={{ width: 28, height: 28, border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B", fontSize: "16px" }}>
-                      <i className="ti ti-x" aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "16px" }}>
-                    {[
-                      ["Manager", selected.type_manager],
-                      ["Format",  selected.format_mission],
-                      ["Secteur", selected.secteur],
-                      ["Urgence", selected.urgence?.split(" ")[0] || "Standard"],
-                    ].map(([k, v], i) => (
-                      <div key={i} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "10px 12px" }}>
-                        <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>{k}</div>
-                        <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{v || "—"}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {userRole === "admin" && (
-                    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "12px 14px", marginBottom: "16px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Consultant assigné</div>
-                      <select value={selected.consultant_id || ""} onChange={e => assignerConsultant(selected.id, e.target.value)} style={{ ...iStyle, width: "100%" }}>
-                        <option value="">— Non assigné —</option>
-                        {consultants.map(c => <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {selected.description && (
-                    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "12px 14px", marginBottom: "16px" }}>
-                      <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Description</div>
-                      <p style={{ fontSize: "13px", color: "#64748B", lineHeight: 1.6, margin: 0 }}>{selected.description}</p>
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "10px" }}>Workflow — 10 phases</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      {phases.map(p => {
-                        const isDone   = selected.phase > p.num
-                        const isActive = selected.phase === p.num
-                        return (
-                          <div key={p.num} onClick={() => updatePhase(selected.id, p.num)} style={{
-                            display: "flex", alignItems: "center", gap: "10px",
-                            padding: "8px 12px", borderRadius: "7px", cursor: "pointer",
-                            background: isActive ? "#EFF6FF" : isDone ? "#ECFDF5" : "#F8FAFC",
-                            border: isActive ? "1px solid #BFDBFE" : "1px solid transparent",
-                            transition: "background 0.12s",
-                          }}>
-                            <div style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isDone ? "#0F6E56" : isActive ? "#1D4ED8" : "#E2E8F0", color: isDone || isActive ? "white" : "#94A3B8", fontSize: isDone ? "12px" : "11px", fontWeight: 700 }}>
-                              {isDone ? <i className="ti ti-check" aria-hidden="true" /> : p.num}
-                            </div>
-                            <i className={`ti ${p.icon}`} style={{ fontSize: "14px", color: isDone ? "#0F6E56" : isActive ? "#1D4ED8" : "#94A3B8" }} aria-hidden="true" />
-                            <span style={{ fontSize: "13px", color: isDone ? "#065F46" : isActive ? "#1E40AF" : "#64748B", fontWeight: isActive ? 500 : 400 }}>{p.label}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                    <select value={selected.statut} onChange={e => updateStatut(selected.id, e.target.value)} style={{ flex: 1, ...iStyle }}>
-                      {STATUT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                    <button style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "8px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                      <i className="ti ti-message-circle" style={{ fontSize: "15px" }} aria-hidden="true" />
-                      Messagerie
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── ONGLET DEMANDES MARKETPLACE ── */}
-      {onglet === "demandes" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {demandesEnAttente > 0 && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <i className="ti ti-alert-triangle" style={{ fontSize: "16px", color: "#D97706" }} aria-hidden="true" />
-              <span style={{ fontSize: "13px", color: "#92400E", fontWeight: 500 }}>
-                {demandesEnAttente} demande{demandesEnAttente > 1 ? "s" : ""} en attente de qualification — action requise
-              </span>
-            </div>
-          )}
-
-          {demandes.length === 0 ? (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
-              <i className="ti ti-inbox" style={{ fontSize: "32px", color: "#94A3B8", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Aucune demande</div>
-              <div style={{ fontSize: "13px", color: "#94A3B8" }}>Les demandes Marketplace apparaîtront ici</div>
-            </div>
-          ) : demandes.map(d => {
-            const statut     = STATUT_DEMANDE_CONFIG[d.statut] || STATUT_DEMANDE_CONFIG.soumise
-            const estTraitee = ["validee", "dispatchee", "en_cours", "terminee", "refusee"].includes(d.statut)
-            return (
-              <div key={d.id} style={{ background: "#FFFFFF", border: `1px solid ${d.statut === "soumise" ? "#FDE68A" : "#E2E8F0"}`, borderRadius: "10px", overflow: "hidden", opacity: estTraitee ? 0.75 : 1 }}>
-                <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                      <span style={{ background: statut.bg, color: statut.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>{statut.label}</span>
-                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>{d.created_at ? tempsEcoule(d.created_at) : "—"}</span>
-                    </div>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "3px" }}>{d.type_prestation || "Demande de prestation"}</div>
-                    <div style={{ fontSize: "12px", color: "#64748B" }}>
-                      {d.note_age && <span>{d.note_age}</span>}
-                      {(d.actif as any)?.nom && <span> · {(d.actif as any).nom}</span>}
-                    </div>
-                    {d.description && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px" }}>{d.description}</div>}
-                  </div>
-
-                  {!estTraitee && (
-                    <div style={{ display: "flex", gap: "6px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {d.statut === "soumise" && (
-                        <>
-                          <button onClick={() => updateStatutDemande(d.id, "en_qualification")} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-search" style={{ fontSize: "13px" }} aria-hidden="true" /> Qualifier
-                          </button>
-                          <button onClick={() => updateStatutDemande(d.id, "validee")} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "none", background: "#0F6E56", color: "white", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-check" style={{ fontSize: "13px" }} aria-hidden="true" /> Valider
-                          </button>
-                          <button onClick={() => updateStatutDemande(d.id, "refusee")} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#991B1B", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-x" style={{ fontSize: "13px" }} aria-hidden="true" /> Refuser
-                          </button>
-                        </>
-                      )}
-                      {d.statut === "en_qualification" && (
-                        <>
-                          <button onClick={() => updateStatutDemande(d.id, "entretien_planifie", notes[d.id], dateEntretien[d.id])} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FDE68A", background: "#FFFBEB", color: "#92400E", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-calendar" style={{ fontSize: "13px" }} aria-hidden="true" /> Entretien
-                          </button>
-                          <button onClick={() => updateStatutDemande(d.id, "dispatchee", notes[d.id])} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#065F46", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-send" style={{ fontSize: "13px" }} aria-hidden="true" /> Dispatcher
-                          </button>
-                          <button onClick={() => updateStatutDemande(d.id, "refusee")} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#991B1B", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-x" style={{ fontSize: "13px" }} aria-hidden="true" /> Refuser
-                          </button>
-                        </>
-                      )}
-                      {d.statut === "entretien_planifie" && (
-                        <>
-                          <button onClick={() => updateStatutDemande(d.id, "validee", notes[d.id])} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "none", background: "#0F6E56", color: "white", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-check" style={{ fontSize: "13px" }} aria-hidden="true" /> Valider
-                          </button>
-                          <button onClick={() => updateStatutDemande(d.id, "refusee")} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#991B1B", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="ti ti-x" style={{ fontSize: "13px" }} aria-hidden="true" /> Refuser
-                          </button>
-                        </>
-                      )}
-                      {d.statut === "validee" && (
-                        <button onClick={() => updateStatutDemande(d.id, "dispatchee", notes[d.id])} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#065F46", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                          <i className="ti ti-send" style={{ fontSize: "13px" }} aria-hidden="true" /> Dispatcher
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {estTraitee && (
-                    <i className={`ti ${d.statut === "refusee" ? "ti-x" : "ti-circle-check"}`} style={{ fontSize: "20px", color: d.statut === "refusee" ? "#991B1B" : "#0F6E56", flexShrink: 0 }} aria-hidden="true" />
-                  )}
-                </div>
-
-                {["en_qualification", "entretien_planifie"].includes(d.statut) && (
-                  <div style={{ padding: "10px 18px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Note AGE</div>
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <input
-                        placeholder="Ajouter une note de qualification…"
-                        value={notes[d.id] || d.note_age || ""}
-                        onChange={e => setNotes({ ...notes, [d.id]: e.target.value })}
-                        style={{ flex: 1, padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", color: "#0F172A", fontFamily: "inherit", outline: "none", background: "white" }}
-                      />
-                      {d.statut === "en_qualification" && (
-                        <input type="date" value={dateEntretien[d.id] || ""} onChange={e => setDateEntretien({ ...dateEntretien, [d.id]: e.target.value })} style={{ padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", color: "#0F172A", fontFamily: "inherit", outline: "none", background: "white" }} title="Date entretien" />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {d.statut === "entretien_planifie" && d.date_entretien && (
-                  <div style={{ padding: "8px 18px", background: "#EFF6FF", borderTop: "1px solid #BFDBFE", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <i className="ti ti-calendar" style={{ fontSize: "14px", color: "#1E40AF" }} aria-hidden="true" />
-                    <span style={{ fontSize: "12px", color: "#1E40AF", fontWeight: 500 }}>Entretien prévu le {formatDate(d.date_entretien)}</span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* ── ONGLET RAPPORTS ── */}
-      {onglet === "rapports" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-
-          {rapportsEnAttente > 0 && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <i className="ti ti-alert-triangle" style={{ fontSize: "16px", color: "#D97706" }} aria-hidden="true" />
-              <span style={{ fontSize: "13px", color: "#92400E", fontWeight: 500 }}>
-                {rapportsEnAttente} rapport{rapportsEnAttente > 1 ? "s" : ""} en attente de traitement
-              </span>
-            </div>
-          )}
-
-          {rapports.length === 0 ? (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
-              <i className="ti ti-file-analytics" style={{ fontSize: "32px", color: "#94A3B8", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Aucun rapport</div>
-              <div style={{ fontSize: "13px", color: "#94A3B8" }}>Les demandes de rapports clients apparaîtront ici</div>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: selectedRapport ? "320px 1fr" : "1fr", gap: "16px", alignItems: "start" }}>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {rapports.map(r => {
-                  const type       = TYPE_RAPPORT_CONFIG[r.type_rapport] || { label: r.type_rapport, icon: "ti-file", color: "#64748B", bg: "#F1F5F9" }
-                  const statut     = STATUT_RAPPORT_CONFIG[r.statut] || STATUT_RAPPORT_CONFIG.demande
-                  const isSelected = selectedRapport?.id === r.id
-                  return (
-                    <div key={r.id} onClick={() => setSelectedRapport(isSelected ? null : r)} style={{
-                      background: "#FFFFFF",
-                      border: `1px solid ${isSelected ? "#0F6E56" : r.statut === "demande" ? "#FDE68A" : "#E2E8F0"}`,
-                      borderRadius: "10px", padding: "14px 16px", cursor: "pointer", transition: "border-color 0.12s",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: 36, height: 36, borderRadius: "8px", background: type.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <i className={`ti ${type.icon}`} style={{ fontSize: "18px", color: type.color }} aria-hidden="true" />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "3px" }}>
-                            <span style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{type.label}</span>
-                            <span style={{ background: statut.bg, color: statut.color, fontSize: "10px", fontWeight: 500, padding: "1px 6px", borderRadius: "3px" }}>{statut.label}</span>
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#94A3B8" }}>
-                            {r.periode && `${r.periode} · `}
-                            {(r.actif as any)?.nom || "Transverse"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {selectedRapport && (
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-                    <div>
-                      <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>
-                        {TYPE_RAPPORT_CONFIG[selectedRapport.type_rapport]?.label || selectedRapport.type_rapport}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#94A3B8" }}>
-                        {selectedRapport.periode && `${selectedRapport.periode} · `}
-                        {(selectedRapport.actif as any)?.nom || "Transverse"} · Demandé le {new Date(selectedRapport.created_at).toLocaleDateString("fr-FR")}
-                      </div>
-                    </div>
-                    <button onClick={() => setSelectedRapport(null)} style={{ width: 28, height: 28, border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
-                      <i className="ti ti-x" aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Statut</div>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      {["demande", "en_cours", "disponible"].map(s => {
-                        const sc = STATUT_RAPPORT_CONFIG[s]
-                        return (
-                          <button key={s} onClick={() => updateStatutRapport(selectedRapport.id, s)} style={{
-                            padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-                            border: selectedRapport.statut === s ? `1px solid ${sc.color}` : "1px solid #E2E8F0",
-                            background: selectedRapport.statut === s ? sc.bg : "white",
-                            color: selectedRapport.statut === s ? sc.color : "#64748B",
-                            cursor: "pointer", fontFamily: "inherit",
-                            opacity: savingRapport === selectedRapport.id ? 0.6 : 1,
-                          }}>{sc.label}</button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Rapport PDF</div>
-                    {selectedRapport.fichier_url ? (
+                return (
+                  <tr
+                    key={m.id}
+                    style={{ borderBottom: "1px solid #E2DDD8", height: "56px", cursor: "pointer", background: bloquee ? "#FFFBF7" : "transparent" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+                    onMouseLeave={e => (e.currentTarget.style.background = bloquee ? "#FFFBF7" : "transparent")}
+                    onClick={() => { setSelected(m); setDrawerOpen(true) }}
+                  >
+                    {/* Société */}
+                    <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <a href={selectedRapport.fichier_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", background: "#ECFDF5", color: "#065F46", fontSize: "12px", fontWeight: 500, textDecoration: "none" }}>
-                          <i className="ti ti-download" style={{ fontSize: "14px" }} aria-hidden="true" /> Télécharger
-                        </a>
-                        <span style={{ fontSize: "11px", color: "#94A3B8" }}>PDF disponible</span>
+                        {bloquee && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#D97706", flexShrink: 0, display: "inline-block" }} />}
+                        <div>
+                          <div style={{ fontWeight: 500, color: "#111827", fontSize: "13px" }}>{m.societe || "—"}</div>
+                          {m.contact_nom && <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{m.contact_nom}</div>}
+                        </div>
                       </div>
-                    ) : (
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer" }}>
-                        <i className="ti ti-upload" style={{ fontSize: "14px" }} aria-hidden="true" />
-                        {uploadingPdf === selectedRapport.id ? "Upload en cours…" : "Uploader le PDF"}
-                        <input type="file" accept=".pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadPdf(selectedRapport.id, e.target.files[0]) }} />
-                      </label>
-                    )}
-                  </div>
+                    </td>
 
-                  <div>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>KPIs du rapport</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
-                      {selectedRapport.type_rapport === "bilan_ges" && ["Scope 1 CO₂e", "Scope 2 CO₂e", "Scope 3 CO₂e", "Évolution vs N-1"].map(k => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "12px", color: "#64748B", width: "140px", flexShrink: 0 }}>{k}</label>
-                          <input value={kpisForm[`${selectedRapport.id}__${k}`] ?? (selectedRapport.kpis?.[k] || "")} onChange={e => setKpisForm({ ...kpisForm, [`${selectedRapport.id}__${k}`]: e.target.value })} placeholder="Ex : 142 t" style={{ flex: 1, padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none" }} />
+                    {/* Type / Secteur */}
+                    <td style={{ ...tdStyle, color: "#6B7280", fontSize: "12px" }}>
+                      <div>{m.type_manager || "—"}</div>
+                      <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{m.secteur || "—"}</div>
+                    </td>
+
+                    {/* Origine */}
+                    <td style={tdStyle}>
+                      <span style={{ background: origine.bg, color: origine.color, fontSize: "10px", padding: "2px 7px", borderRadius: "3px", fontWeight: 500 }}>
+                        {origine.label}
+                      </span>
+                    </td>
+
+                    {/* Consultant */}
+                    <td style={{ ...tdStyle, fontSize: "12px" }}>
+                      {m.consultant ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <div style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#F9F0EA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", fontWeight: 600, color: "#B25C2A", flexShrink: 0 }}>
+                            {(m.consultant.prenom[0] || "").toUpperCase()}{(m.consultant.nom[0] || "").toUpperCase()}
+                          </div>
+                          <span style={{ color: "#111827" }}>{m.consultant.prenom} {m.consultant.nom}</span>
                         </div>
-                      ))}
-                      {selectedRapport.type_rapport === "csrd" && ["Score ESG", "Progression", "Étape"].map(k => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "12px", color: "#64748B", width: "140px", flexShrink: 0 }}>{k}</label>
-                          <input value={kpisForm[`${selectedRapport.id}__${k}`] ?? (selectedRapport.kpis?.[k] || "")} onChange={e => setKpisForm({ ...kpisForm, [`${selectedRapport.id}__${k}`]: e.target.value })} placeholder="Ex : 72/100" style={{ flex: 1, padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none" }} />
+                      ) : (
+                        <span style={{ color: "#D97706", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                          <i className="ti ti-alert-triangle" style={{ fontSize: "11px" }} />
+                          Non assigné
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Phase */}
+                    <td style={{ ...tdStyle, minWidth: "100px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div style={{ flex: 1, background: "#E2DDD8", borderRadius: "3px", height: "4px", overflow: "hidden" }}>
+                          <div style={{ background: bloquee ? "#D97706" : "#B25C2A", width: `${pct}%`, height: "100%", borderRadius: "3px" }} />
                         </div>
-                      ))}
-                      {selectedRapport.type_rapport === "bilan_carbone" && ["Total CO₂e", "Évolution vs N-1", "Intensité carbone"].map(k => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "12px", color: "#64748B", width: "140px", flexShrink: 0 }}>{k}</label>
-                          <input value={kpisForm[`${selectedRapport.id}__${k}`] ?? (selectedRapport.kpis?.[k] || "")} onChange={e => setKpisForm({ ...kpisForm, [`${selectedRapport.id}__${k}`]: e.target.value })} placeholder="Ex : 1 240 t" style={{ flex: 1, padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none" }} />
-                        </div>
-                      ))}
-                      {selectedRapport.type_rapport === "brown_value" && ["Valeur marché", "Décote climatique", "Impact net"].map(k => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "12px", color: "#64748B", width: "140px", flexShrink: 0 }}>{k}</label>
-                          <input value={kpisForm[`${selectedRapport.id}__${k}`] ?? (selectedRapport.kpis?.[k] || "")} onChange={e => setKpisForm({ ...kpisForm, [`${selectedRapport.id}__${k}`]: e.target.value })} placeholder="Ex : 1 240 000 €" style={{ flex: 1, padding: "6px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none" }} />
-                        </div>
-                      ))}
+                        <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#6B7280", minWidth: "32px" }}>
+                          {m.phase || 1}/10
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "2px" }}>
+                        {phases[(m.phase || 1) - 1]?.label}
+                      </div>
+                    </td>
+
+                    {/* Statut */}
+                    <td style={tdStyle}>
+                      <span style={{ background: statut.bg, color: statut.color, border: `1px solid ${statut.border}`, fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500 }}>
+                        {statut.label}
+                      </span>
+                    </td>
+
+                    {/* Urgence */}
+                    <td style={tdStyle}>
+                      {urgence && (
+                        <span style={{ background: urgence.bg, color: urgence.color, fontSize: "10px", padding: "2px 7px", borderRadius: "3px", fontWeight: 500 }}>
+                          {urgence.label}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Action */}
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); setSelected(m); setDrawerOpen(true) }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        <i className="ti ti-eye" style={{ fontSize: "13px" }} />
+                        Voir
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+        {missionsFiltrees.length > 0 && (
+          <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
+            <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{missionsFiltrees.length} mission{missionsFiltrees.length > 1 ? "s" : ""}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Drawer détail mission ── */}
+      {drawerOpen && selected && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerOpen(false)} />
+          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "460px", maxWidth: "100vw", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
+
+            {/* Header */}
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
+              <div style={{ flex: 1, paddingRight: "12px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>{selected.societe}</h2>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ background: ORIGINE_CONFIG[selected.origine || "marketplace"].bg, color: ORIGINE_CONFIG[selected.origine || "marketplace"].color, fontSize: "10px", padding: "2px 7px", borderRadius: "3px", fontWeight: 500 }}>
+                    {ORIGINE_CONFIG[selected.origine || "marketplace"].label}
+                  </span>
+                  {estBloquee(selected) && (
+                    <span style={{ background: "#FFFBEB", color: "#D97706", fontSize: "10px", padding: "2px 7px", borderRadius: "3px", fontWeight: 500, display: "flex", alignItems: "center", gap: "3px" }}>
+                      <i className="ti ti-alert-triangle" style={{ fontSize: "10px" }} />
+                      Bloquée
+                    </span>
+                  )}
+                  {selected.contact_nom && (
+                    <span style={{ fontSize: "12px", color: "#6B7280" }}>{selected.contact_nom} · {selected.contact_email}</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280", flexShrink: 0 }}>
+                <i className="ti ti-x" style={{ fontSize: "14px" }} />
+              </button>
+            </div>
+
+            {/* Corps */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+              {/* Infos */}
+              <div>
+                <div style={sectionTitleStyle}>Informations</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {[
+                    { label: "Manager", value: selected.type_manager },
+                    { label: "Format",  value: selected.format_mission },
+                    { label: "Secteur", value: selected.secteur },
+                    { label: "Urgence", value: selected.urgence?.split(" ")[0] || "Standard" },
+                    { label: "Créée le", value: formatDate(selected.created_at) },
+                    { label: "Région", value: selected.region || "—" },
+                  ].map((item, i) => (
+                    <div key={i} style={{ background: "#F4F3F0", borderRadius: "8px", padding: "10px 12px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: 500, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>{item.label}</div>
+                      <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{item.value || "—"}</div>
                     </div>
-                    <button onClick={() => saveKpis(selectedRapport.id)} disabled={savingRapport === selectedRapport.id} style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "8px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", opacity: savingRapport === selectedRapport.id ? 0.7 : 1 }}>
-                      <i className="ti ti-device-floppy" style={{ fontSize: "14px" }} aria-hidden="true" />
-                      {savingRapport === selectedRapport.id ? "Sauvegarde…" : "Enregistrer les KPIs"}
-                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              {selected.description && (
+                <div>
+                  <div style={sectionTitleStyle}>Description</div>
+                  <div style={{ padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>
+                    {selected.description}
                   </div>
                 </div>
               )}
+
+              {/* Consultant assigné */}
+              {(isAdmin || isResponsable) && (
+                <div>
+                  <div style={sectionTitleStyle}>Consultant assigné</div>
+                  <select
+                    className="input"
+                    value={selected.consultant_id || ""}
+                    onChange={e => assignerConsultant(selected.id, e.target.value)}
+                  >
+                    <option value="">— Non assigné —</option>
+                    {consultants.map(c => (
+                      <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Workflow */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", paddingBottom: "6px", borderBottom: "1px solid #F4F3F0" }}>
+                  <span style={sectionTitleStyle as any}>Workflow — Phase {selected.phase || 1}/10</span>
+                  {savingPhase && <span style={{ fontSize: "11px", color: "#9CA3AF" }}>Sauvegarde…</span>}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {phases.map(p => {
+                    const isDone   = (selected.phase || 1) > p.num
+                    const isActive = (selected.phase || 1) === p.num
+                    return (
+<div
+                      key={p.num}
+                      onClick={() => {
+                        if (userRole === "consultant" && selected.consultant_id === userId) {
+                          updatePhase(selected.id, p.num)
+                        }
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "8px 12px", borderRadius: "7px",
+                        cursor: userRole === "consultant" && selected.consultant_id === userId ? "pointer" : "default",
+                        background: isActive ? "#F9F0EA" : isDone ? "#F0FDF4" : "#F4F3F0",
+                        border: isActive ? "1px solid #F0DDD0" : "1px solid transparent",
+                        transition: "all 0.1s",
+                      }}
+                    >
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isDone ? "#2F7D5C" : isActive ? "#B25C2A" : "#E2DDD8", color: isDone || isActive ? "white" : "#9CA3AF", fontSize: "11px", fontWeight: 700 }}>
+                        {isDone ? <i className="ti ti-check" style={{ fontSize: "12px" }} /> : p.num}
+                      </div>
+                      <i className={`ti ${p.icon}`} style={{ fontSize: "14px", color: isDone ? "#2F7D5C" : isActive ? "#B25C2A" : "#9CA3AF" }} />
+                      <span style={{ fontSize: "13px", color: isDone ? "#2F7D5C" : isActive ? "#B25C2A" : "#6B7280", fontWeight: isActive ? 500 : 400 }}>
+                        {p.label}
+                      </span>
+                      {isActive && (
+                        <span style={{ marginLeft: "auto", fontSize: "10px", background: "#B25C2A", color: "white", padding: "1px 6px", borderRadius: "10px" }}>
+                          En cours
+                        </span>
+                      )}
+              </div>
+                  )
+                })}
+                </div>
+              </div>
+
+              {/* Statut */}
+              <div>
+                <div style={sectionTitleStyle}>Statut de la mission</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {STATUT_OPTIONS.map(s => {
+                    const conf = STATUT_CONFIG[s.value]
+                    return (
+                      <button
+                        key={s.value}
+                        onClick={() => updateStatut(selected.id, s.value)}
+                        disabled={savingStatut}
+                        style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${selected.statut === s.value ? conf.border : "#E2DDD8"}`, background: selected.statut === s.value ? conf.bg : "white", color: selected.statut === s.value ? conf.color : "#6B7280" }}
+                      >
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
             </div>
-          )}
-        </div>
+
+            {/* Footer */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", display: "flex", gap: "8px", flexShrink: 0 }}>
+              <button
+                className="btn-ghost"
+                style={{ flex: 1 }}
+                onClick={() => setDrawerOpen(false)}
+              >
+                Fermer
+              </button>
+            </div>
+
+          </div>
+        </>
       )}
 
     </div>
   )
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const thStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  fontSize: "11px",
+  fontWeight: 500,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "#6B7280",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: "0 16px",
+  fontSize: "14px",
+  color: "#111827",
+}
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 500,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "#6B7280",
+  marginBottom: "10px",
+  display: "block",
 }

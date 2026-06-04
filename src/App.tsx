@@ -89,6 +89,7 @@ export default function App() {
           <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
+          <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
           <Route path="metier/file-attente" element={<ProtectedRoute><FileAttente /></ProtectedRoute>} />
           <Route path="metier/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
