@@ -38,6 +38,7 @@ import MonEquipe from "./pages/metier/MonEquipe"
 import GED from "./pages/metier/GED"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
+import PartenaireInscription from "./pages/partenaire/PartenaireInscription"
 import PartenaireDashboard from "./pages/partenaire/PartenaireDashboard"
 import PartenaireMissions from "./pages/partenaire/PartenaireMissions"
 import PartenaireMessages from "./pages/partenaire/PartenaireMessages"
@@ -97,6 +98,7 @@ export default function App() {
 
         {/* ── Portail Partenaire ── */}
         <Route path="/partenaire/login" element={<PartenaireLogin />} />
+        <Route path="/partenaire/inscription" element={<PartenaireInscription />} />
         <Route path="/partenaire" element={<PartenaireLayout />}>
           <Route path="dashboard" element={<PartenaireDashboard />} />
           <Route path="missions" element={<PartenaireMissions />} />
