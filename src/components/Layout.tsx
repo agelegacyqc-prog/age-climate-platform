@@ -151,10 +151,17 @@ export default function Layout() {
         if (role === "admin_national") {
           // File d'attente : demandes clients non assignées
           const { count: countFile } = await supabase
-            .from("demandes_marketplace")
-            .select("id", { count: "exact", head: true })
-            .eq("statut", "soumise")
-          setNbFileAttente(countFile || 0)
+  .from("demandes_marketplace")
+  .select("id", { count: "exact", head: true })
+  .eq("statut", "soumise")
+
+const { count: countRdv } = await supabase
+  .from("demandes_rdv")
+  .select("id", { count: "exact", head: true })
+  .eq("lu_admin", false)
+  .eq("statut", "en_attente")
+
+setNbFileAttente((countFile || 0) + (countRdv || 0))
 
           // Campagnes soumises par clients en attente de dispatch
           const { count: countCamp } = await supabase
