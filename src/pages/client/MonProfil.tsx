@@ -64,6 +64,7 @@ export default function MonProfil() {
   const [enjeux, setEnjeux]     = useState<string[]>([])
   const [niveau, setNiveau]     = useState("")
   const [editParcours, setEditParcours] = useState(false)
+  const [organisationId, setOrganisationId] = useState<string | null>(null)
 
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -87,7 +88,13 @@ export default function MonProfil() {
       setProfil(p.profil || "")
     }
 
-    const { data: pc } = await supabase.from("profils_client").select("enjeux, niveau").eq("id", user.id).single()
+    const { data: pc } = await supabase.from("profils_client").select("enjeux, niveau, organisation_id, type_client").eq("id", user.id).single()
+if (pc) {
+  setEnjeux(pc.enjeux || [])
+  setNiveau(pc.niveau || "")
+  setOrganisationId(pc.organisation_id || null)
+  setProfil(pc.type_client || "")
+}
     if (pc) {
       setEnjeux(pc.enjeux || [])
       setNiveau(pc.niveau || "")
@@ -102,8 +109,19 @@ export default function MonProfil() {
     if (!user) return
 
     await supabase.from("profils").upsert({
-      id: user.id, prenom, nom, telephone, poste, societe, adresse, profil,
-    })
+  id: user.id, prenom, nom, telephone, poste,
+})
+
+if (organisationId) {
+  await supabase.from("organisations").update({
+    raison_sociale: societe,
+    adresse: adresse,
+  }).eq("id", organisationId)
+}
+
+await supabase.from("profils_client").update({
+  type_client: profil,
+}).eq("id", user.id)
 
     if (editParcours) {
       await supabase.from("profils_client").upsert({

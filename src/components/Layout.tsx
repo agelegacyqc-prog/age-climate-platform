@@ -127,7 +127,7 @@ export default function Layout() {
         .eq("id", user.id)
         .maybeSingle() 
 
-      if (profilAGE) {
+      if (profilAGE && profilAGE.role !== null && profilAGE.role !== "client") {
         const p = profilAGE.prenom || ""
         const n = profilAGE.nom || ""
         setPrenom(p)

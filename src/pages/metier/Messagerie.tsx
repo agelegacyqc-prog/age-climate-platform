@@ -13,9 +13,11 @@ interface Conversation {
   nbNonLus: number
   clientId?: string
   clientEmail?: string
+  clientNom?: string | null  // ← après clientEmail?
 }
 
 export default function Messagerie() {
+  console.log("Messagerie métier monté")
   const navigate = useNavigate()
   const [userId, setUserId]               = useState<string>("")
   const [onglet, setOnglet]               = useState<Onglet>("clients")
@@ -35,12 +37,14 @@ export default function Messagerie() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser()
+    console.log("init user:", user?.id)
     if (!user) return
     setUserId(user.id)
     setLoading(false)
   }
 
   async function loadConversations() {
+    console.log("loadConversations démarré, onglet:", onglet, "userId:", userId)
     if (!userId) return
 
     if (onglet === "clients") {
@@ -59,19 +63,22 @@ export default function Messagerie() {
         let key = "", titre = "", sousTitre = "", type: Conversation["type"] = "actif", refId = ""
         if (msg.actif_id) {
           key = `actif_${msg.actif_id}`
-          titre = (msg.actif as any)?.nom || (msg.actif as any)?.adresse || "Actif"
+          titre = ""
+sousTitre = (msg.actif as any)?.nom || (msg.actif as any)?.adresse || "Actif immobilier"
           sousTitre = "Actif immobilier"
           type = "actif"
           refId = msg.actif_id
         } else if (msg.demande_id) {
           key = `demande_${msg.demande_id}`
-          titre = (msg.demande as any)?.type_prestation || "Demande marketplace"
+          titre = ""
+sousTitre = (msg.demande as any)?.type_prestation || "Demande Marketplace"
           sousTitre = "Demande Marketplace"
           type = "demande"
           refId = msg.demande_id
         } else if (msg.campagne_id) {
           key = `campagne_${msg.campagne_id}`
-          titre = (msg.campagne as any)?.nom || "Campagne"
+          titre = ""
+sousTitre = (msg.campagne as any)?.nom || "Campagne"
           sousTitre = "Campagne client"
           type = "campagne"
           refId = msg.campagne_id
@@ -82,6 +89,7 @@ export default function Messagerie() {
     || (msg.actif as any)?.user_id
     || (msg.demande as any)?.client_id
     || (msg.campagne as any)?.client_id
+    console.log("clientId résolu :", clientId, "pour msg :", msg.id)
   map.set(key, {
     id: key, titre, sousTitre, type, refId,
     nbNonLus: 0, clientId,
@@ -91,6 +99,43 @@ export default function Messagerie() {
           map.get(key)!.nbNonLus++
         }
       }
+      // Enrichissement raison sociale
+      
+const clientIds = [...new Set(
+  Array.from(map.values()).map(c => c.clientId).filter(Boolean)
+)] as string[]
+console.log("clientIds :", clientIds)
+if (clientIds.length > 0) {
+  const { data: profilsClients } = await supabase
+    .from("profils_client")
+    .select("id, organisation_id")
+    .in("id", clientIds)
+
+  const orgIds = [...new Set(
+    (profilsClients || []).map(p => p.organisation_id).filter(Boolean)
+  )]
+
+  const { data: orgs } = await supabase
+    .from("organisations")
+    .select("id, raison_sociale")
+    .in("id", orgIds)
+
+  const orgMap: Record<string, string> = {}
+  orgs?.forEach(o => { orgMap[o.id] = o.raison_sociale })
+
+  const pcMap: Record<string, string> = {}
+  profilsClients?.forEach(p => { 
+    if (p.organisation_id) pcMap[p.id] = orgMap[p.organisation_id] ?? "" 
+  })
+
+  map.forEach((conv, key) => {
+    map.set(key, { 
+  ...conv, 
+  titre: pcMap[conv.clientId] ?? conv.sousTitre,
+  clientNom: pcMap[conv.clientId] ?? null 
+})
+  })
+}
       const convs = Array.from(map.values())
       setConversations(convs)
       if (convs.length > 0 && !selected) setSelected(convs[0])
@@ -184,7 +229,7 @@ export default function Messagerie() {
   const nbNonLusClients  = conversations.filter(c => c.type !== "mission").reduce((s, c) => s + c.nbNonLus, 0)
   const nbNonLusMissions = conversations.filter(c => c.type === "mission").reduce((s, c) => s + c.nbNonLus, 0)
 
-  if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
+  if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement… METIER</div>
 
   return (
     <div style={{ display: "flex", gap: "0", height: "calc(100vh - 120px)", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
@@ -239,17 +284,20 @@ export default function Messagerie() {
               onMouseEnter={e => { if (selected?.id !== c.id) e.currentTarget.style.background = "#FAFFFE" }}
               onMouseLeave={e => { if (selected?.id !== c.id) e.currentTarget.style.background = "white" }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "8px" }}>
-                  {c.titre}
-                </div>
-                {c.nbNonLus > 0 && (
-                  <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", flexShrink: 0 }}>{c.nbNonLus}</span>
-                )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ background: "#F1F5F9", color: "#64748B", padding: "1px 6px", borderRadius: "3px", fontSize: "10px" }}>{c.sousTitre}</span>
-              </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
+  <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: "8px" }}>
+    {c.titre}
+  </div>
+  {c.nbNonLus > 0 && (
+    <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "10px", flexShrink: 0 }}>{c.nbNonLus}</span>
+  )}
+</div>
+<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+  <span style={{ background: "#F1F5F9", color: "#64748B", padding: "1px 6px", borderRadius: "3px", fontSize: "10px" }}>{c.sousTitre}</span>
+</div>
+{c.clientNom && (
+  <div style={{ fontSize: "11px", color: "#0F172A", fontWeight: 500, marginTop: "2px" }}>{c.clientNom}</div>
+)}
             </div>
           ))}
         </div>
@@ -264,6 +312,9 @@ export default function Messagerie() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>{selected.titre}</div>
               <div style={{ fontSize: "12px", color: "#94A3B8" }}>{selected.sousTitre}</div>
+{selected.clientNom && (
+  <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{selected.clientNom}</div>
+)}
             </div>
             <span style={{ background: "#ECFDF5", color: "#065F46", padding: "3px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
               {selected.type === "mission" ? "Mission" : selected.type === "actif" ? "Actif" : selected.type === "demande" ? "Marketplace" : "Campagne"}
