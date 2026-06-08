@@ -36,7 +36,13 @@ export default function DashboardMetier() {
     clientsActifs: 0,
     partenairesValides: 0,
   })
-
+const [kpisReporting, setKpisReporting] = useState({
+  tauxTransformation: 0,
+  pertes_evitees: 0,
+  travaux_generes: 0,
+  cout_total_campagnes: 0,
+  roi: 0,
+})
   // Points d'attention
   const [alertes, setAlertes] = useState({
     missionsBloquees: 0,
@@ -83,7 +89,27 @@ export default function DashboardMetier() {
     }
     setLoading(false)
   }
+async function loadKpisReporting() {
+  const [missRes, campRes] = await Promise.all([
+    supabase.from("missions").select("travaux_generes, pertes_evitees, montant_ht"),
+    supabase.from("campagnes").select("cout_campagne, courriers_envoyes, diagnostics"),
+  ])
 
+  const missions   = missRes.data || []
+  const campagnes  = campRes.data || []
+
+  const pertes_evitees      = missions.reduce((s: number, m: any) => s + (m.pertes_evitees || 0), 0)
+  const travaux_generes     = missions.reduce((s: number, m: any) => s + (m.travaux_generes || 0), 0)
+  const cout_total_campagnes = campagnes.reduce((s: number, c: any) => s + (c.cout_campagne || 0), 0)
+
+  const totalCourriers  = campagnes.reduce((s: number, c: any) => s + (c.courriers_envoyes || 0), 0)
+  const totalDiagnostics = campagnes.reduce((s: number, c: any) => s + (c.diagnostics || 0), 0)
+  const tauxTransformation = totalCourriers > 0 ? (totalDiagnostics / totalCourriers) * 100 : 0
+
+  const roi = cout_total_campagnes > 0 ? pertes_evitees / cout_total_campagnes : 0
+
+  setKpisReporting({ tauxTransformation, pertes_evitees, travaux_generes, cout_total_campagnes, roi })
+}
   async function loadAdmin() {
     // KPIs
     const [campRes, missRes, clientsRes, partRes] = await Promise.all([
@@ -120,9 +146,9 @@ export default function DashboardMetier() {
 
     // Charge consultants
     const { data: profs } = await supabase
-      .from("profils")
-      .select("id, prenom, nom, region")
-      .eq("role", "consultant")
+  .from("profils")
+  .select("id, prenom, nom, region, role")
+  .in("role", ["consultant", "responsable_regional"])
 
     if (profs) {
       const charges = await Promise.all(profs.map(async (p: any) => {
@@ -150,6 +176,7 @@ export default function DashboardMetier() {
 
     activite.sort((a, b) => 0)
     setActiviteRecente(activite.slice(0, 5))
+    await loadKpisReporting()
   }
 
   async function loadResponsable(userRegion: string | null, uid: string) {
@@ -281,7 +308,80 @@ export default function DashboardMetier() {
             </div>
           ))}
         </div>
-
+{/* KPIs Reporting */}
+<div className="card" style={{ padding: 0, overflow: "hidden" }}>
+  <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <i className="ti ti-chart-bar" style={{ fontSize: "15px", color: "#B25C2A" }} />
+      <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Synthèse Reporting</span>
+    </div>
+    <button
+      onClick={() => navigate("/metier/reporting")}
+      style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+    >
+      Voir le reporting complet →
+    </button>
+  </div>
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0" }}>
+    {[
+      {
+        label: "ROI campagne",
+        value: kpisReporting.roi > 0 ? `×${kpisReporting.roi.toFixed(0)}` : "—",
+        sub: "1 € investi = X € de pertes évitées",
+        color: "#7C3AED",
+        icon: "ti-trending-up",
+      },
+      {
+        label: "Taux transformation",
+        value: kpisReporting.tauxTransformation > 0 ? `${kpisReporting.tauxTransformation.toFixed(1).replace(".", ",")} %` : "—",
+        sub: "Contact → Diagnostic réalisé",
+        color: "#0369A1",
+        icon: "ti-percentage",
+      },
+      {
+        label: "Pertes évitées",
+        value: kpisReporting.pertes_evitees > 0
+          ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(kpisReporting.pertes_evitees) + " €"
+          : "—",
+        sub: "Cumul toutes missions",
+        color: "#2F7D5C",
+        icon: "ti-shield-check",
+      },
+      {
+        label: "Travaux générés",
+        value: kpisReporting.travaux_generes > 0
+          ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(kpisReporting.travaux_generes) + " €"
+          : "—",
+        sub: "Cumul toutes missions",
+        color: "#B25C2A",
+        icon: "ti-hammer",
+      },
+    ].map((k, i) => (
+      <div
+        key={i}
+        onClick={() => navigate("/metier/reporting")}
+        style={{
+          padding: "20px",
+          borderRight: i < 3 ? "1px solid #E2DDD8" : "none",
+          cursor: "pointer",
+        }}
+        onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+          <i className={`ti ${k.icon}`} style={{ fontSize: "14px", color: k.color }} />
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {k.label}
+          </span>
+        </div>
+        <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "22px", fontWeight: 700, color: k.color, marginBottom: "4px" }}>
+          {k.value}
+        </div>
+        <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{k.sub}</div>
+      </div>
+    ))}
+  </div>
+</div>
         {/* Points d'attention + Charge équipe */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 

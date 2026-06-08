@@ -128,7 +128,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
   defaut: {
     sousTitre: "Comprendre, agir et collaborer pour un avenir climatique durable",
     boutons: [
-      { label: "Voir le Dashboard", route: "/dashboard", icon: "ti-chart-bar" },
+    { label: "Découvrir la plateforme", route: "/sensibilisation", icon: "ti-leaf" },
     ],
     afficherCarte: false, afficherRoadmap: false,
     kpis: [
@@ -137,7 +137,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { val: "5",       label: "Projets actifs",         tendance: "Sur votre territoire",          tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/dashboard",       icon: "ti-chart-bar",      titre: "Dashboard",       desc: "Visualisez les données climatiques" },
+      { route: "/marketplace", icon: "ti-building-store", titre: "Marketplace", desc: "Prestations énergie, carbone et prévention" },
       { route: "/marketplace",     icon: "ti-building-store", titre: "Marketplace",     desc: "Prestations énergie, carbone et prévention" },
       { route: "/sensibilisation", icon: "ti-plant-2",        titre: "Sensibilisation", desc: "Découvrez les enjeux et obligations climatiques" },
       { route: "/projets",         icon: "ti-clipboard-list", titre: "Projets",         desc: "Participez aux initiatives locales" },

@@ -6,7 +6,6 @@ import "../styles/Layout.css"
 // ─── Page titles ────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
   "/":                           "Accueil",
-  "/dashboard":                  "Dashboard",
   "/sensibilisation":            "Sensibilisation",
   "/marketplace":                "Marketplace",
   "/client":                     "Mon compte",
@@ -193,14 +192,13 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
           setNbCampagnes(countCamp || 0)
         }
 
-        if (role === "responsable_regional" && profilAGE.region) {
-          // Campagnes de la région non assignées à un consultant
-          const { count: countCampRegion } = await supabase
-            .from("campagnes")
-            .select("id", { count: "exact", head: true })
-            .eq("region", profilAGE.region)
-            .is("consultant_id", null)
-          setNbCampagnes(countCampRegion || 0)
+       if (role === "responsable_regional") {
+  const { count: countCampRegion } = await supabase
+    .from("campagnes")
+    .select("id", { count: "exact", head: true })
+    .eq("responsable_id", user.id)
+    .is("consultant_id", null)
+  setNbCampagnes(countCampRegion || 0)
 
           // Missions de la région non assignées
           const { count: countMissRegion } = await supabase
@@ -218,7 +216,18 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
           .eq("lu", false)
           .neq("expediteur_id", user.id)
         setNbMessagesAGE(countMsg || 0)
-
+// Realtime — nouveaux messages non lus
+supabase
+  .channel("messages-non-lus")
+  .on("postgres_changes", {
+    event: "INSERT",
+    schema: "public",
+    table: "messages",
+    filter: `destinataire_id=eq.${user.id}`,
+  }, () => {
+    setNbMessagesAGE(prev => prev + 1)
+  })
+  .subscribe()
         setAuthChecked(true)
         return
       }
@@ -231,12 +240,13 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
   .maybeSingle()
 
       if (profilClient) {
-        const labels: Record<string, string> = {
-          banque: "Banque",
-          assurance: "Assurance",
-          entreprise: "Entreprise",
-          collectivite: "Collectivité",
-        }
+      const labels: Record<string, string> = {
+  banque: "Banque",
+  assureur: "Assurance",
+  entreprise: "Entreprise",
+  collectivite: "Collectivité",
+  proprietaire: "Particulier",
+}
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
         setEspace("client")
@@ -248,7 +258,17 @@ setMonProfilClient(profilClient)
           .eq("client_id", user.id)
           .neq("expediteur_id", user.id)
         setNbMessagesClient(countMsgClient || 0)
-
+supabase
+  .channel("messages-client-non-lus")
+  .on("postgres_changes", {
+    event: "INSERT",
+    schema: "public",
+    table: "messages",
+    filter: `destinataire_id=eq.${user.id}`,
+  }, () => {
+    setNbMessagesClient(prev => prev + 1)
+  })
+  .subscribe()
         setAuthChecked(true)
         return
       }
@@ -303,7 +323,7 @@ setMonProfilClient(profilClient)
           {/* ── Section Plateforme (commune) ──────────────────────────── */}
           <div className="nav-section">Plateforme</div>
           <NavItem to="/" icon="ti-home" label="Accueil" end />
-          <NavItem to="/dashboard" icon="ti-chart-bar" label="Dashboard" />
+          
 
           {/*
             Sensibilisation :
@@ -410,10 +430,10 @@ setMonProfilClient(profilClient)
                 <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" />
               )}
 
-              {/* Mon équipe — responsable_regional uniquement */}
-              {roleAGE === "responsable_regional" && (
-                <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
-              )}
+              {/* Mon équipe — admin_national et responsable_regional */}
+{(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+  <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
+)}
 
               {/* Clients — admin_national uniquement */}
               {roleAGE === "admin_national" && (

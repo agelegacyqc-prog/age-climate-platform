@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { supabase } from "../../lib/supabase"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Onglet = "age" | "clients"
+type Onglet = "age" | "clients" | "affectations"
 
 interface Campagne {
   id: string
@@ -23,8 +23,8 @@ interface Campagne {
   client_id: string | null
   region: string | null
   responsable_id: string | null
+  consultant_id?: string | null
   created_at: string
-  // Enrichi
   client?: { prenom: string; nom: string; profil: string } | null
   campagnes_actifs?: any[]
 }
@@ -86,7 +86,6 @@ function exportCSV(campagne: Campagne) {
     ["Diagnostics", campagne.diagnostics?.toString() || "0"],
     ["Taux de réponse", taux(campagne) + "%"],
   ]
-
   const csv = rows.map(r => r.map(cell => `"${cell}"`).join(";")).join("\n")
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
   const url = URL.createObjectURL(blob)
@@ -123,7 +122,6 @@ function exportPDF(campagne: Campagne) {
     <body>
       <h1>${campagne.nom}</h1>
       <div class="subtitle">Rapport de campagne — Généré le ${new Date().toLocaleDateString("fr-FR")}</div>
-
       <div class="section">
         <div class="section-title">Informations générales</div>
         <div class="row"><span class="label">Type</span><span class="value">${TYPE_CONFIG[campagne.type_campagne]?.label || campagne.type_campagne}</span></div>
@@ -133,7 +131,6 @@ function exportPDF(campagne: Campagne) {
         <div class="row"><span class="label">Statut</span><span class="value">${STATUT_CONFIG[campagne.statut]?.label || campagne.statut}</span></div>
         ${campagne.description ? `<div class="row"><span class="label">Description</span><span class="value">${campagne.description}</span></div>` : ""}
       </div>
-
       <div class="section">
         <div class="section-title">Indicateurs de performance</div>
         <div class="kpis">
@@ -144,7 +141,6 @@ function exportPDF(campagne: Campagne) {
         </div>
         <div class="row" style="margin-top:16px"><span class="label">Taux de réponse</span><span class="value">${taux(campagne)} %</span></div>
       </div>
-
       <div class="footer">AGE Climate Platform — Rapport confidentiel</div>
     </body>
     </html>
@@ -153,10 +149,7 @@ function exportPDF(campagne: Campagne) {
   const url = URL.createObjectURL(blob)
   const win = window.open(url, "_blank")
   if (win) {
-    win.onload = () => {
-      win.print()
-      URL.revokeObjectURL(url)
-    }
+    win.onload = () => { win.print(); URL.revokeObjectURL(url) }
   }
 }
 
@@ -166,6 +159,10 @@ export default function Campagnes() {
   const [onglet, setOnglet]               = useState<Onglet>("age")
   const [campagnes, setCampagnes]         = useState<Campagne[]>([])
   const [demandesClient, setDemandesClient] = useState<Campagne[]>([])
+  const [affectations, setAffectations]   = useState<Campagne[]>([])
+  const [consultantsRegion, setConsultantsRegion] = useState<{id: string; prenom: string; nom: string}[]>([])
+  const [affectationExpanded, setAffectationExpanded] = useState<string | null>(null)
+const [biensParCampagne, setBiensParCampagne] = useState<Record<string, any[]>>({})
   const [loading, setLoading]             = useState(true)
   const [recherche, setRecherche]         = useState("")
   const [filtreStatut, setFiltreStatut]   = useState("tous")
@@ -182,9 +179,13 @@ export default function Campagnes() {
   const [showForm, setShowForm]           = useState(false)
   const [form, setForm]                   = useState<FormCampagne>(FORM_INITIAL)
   const [formLoading, setFormLoading]     = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
 
   useEffect(() => { chargerProfil() }, [])
-
+function showToast(message: string, type: "success" | "error" = "success") {
+  setToast({ message, type })
+  setTimeout(() => setToast(null), 3000)
+}
   async function chargerProfil() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -197,31 +198,42 @@ export default function Campagnes() {
       setRoleAGE(profil.role)
       setRegionAGE(profil.region || null)
     }
-    await Promise.all([loadCampagnes(profil?.region), loadDemandesClient(profil?.region)])
+    await Promise.all([
+      loadCampagnes(profil?.region),
+      loadDemandesClient(profil?.region),
+      profil?.role === "responsable_regional"
+        ? loadAffectations(user.id, profil?.region)
+        : Promise.resolve(),
+    ])
     setLoading(false)
   }
 
   async function loadCampagnes(region?: string | null) {
+    const { data: { user } } = await supabase.auth.getUser()
     let query = supabase
       .from("campagnes")
       .select("*")
       .eq("origine", "age")
       .order("date_debut", { ascending: false })
-    if (region) query = query.eq("region", region)
+    if (region) {
+      query = query.or(`region.eq.${region},responsable_id.eq.${user?.id}`)
+    }
     const { data } = await query
     setCampagnes(data || [])
   }
 
   async function loadDemandesClient(region?: string | null) {
+    const { data: { user } } = await supabase.auth.getUser()
     let query = supabase
       .from("campagnes")
       .select("*")
       .eq("origine", "client")
       .order("created_at", { ascending: false })
-    if (region) query = query.eq("region", region)
+    if (region && user?.id) {
+      query = query.or(`region.eq.${region},responsable_id.eq.${user.id}`)
+    }
     const { data: campagnesData } = await query
     if (!campagnesData) { setDemandesClient([]); return }
-
     const enriched = await Promise.all(
       campagnesData.map(async (c: Campagne) => {
         const { data: clientData } = await supabase
@@ -239,6 +251,46 @@ export default function Campagnes() {
     setDemandesClient(enriched)
   }
 
+  async function loadAffectations(userId: string, region?: string | null) {
+    const { data } = await supabase
+      .from("campagnes")
+      .select("*")
+      .eq("origine", "client")
+      .eq("responsable_id", userId)
+      .order("created_at", { ascending: false })
+    setAffectations(data || [])
+    let q = supabase.from("profils").select("id, prenom, nom").eq("role", "consultant")
+    if (region) q = q.eq("region", region)
+    const { data: consults } = await q
+    setConsultantsRegion(consults || [])
+  }
+async function loadBiensCampagne(campagneId: string) {
+    if (biensParCampagne[campagneId]?.length > 0) return
+    const { data: liens } = await supabase
+      .from("campagnes_actifs")
+      .select("id, actif_id, consultant_id, statut_analyse")
+      .eq("campagne_id", campagneId)
+console.log("campagneId:", campagneId)
+    console.log("liens:", liens)
+    if (!liens || liens.length === 0) {
+      setBiensParCampagne(prev => ({ ...prev, [campagneId]: [] }))
+      return
+    }
+
+    const actifIds = liens.map((l: any) => l.actif_id)
+    const { data: actifs } = await supabase
+      .from("actifs")
+      .select("id, nom, adresse, ville")
+      .in("id", actifIds)
+
+    const enriched = liens.map((l: any) => ({
+      ...l,
+      actif: actifs?.find((a: any) => a.id === l.actif_id) || null,
+    }))
+console.log("liens:", liens)
+console.log("actifs:", actifs)
+    setBiensParCampagne(prev => ({ ...prev, [campagneId]: enriched }))
+  }
   async function handleCreerCampagne() {
     if (!form.nom || !form.type_campagne) return
     setFormLoading(true)
@@ -264,6 +316,53 @@ export default function Campagnes() {
     setDemandesClient(demandesClient.map(d => d.id === id ? { ...d, statut } : d))
   }
 
+  async function assignerConsultant(campagneId: string, consultantId: string) {
+  await supabase.from("campagnes").update({ consultant_id: consultantId }).eq("id", campagneId)
+  setAffectations(prev => prev.map(a => a.id === campagneId ? { ...a, consultant_id: consultantId } : a))
+  showToast("Consultant assigné avec succès.")
+}
+async function lancerAnalyse(campagne: Campagne) {
+    if (!campagne.consultant_id) return
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from("campagnes").update({ statut: "en_cours" }).eq("id", campagne.id)
+    await supabase.from("messages").insert({
+      expediteur_id:   user!.id,
+      destinataire_id: campagne.consultant_id,
+      campagne_id:     campagne.id,
+      client_id:       campagne.client_id,
+      contenu:         `Vous avez été assigné(e) à la campagne "${campagne.nom}". Merci de prendre en charge l'analyse des biens associés.`,
+      lu:              false,
+    })
+    setAffectations(prev => prev.map(a => a.id === campagne.id ? { ...a, statut: "en_cours" } : a))
+    showToast(`Analyse lancée — ${campagne.nom} assignée au consultant.`)
+  }
+  async function handleImportBiens(e: React.ChangeEvent<HTMLInputElement>, campagneId: string) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const Papa = (await import("papaparse")).default
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results: any) => {
+        const rows = results.data as any[]
+        for (const row of rows) {
+          const { data: actif } = await supabase
+            .from("actifs")
+            .select("id")
+            .ilike("nom", `%${row.nom || row.Nom || ""}%`)
+            .maybeSingle()
+          if (actif) {
+            await supabase.from("campagnes_actifs").upsert({
+              campagne_id: campagneId,
+              actif_id:    actif.id,
+            }, { onConflict: "campagne_id,actif_id" })
+          }
+        }
+        setBiensParCampagne(prev => { const next = { ...prev }; delete next[campagneId]; return next })
+        loadBiensCampagne(campagneId)
+      }
+    })
+  }
   // Filtres
   const campagnesFiltrees = campagnes.filter(c => {
     if (filtreStatut !== "tous" && c.statut !== filtreStatut) return false
@@ -283,12 +382,11 @@ export default function Campagnes() {
   const campagnesActives  = campagnes.filter(c => c.statut === "en_cours").length
   const isAdmin = roleAGE === "admin" || roleAGE === "admin_national"
 
-  // Données camembert
   function pieData(c: Campagne) {
     const data = [
-      { name: "Réponses", value: c.reponses || 0, color: "#B25C2A" },
-      { name: "RDV", value: c.rdv_pris || 0, color: "#0369A1" },
-      { name: "Diagnostics", value: c.diagnostics || 0, color: "#2F7D5C" },
+      { name: "Réponses",     value: c.reponses || 0,    color: "#B25C2A" },
+      { name: "RDV",          value: c.rdv_pris || 0,    color: "#0369A1" },
+      { name: "Diagnostics",  value: c.diagnostics || 0, color: "#2F7D5C" },
       { name: "Sans réponse", value: Math.max(0, (c.courriers_envoyes || 0) - (c.reponses || 0)), color: "#E2DDD8" },
     ].filter(d => d.value > 0)
     return data.length > 0 ? data : [{ name: "Aucune donnée", value: 1, color: "#E2DDD8" }]
@@ -309,7 +407,18 @@ export default function Campagnes() {
 
   return (
     <div className="page-wrapper" style={{ position: "relative" }}>
-
+{toast && (
+  <div style={{
+    position: "fixed", bottom: "24px", right: "24px", zIndex: 1000,
+    background: toast.type === "success" ? "#2F7D5C" : "#B91C1C",
+    color: "white", padding: "12px 20px", borderRadius: "8px",
+    fontSize: "13px", fontWeight: 500, display: "flex", alignItems: "center", gap: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+  }}>
+    <i className={`ti ${toast.type === "success" ? "ti-circle-check" : "ti-circle-x"}`} style={{ fontSize: "16px" }} />
+    {toast.message}
+  </div>
+)}
       {/* En-tête */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <div>
@@ -319,10 +428,7 @@ export default function Campagnes() {
           </p>
         </div>
         {onglet === "age" && (
-          <button
-            className="btn-primary"
-            onClick={() => setShowForm(!showForm)}
-          >
+          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
             <i className="ti ti-plus" style={{ fontSize: "14px" }} />
             Nouvelle campagne
           </button>
@@ -377,8 +483,9 @@ export default function Campagnes() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E2DDD8", marginBottom: "16px" }}>
         <div style={{ display: "flex" }}>
           {([
-            { key: "age",     label: "Campagnes AGE",    icon: "ti-speakerphone", count: campagnes.length,       badge: campagnesActives > 0 ? campagnesActives : null },
-            ...(!roleAGE.includes("responsable") ? [{ key: "clients", label: "Demandes clients", icon: "ti-users", count: demandesClient.length, badge: demandesEnAttente > 0 ? demandesEnAttente : null }] : []),
+            { key: "age", label: "Campagnes AGE", icon: "ti-speakerphone", count: campagnes.length, badge: campagnesActives > 0 ? campagnesActives : null },
+            ...(isAdmin ? [{ key: "clients", label: "Demandes clients", icon: "ti-users", count: demandesClient.length, badge: demandesEnAttente > 0 ? demandesEnAttente : null }] : []),
+            ...(roleAGE === "responsable_regional" ? [{ key: "affectations", label: "Affectations", icon: "ti-arrow-forward", count: affectations.length, badge: affectations.length > 0 ? affectations.length : null }] : []),
           ] as const).map(o => (
             <button key={o.key} onClick={() => { setOnglet(o.key as Onglet); setShowForm(false) }} style={{
               display: "flex", alignItems: "center", gap: "7px",
@@ -407,13 +514,7 @@ export default function Campagnes() {
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <i className="ti ti-search" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: "14px" }} />
-          <input
-            value={recherche}
-            onChange={e => setRecherche(e.target.value)}
-            placeholder="Rechercher une campagne…"
-            className="input"
-            style={{ paddingLeft: "32px" }}
-          />
+          <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher une campagne…" className="input" style={{ paddingLeft: "32px" }} />
         </div>
         <select value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)} className="input" style={{ width: "160px" }}>
           <option value="tous">Tous les statuts</option>
@@ -450,7 +551,7 @@ export default function Campagnes() {
                 </tr>
               </thead>
               <tbody>
-                {campagnesFiltrees.map((c, i) => {
+                {campagnesFiltrees.map((c) => {
                   const statut = STATUT_CONFIG[c.statut] || STATUT_CONFIG.en_cours
                   const type   = TYPE_CONFIG[c.type_campagne]
                   const t      = taux(c)
@@ -581,13 +682,150 @@ export default function Campagnes() {
         </div>
       )}
 
+      {/* ── Tableau Affectations ── */}
+{onglet === "affectations" && (
+  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+    {affectations.length === 0 ? (
+      <div className="card" style={{ padding: "48px", textAlign: "center" }}>
+        <i className="ti ti-inbox" style={{ fontSize: "32px", color: "#9CA3AF", display: "block", marginBottom: "12px" }} />
+        <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Aucune affectation</div>
+      </div>
+    ) : affectations.map(d => {
+      const statut  = STATUT_CONFIG[d.statut] || STATUT_CONFIG.en_cours
+      const type    = TYPE_CONFIG[d.type_campagne]
+      const biens   = biensParCampagne[d.id] || []
+      const expanded = affectationExpanded === d.id
+
+      return (
+        <div key={d.id} style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", overflow: "hidden" }}>
+
+          {/* En-tête campagne */}
+          <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", flexWrap: "wrap" }}>
+                <span style={{ background: statut.bg, color: statut.color, padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 500 }}>{statut.label}</span>
+                {type && <span style={{ background: type.bg, color: type.color, padding: "2px 6px", borderRadius: "3px", fontSize: "10px", fontWeight: 500 }}>{type.label}</span>}
+                <span style={{ fontSize: "11px", color: "#9CA3AF" }}>{biens.length} bien{biens.length > 1 ? "s" : ""}</span>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827", marginBottom: "8px" }}>{d.nom || "Campagne sans nom"}</div>
+
+              {/* Assignation consultant */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <i className="ti ti-user-check" style={{ fontSize: "13px", color: "#9CA3AF" }} />
+                <select
+                  className="input"
+                  style={{ fontSize: "12px", padding: "4px 8px" }}
+                  value={d.consultant_id || ""}
+                  onChange={e => assignerConsultant(d.id, e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <option value="">Assigner un consultant…</option>
+                  {consultantsRegion.map(c => (
+                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Actions droite */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end", flexShrink: 0 }}>
+              <button
+                onClick={() => {
+  const next = expanded ? null : d.id
+  setAffectationExpanded(next)
+  if (next) loadBiensCampagne(next)
+}}
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                <i className={`ti ${expanded ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: "12px" }} />
+                {expanded ? "Masquer" : "Voir les biens"}
+              </button>
+              {d.consultant_id && (
+                <button
+                  onClick={() => lancerAnalyse(d)}
+                  style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "none", background: "#B25C2A", color: "white", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-rocket" style={{ fontSize: "12px" }} />
+                  Lancer l'analyse
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Accordéon biens */}
+          {expanded && (
+            <div style={{ borderTop: "1px solid #E2DDD8", background: "#F9F7F4" }}>
+
+              {/* Upload CSV si aucun bien */}
+              {biens.length === 0 && (
+                <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <i className="ti ti-upload" style={{ fontSize: "16px", color: "#9CA3AF" }} />
+                  <span style={{ fontSize: "13px", color: "#6B7280", flex: 1 }}>Aucun bien lié — importez un fichier</span>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#FFFFFF", color: "#111827", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                    <i className="ti ti-file-spreadsheet" style={{ fontSize: "13px", color: "#2F7D5C" }} />
+                    Importer CSV
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx"
+                      style={{ display: "none" }}
+                      onChange={e => handleImportBiens(e, d.id)}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* Liste des biens */}
+              {biens.length > 0 && (
+                <div>
+                  <div style={{ padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {biens.length} bien{biens.length > 1 ? "s" : ""} liés
+                    </span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#FFFFFF", color: "#6B7280", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}>
+                      <i className="ti ti-file-spreadsheet" style={{ fontSize: "12px", color: "#2F7D5C" }} />
+                      Ajouter des biens
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx"
+                        style={{ display: "none" }}
+                        onChange={e => handleImportBiens(e, d.id)}
+                      />
+                    </label>
+                  </div>
+                  {biens.map((b: any, i: number) => (
+                    <div
+                      key={b.id}
+                      onClick={() => navigate(`/metier/portefeuille/${b.actif_id}`)}
+                      style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 18px", borderTop: "1px solid #E2DDD8", cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#F0EBE4")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#F9F0EA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <i className="ti ti-building" style={{ fontSize: "13px", color: "#B25C2A" }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{b.actif?.nom || "—"}</div>
+                        <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{b.actif?.adresse || ""}{b.actif?.ville ? ` — ${b.actif.ville}` : ""}</div>
+                      </div>
+                      <i className="ti ti-arrow-right" style={{ fontSize: "13px", color: "#C9C3BB" }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      )
+    })}
+  </div>
+)}
+
       {/* ── Drawer détail campagne ── */}
       {drawerOpen && selected && (
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerOpen(false)} />
           <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "440px", maxWidth: "100vw", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
-
-            {/* Header drawer */}
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
               <div style={{ flex: 1, paddingRight: "12px" }}>
                 <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>{selected.nom}</h2>
@@ -608,19 +846,15 @@ export default function Campagnes() {
                 <i className="ti ti-x" style={{ fontSize: "14px" }} />
               </button>
             </div>
-
-            {/* Corps drawer */}
             <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-
-              {/* Infos générales */}
               <div>
                 <div style={sectionTitleStyle}>Informations générales</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
                   {[
-                    { label: "Zone", value: selected.zone_geo || "—" },
-                    { label: "Date début", value: formatDate(selected.date_debut) },
-                    { label: "Date fin", value: formatDate(selected.date_fin) },
-                    { label: "Région", value: selected.region || "—" },
+                    { label: "Zone",        value: selected.zone_geo || "—" },
+                    { label: "Date début",  value: formatDate(selected.date_debut) },
+                    { label: "Date fin",    value: formatDate(selected.date_fin) },
+                    { label: "Région",      value: selected.region || "—" },
                   ].map((item, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F4F3F0" }}>
                       <span style={{ fontSize: "12px", color: "#6B7280" }}>{item.label}</span>
@@ -634,16 +868,14 @@ export default function Campagnes() {
                   </div>
                 )}
               </div>
-
-              {/* KPIs */}
               <div>
                 <div style={sectionTitleStyle}>Indicateurs de performance</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
                   {[
-                    { label: "Courriers", value: selected.courriers_envoyes || 0, icon: "ti-mail" },
-                    { label: "Réponses",  value: selected.reponses || 0,          icon: "ti-mail-opened" },
-                    { label: "RDV pris",  value: selected.rdv_pris || 0,          icon: "ti-calendar" },
-                    { label: "Diagnostics", value: selected.diagnostics || 0,     icon: "ti-clipboard-list" },
+                    { label: "Courriers",   value: selected.courriers_envoyes || 0, icon: "ti-mail" },
+                    { label: "Réponses",    value: selected.reponses || 0,           icon: "ti-mail-opened" },
+                    { label: "RDV pris",    value: selected.rdv_pris || 0,           icon: "ti-calendar" },
+                    { label: "Diagnostics", value: selected.diagnostics || 0,        icon: "ti-clipboard-list" },
                   ].map((k, i) => (
                     <div key={i} style={{ background: "#F9F0EA", borderRadius: "8px", padding: "12px", border: "1px solid #F0DDD0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
@@ -659,83 +891,45 @@ export default function Campagnes() {
                   <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "16px", fontWeight: 600, color: "#B25C2A" }}>{taux(selected)} %</span>
                 </div>
               </div>
-
-              {/* Camembert */}
               <div>
                 <div style={sectionTitleStyle}>Répartition</div>
                 <div style={{ height: "180px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={pieData(selected)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={70}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
+                      <Pie data={pieData(selected)} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={2} dataKey="value">
                         {pieData(selected).map((entry, index) => (
                           <Cell key={index} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        contentStyle={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "12px" }}
-                      />
+                      <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "12px" }} />
                       <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-
             </div>
-
-            {/* Footer drawer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", flexShrink: 0, position: "relative" }}>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  className="btn-ghost"
-                  style={{ flex: 1 }}
-                  onClick={() => setDrawerOpen(false)}
-                >
-                  Fermer
-                </button>
+                <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setDrawerOpen(false)}>Fermer</button>
                 <div style={{ position: "relative", flex: 2 }}>
-                  <button
-                    className="btn-primary"
-                    style={{ width: "100%", justifyContent: "center" }}
-                    onClick={() => setShowExportMenu(!showExportMenu)}
-                  >
+                  <button className="btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => setShowExportMenu(!showExportMenu)}>
                     <i className="ti ti-download" style={{ fontSize: "14px" }} />
                     Exporter
                     <i className="ti ti-chevron-down" style={{ fontSize: "12px", marginLeft: "4px" }} />
                   </button>
                   {showExportMenu && (
                     <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", zIndex: 500, overflow: "hidden" }}>
-                      <button
-                        onClick={() => { exportCSV(selected); setShowExportMenu(false) }}
-                        style={{ width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", color: "#111827", textAlign: "left", display: "flex", alignItems: "center", gap: "8px" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "none")}
-                      >
-                        <i className="ti ti-table" style={{ fontSize: "14px", color: "#2F7D5C" }} />
-                        Export CSV
+                      <button onClick={() => { exportCSV(selected); setShowExportMenu(false) }} style={{ width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", color: "#111827", textAlign: "left", display: "flex", alignItems: "center", gap: "8px" }} onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")} onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                        <i className="ti ti-table" style={{ fontSize: "14px", color: "#2F7D5C" }} /> Export CSV
                       </button>
-                      <button
-                        onClick={() => { exportPDF(selected); setShowExportMenu(false) }}
-                        style={{ width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", color: "#111827", textAlign: "left", display: "flex", alignItems: "center", gap: "8px", borderTop: "1px solid #F4F3F0" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "none")}
-                      >
-                        <i className="ti ti-file-type-pdf" style={{ fontSize: "14px", color: "#B91C1C" }} />
-                        Export PDF
+                      <button onClick={() => { exportPDF(selected); setShowExportMenu(false) }} style={{ width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", color: "#111827", textAlign: "left", display: "flex", alignItems: "center", gap: "8px", borderTop: "1px solid #F4F3F0" }} onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")} onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                        <i className="ti ti-file-type-pdf" style={{ fontSize: "14px", color: "#B91C1C" }} /> Export PDF
                       </button>
                     </div>
                   )}
                 </div>
               </div>
             </div>
-
           </div>
         </>
       )}
@@ -746,29 +940,17 @@ export default function Campagnes() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const thStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  fontSize: "11px",
-  fontWeight: 500,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "#6B7280",
-  textAlign: "left",
-  whiteSpace: "nowrap",
+  padding: "10px 16px", fontSize: "11px", fontWeight: 500,
+  textTransform: "uppercase", letterSpacing: "0.06em",
+  color: "#6B7280", textAlign: "left", whiteSpace: "nowrap",
 }
 
 const tdStyle: React.CSSProperties = {
-  padding: "0 16px",
-  fontSize: "14px",
-  color: "#111827",
+  padding: "0 16px", fontSize: "14px", color: "#111827",
 }
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 500,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "#6B7280",
-  marginBottom: "10px",
-  paddingBottom: "6px",
-  borderBottom: "1px solid #F4F3F0",
+  fontSize: "11px", fontWeight: 500, textTransform: "uppercase",
+  letterSpacing: "0.06em", color: "#6B7280", marginBottom: "10px",
+  paddingBottom: "6px", borderBottom: "1px solid #F4F3F0",
 }

@@ -4,7 +4,6 @@ import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import Login from "./pages/auth/Login"
 import Accueil from "./pages/Accueil"
-import Dashboard from "./pages/Dashboard"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
 import Marketplace from "./pages/Marketplace"
@@ -57,7 +56,6 @@ export default function App() {
         {/* ── Layout AGE ── */}
         <Route path="/" element={<Layout />}>
           <Route index element={<Accueil />} />
-          <Route path="dashboard" element={<Dashboard />} />
           <Route path="sensibilisation" element={<Sensibilisation />} />
           <Route path="projets" element={<Projets />} />
           <Route path="marketplace" element={<Marketplace />} />

@@ -57,17 +57,19 @@ export default function MonEquipe() {
 
       const userRegion = profil?.region || null
       setRegion(userRegion)
-
+console.log("userRegion:", userRegion)
       // Charger les consultants de la région
-      let query = supabase
-        .from("profils")
-        .select("id, prenom, nom, region, is_active")
-        .eq("role", "consultant")
+      const isAdmin = !userRegion
 
-      if (userRegion) query = query.eq("region", userRegion)
+let query = supabase
+  .from("profils")
+  .select("id, prenom, nom, region, is_active, role")
+  .in("role", isAdmin ? ["consultant", "responsable_regional"] : ["consultant"])
+
+if (userRegion) query = query.eq("region", userRegion)
 
       const { data: consultsData } = await query.order("nom")
-
+console.log("consultsData:", consultsData)
       if (!consultsData) { setLoading(false); return }
 
       // Charger les missions de chaque consultant
@@ -241,7 +243,9 @@ export default function MonEquipe() {
                         </div>
                         <div>
                           <div style={{ fontWeight: 500, color: "#111827", fontSize: "13px" }}>{c.prenom} {c.nom}</div>
-                          <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{c.region}</div>
+                          <div style={{ fontSize: "11px", color: "#9CA3AF" }}>
+  {(c as any).role === "responsable_regional" ? "Resp. régional" : "Consultant"} · {c.region}
+</div>
                         </div>
                       </div>
                     </td>
@@ -306,7 +310,9 @@ export default function MonEquipe() {
                 </div>
                 <div>
                   <h2 style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>{selected.prenom} {selected.nom}</h2>
-                  <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>Consultant · {selected.region}</p>
+                  <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
+  {(selected as any).role === "responsable_regional" ? "Resp. régional" : "Consultant"} · {selected.region}
+</p>
                 </div>
               </div>
               <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
