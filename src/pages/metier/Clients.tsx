@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState } from "react"
 import { supabase } from "../../lib/supabase"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 interface Client {
   id: string
   email: string
@@ -26,14 +25,10 @@ interface FicheClient extends Client {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  banque: "Banque",
-  banque_assurance: "Banque / Assurance",
-  assurance: "Assurance",
-  assureur: "Assurance",
-  entreprise: "Entreprise",
-  collectivite: "Collectivité",
-  proprietaire: "Particulier",
-  particulier: "Particulier",
+  banque: "Banque", banque_assurance: "Banque / Assurance",
+  assurance: "Assurance", assureur: "Assurance",
+  entreprise: "Entreprise", collectivite: "Collectivité",
+  proprietaire: "Particulier", particulier: "Particulier",
 }
 
 const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
@@ -48,14 +43,35 @@ const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
 }
 
 const ONGLETS_FICHE = [
-  { id: "infos",     label: "Informations",  icon: "ti-user" },
-  { id: "actifs",    label: "Actifs",        icon: "ti-building" },
-  { id: "campagnes", label: "Campagnes",     icon: "ti-speakerphone" },
-  { id: "demandes",  label: "Demandes",      icon: "ti-clipboard-list" },
-  { id: "rapports",  label: "Documents",     icon: "ti-file-analytics" },
+  { id: "infos",     label: "Informations", icon: "ti-user" },
+  { id: "actifs",    label: "Actifs",       icon: "ti-building" },
+  { id: "campagnes", label: "Campagnes",    icon: "ti-speakerphone" },
+  { id: "demandes",  label: "Demandes",     icon: "ti-clipboard-list" },
+  { id: "rapports",  label: "Documents",    icon: "ti-file-analytics" },
 ]
 
-// ─── Composant ───────────────────────────────────────────────────────────────
+const thStyle: React.CSSProperties = {
+  padding: "10px 16px", fontSize: "11px", fontWeight: 500,
+  textTransform: "uppercase", letterSpacing: "0.06em",
+  color: "#6B7280", textAlign: "left", whiteSpace: "nowrap",
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: "0 16px", fontSize: "14px", color: "#111827",
+}
+
+const actionBtnStyle: React.CSSProperties = {
+  width: "30px", height: "30px", border: "1px solid #E2DDD8",
+  background: "#F4F3F0", borderRadius: "6px", cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  color: "#6B7280", transition: "all 0.1s",
+}
+
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: "12px", fontWeight: 500,
+  color: "#374151", marginBottom: "6px",
+}
+
 export default function Clients() {
   const [clients, setClients]           = useState<Client[]>([])
   const [loading, setLoading]           = useState(true)
@@ -63,23 +79,30 @@ export default function Clients() {
   const [filtreType, setFiltreType]     = useState("tous")
   const [filtreStatut, setFiltreStatut] = useState("tous")
 
-  // Fiche client
   const [drawerOpen, setDrawerOpen]     = useState(false)
   const [fiche, setFiche]               = useState<FicheClient | null>(null)
   const [ficheLoading, setFicheLoading] = useState(false)
   const [ongletFiche, setOngletFiche]   = useState("infos")
 
-  // Responsables commerciaux
   const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string }[]>([])
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignSuccess, setAssignSuccess] = useState(false)
+
+  const [newClientOpen, setNewClientOpen]     = useState(false)
+  const [newClientForm, setNewClientForm]     = useState({
+    raison_sociale: "", type_client: "entreprise",
+    prenom: "", nom: "", email: "", password: "",
+  })
+  const [newClientError, setNewClientError]   = useState("")
+  const [newClientSuccess, setNewClientSuccess] = useState("")
+  const [newClientLoading, setNewClientLoading] = useState(false)
+  const [newClientCreds, setNewClientCreds]   = useState<{ email: string; password: string } | null>(null)
 
   useEffect(() => { charger() }, [])
 
   async function charger() {
     setLoading(true)
     try {
-      // Charger profils_client avec jointure auth.users via RPC
       const { data: profilsData } = await supabase
         .from("profils_client")
         .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, prenom, nom")
@@ -87,7 +110,6 @@ export default function Clients() {
 
       if (!profilsData) { setLoading(false); return }
 
-      // Récupérer les emails
       const ids = profilsData.map(p => p.id)
       let emailsMap: Record<string, string> = {}
       try {
@@ -95,36 +117,20 @@ export default function Clients() {
         ;(emailsData || []).forEach((e: any) => { emailsMap[e.id] = e.email })
       } catch { emailsMap = {} }
 
-      // Compter actifs et campagnes par client
       const { data: actifsCount } = await supabase
-        .from("actifs")
-        .select("user_id")
-        .in("user_id", ids)
-        .eq("categorie", "patrimoine_propre")
-
+        .from("actifs").select("user_id").in("user_id", ids).eq("categorie", "patrimoine_propre")
       const { data: campagnesCount } = await supabase
-        .from("campagnes")
-        .select("client_id, statut")
-        .in("client_id", ids)
-        .eq("statut", "en_cours")
+        .from("campagnes").select("client_id, statut").in("client_id", ids).eq("statut", "en_cours")
 
       const actifsMap: Record<string, number> = {}
       const campagnesMap: Record<string, number> = {}
-      ;(actifsCount || []).forEach((a: any) => {
-        actifsMap[a.user_id] = (actifsMap[a.user_id] || 0) + 1
-      })
-      ;(campagnesCount || []).forEach((c: any) => {
-        campagnesMap[c.client_id] = (campagnesMap[c.client_id] || 0) + 1
-      })
+      ;(actifsCount || []).forEach((a: any) => { actifsMap[a.user_id] = (actifsMap[a.user_id] || 0) + 1 })
+      ;(campagnesCount || []).forEach((c: any) => { campagnesMap[c.client_id] = (campagnesMap[c.client_id] || 0) + 1 })
 
       const mapped: Client[] = profilsData.map(p => ({
-        id: p.id,
-        email: emailsMap[p.id] || "—",
-        prenom: p.prenom,
-        nom: p.nom,
-        type_client: p.type_client,
-        sous_profil: p.sous_profil,
-        actif: p.actif !== false,
+        id: p.id, email: emailsMap[p.id] || "—",
+        prenom: p.prenom, nom: p.nom, type_client: p.type_client,
+        sous_profil: p.sous_profil, actif: p.actif !== false,
         onboarding_complete: p.onboarding_complete || false,
         created_at: p.created_at,
         responsable_commercial_id: p.responsable_commercial_id,
@@ -135,13 +141,10 @@ export default function Clients() {
 
       setClients(mapped)
 
-      // Charger les responsables commerciaux
       const { data: resps } = await supabase
-        .from("profils")
-        .select("id, prenom, nom")
+        .from("profils").select("id, prenom, nom")
         .in("role", ["admin", "admin_national", "responsable_regional"])
       setResponsables(resps || [])
-
     } finally {
       setLoading(false)
     }
@@ -153,27 +156,14 @@ export default function Clients() {
     setAssignSuccess(false)
     setDrawerOpen(true)
     setFicheLoading(true)
-
     try {
-      const [
-        { data: actifs },
-        { data: campagnes },
-        { data: demandes },
-        { data: rapports },
-      ] = await Promise.all([
+      const [{ data: actifs }, { data: campagnes }, { data: demandes }, { data: rapports }] = await Promise.all([
         supabase.from("actifs").select("id, nom, score_climatique, categorie, ville").eq("user_id", client.id).eq("categorie", "patrimoine_propre").order("created_at", { ascending: false }),
         supabase.from("campagnes").select("id, nom, statut, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
         supabase.from("demandes_marketplace").select("id, titre, statut, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
         supabase.from("rapports_client").select("id, type_rapport, statut, created_at, fichier_url").eq("client_id", client.id).order("created_at", { ascending: false }),
       ])
-
-      setFiche(prev => prev ? {
-        ...prev,
-        actifs: actifs || [],
-        campagnes: campagnes || [],
-        demandes: demandes || [],
-        rapports: rapports || [],
-      } : null)
+      setFiche(prev => prev ? { ...prev, actifs: actifs || [], campagnes: campagnes || [], demandes: demandes || [], rapports: rapports || [] } : null)
     } finally {
       setFicheLoading(false)
     }
@@ -200,15 +190,48 @@ export default function Clients() {
     }
   }
 
-  // Filtres
+  async function handleCreerClient() {
+    setNewClientError("")
+    setNewClientSuccess("")
+    const { raison_sociale, type_client, prenom, nom, email, password } = newClientForm
+    if (!raison_sociale || !type_client || !email || !password) {
+      setNewClientError("Raison sociale, type, email et mot de passe sont obligatoires.")
+      return
+    }
+    if (password.length < 8) {
+      setNewClientError("Le mot de passe doit contenir au moins 8 caractères.")
+      return
+    }
+    setNewClientLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error("Session expirée")
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-client`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+          body: JSON.stringify({ raison_sociale, type_client, prenom, nom, email, password }),
+        }
+      )
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Erreur lors de la création")
+      setNewClientSuccess(`Client ${raison_sociale} créé avec succès.`)
+      setNewClientCreds({ email, password })
+      charger()
+    } catch (err: any) {
+      setNewClientError(err.message || "Une erreur est survenue.")
+    } finally {
+      setNewClientLoading(false)
+    }
+  }
+
   const clientsFiltres = clients.filter(c => {
-    const matchSearch =
-      search === "" ||
+    const matchSearch = search === "" ||
       `${c.prenom || ""} ${c.nom || ""}`.toLowerCase().includes(search.toLowerCase()) ||
       c.email.toLowerCase().includes(search.toLowerCase())
     const matchType = filtreType === "tous" || c.type_client === filtreType
-    const matchStatut =
-      filtreStatut === "tous" ||
+    const matchStatut = filtreStatut === "tous" ||
       (filtreStatut === "actif" && c.actif) ||
       (filtreStatut === "inactif" && !c.actif)
     return matchSearch && matchType && matchStatut
@@ -218,21 +241,14 @@ export default function Clients() {
     return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
   }
 
-  function typeLabel(type: string) {
-    return TYPE_LABELS[type] || type
-  }
-
-  function typeBadge(type: string) {
-    return TYPE_BADGE[type] || { bg: "#F4F3F0", color: "#6B7280" }
-  }
-
+  function typeLabel(type: string) { return TYPE_LABELS[type] || type }
+  function typeBadge(type: string) { return TYPE_BADGE[type] || { bg: "#F4F3F0", color: "#6B7280" } }
   function responsableNom(id: string | null) {
     if (!id) return null
     const r = responsables.find(r => r.id === id)
     return r ? `${r.prenom} ${r.nom}` : null
   }
 
-  // ─── Rendu ────────────────────────────────────────────────────────────────
   return (
     <div className="page-wrapper">
 
@@ -242,9 +258,20 @@ export default function Clients() {
           <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", letterSpacing: "-0.02em" }}>Clients</h1>
           <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "2px" }}>Gestion des comptes clients AGE Climate Platform</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "20px", fontWeight: 600, color: "#111827" }}>{clients.length}</span>
-          <span style={{ fontSize: "13px", color: "#6B7280" }}>clients</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "20px", fontWeight: 600, color: "#111827" }}>
+            {clients.length} <span style={{ fontSize: "13px", fontWeight: 400, color: "#6B7280" }}>clients</span>
+          </span>
+          <button className="btn-primary" onClick={() => {
+            setNewClientOpen(true)
+            setNewClientError("")
+            setNewClientSuccess("")
+            setNewClientCreds(null)
+            setNewClientForm({ raison_sociale: "", type_client: "entreprise", prenom: "", nom: "", email: "", password: "" })
+          }}>
+            <i className="ti ti-user-plus" style={{ fontSize: "14px" }} />
+            Nouveau client
+          </button>
         </div>
       </div>
 
@@ -252,13 +279,7 @@ export default function Clients() {
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
           <i className="ti ti-search" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: "15px" }} />
-          <input
-            className="input"
-            style={{ paddingLeft: "32px" }}
-            placeholder="Rechercher un client…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          <input className="input" style={{ paddingLeft: "32px" }} placeholder="Rechercher un client…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="input" style={{ width: "160px" }} value={filtreType} onChange={e => setFiltreType(e.target.value)}>
           <option value="tous">Tous types</option>
@@ -305,13 +326,10 @@ export default function Clients() {
               {clientsFiltres.map(c => {
                 const badge = typeBadge(c.type_client)
                 return (
-                  <tr
-                    key={c.id}
-                    style={{ borderBottom: "1px solid #E2DDD8", height: "56px" }}
+                  <tr key={c.id} style={{ borderBottom: "1px solid #E2DDD8", height: "56px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                   >
-                    {/* Client */}
                     <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: badge.bg, border: `1px solid ${badge.color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, color: badge.color, flexShrink: 0 }}>
@@ -325,25 +343,17 @@ export default function Clients() {
                         </div>
                       </div>
                     </td>
-
-                    {/* Type */}
                     <td style={tdStyle}>
                       <span style={{ background: badge.bg, color: badge.color, fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: 500 }}>
                         {typeLabel(c.type_client)}
                       </span>
                     </td>
-
-                    {/* Actifs */}
                     <td style={{ ...tdStyle, fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: c.nb_actifs > 0 ? "#111827" : "#9CA3AF" }}>
                       {c.nb_actifs}
                     </td>
-
-                    {/* Campagnes */}
                     <td style={{ ...tdStyle, fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: c.nb_campagnes > 0 ? "#B25C2A" : "#9CA3AF" }}>
                       {c.nb_campagnes}
                     </td>
-
-                    {/* Responsable */}
                     <td style={{ ...tdStyle, fontSize: "12px", color: "#6B7280" }}>
                       {responsableNom(c.responsable_commercial_id) || (
                         <span style={{ color: "#D97706", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
@@ -352,27 +362,18 @@ export default function Clients() {
                         </span>
                       )}
                     </td>
-
-                    {/* Statut */}
                     <td style={tdStyle}>
                       <span className={c.actif ? "badge badge--success" : "badge badge--neutral"}>
                         <i className={`ti ${c.actif ? "ti-circle-check" : "ti-circle-x"}`} style={{ fontSize: "11px" }} />
                         {c.actif ? "Actif" : "Inactif"}
                       </span>
                     </td>
-
-                    {/* Action */}
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "flex-end" }}>
-                        <button
-                          onClick={() => ouvrirFiche(c)}
-                          style={{ ...actionBtnStyle }}
-                          title="Voir la fiche"
-                        >
+                        <button onClick={() => ouvrirFiche(c)} style={actionBtnStyle} title="Voir la fiche">
                           <i className="ti ti-eye" style={{ fontSize: "14px" }} />
                         </button>
-                        <button
-                          onClick={() => toggleActif(c)}
+                        <button onClick={() => toggleActif(c)}
                           style={{ ...actionBtnStyle, color: c.actif ? "#B91C1C" : "#2F7D5C", background: c.actif ? "#FEF2F2" : "#F0FDF4", border: `1px solid ${c.actif ? "#FECACA" : "#BBF7D0"}` }}
                           title={c.actif ? "Désactiver" : "Activer"}
                         >
@@ -400,8 +401,6 @@ export default function Clients() {
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerOpen(false)} />
           <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "480px", maxWidth: "100vw", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
-
-            {/* Header */}
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: typeBadge(fiche.type_client).bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: typeBadge(fiche.type_client).color }}>
@@ -425,28 +424,19 @@ export default function Clients() {
                 <i className="ti ti-x" style={{ fontSize: "14px" }} />
               </button>
             </div>
-
-            {/* Onglets */}
             <div style={{ display: "flex", borderBottom: "1px solid #E2DDD8", flexShrink: 0, overflowX: "auto" }}>
               {ONGLETS_FICHE.map(o => (
-                <button
-                  key={o.id}
-                  onClick={() => setOngletFiche(o.id)}
-                  style={{ display: "flex", alignItems: "center", gap: "5px", padding: "10px 14px", border: "none", background: "transparent", fontSize: "12px", fontWeight: ongletFiche === o.id ? 600 : 400, color: ongletFiche === o.id ? "#B25C2A" : "#6B7280", cursor: "pointer", fontFamily: "inherit", borderBottom: `2px solid ${ongletFiche === o.id ? "#B25C2A" : "transparent"}`, marginBottom: "-1px", whiteSpace: "nowrap" }}
-                >
+                <button key={o.id} onClick={() => setOngletFiche(o.id)} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "10px 14px", border: "none", background: "transparent", fontSize: "12px", fontWeight: ongletFiche === o.id ? 600 : 400, color: ongletFiche === o.id ? "#B25C2A" : "#6B7280", cursor: "pointer", fontFamily: "inherit", borderBottom: `2px solid ${ongletFiche === o.id ? "#B25C2A" : "transparent"}`, marginBottom: "-1px", whiteSpace: "nowrap" }}>
                   <i className={`ti ${o.icon}`} style={{ fontSize: "13px" }} />
                   {o.label}
                 </button>
               ))}
             </div>
-
-            {/* Corps */}
             <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
               {ficheLoading ? (
                 <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>Chargement…</div>
               ) : (
                 <>
-                  {/* ── Infos ── */}
                   {ongletFiche === "infos" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -464,44 +454,27 @@ export default function Clients() {
                           </div>
                         ))}
                       </div>
-
-                      {/* Responsable commercial */}
                       <div>
                         <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>Responsable commercial</p>
                         {assignSuccess && (
                           <div style={{ padding: "8px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", fontSize: "12px", color: "#2F7D5C", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                            <i className="ti ti-circle-check" style={{ fontSize: "13px" }} />
-                            Responsable assigné
+                            <i className="ti ti-circle-check" style={{ fontSize: "13px" }} /> Responsable assigné
                           </div>
                         )}
-                        <select
-                          className="input"
-                          value={fiche.responsable_commercial_id || ""}
-                          onChange={e => assignerResponsable(e.target.value)}
-                          disabled={assignLoading}
-                        >
+                        <select className="input" value={fiche.responsable_commercial_id || ""} onChange={e => assignerResponsable(e.target.value)} disabled={assignLoading}>
                           <option value="">Sélectionner un responsable…</option>
-                          {responsables.map(r => (
-                            <option key={r.id} value={r.id}>{r.prenom} {r.nom}</option>
-                          ))}
+                          {responsables.map(r => <option key={r.id} value={r.id}>{r.prenom} {r.nom}</option>)}
                         </select>
                       </div>
-
-                      {/* Actions */}
                       <div style={{ paddingTop: "8px", borderTop: "1px solid #E2DDD8" }}>
                         <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>Actions</p>
-                        <button
-                          onClick={() => toggleActif(fiche)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${fiche.actif ? "#FECACA" : "#BBF7D0"}`, background: fiche.actif ? "#FEF2F2" : "#F0FDF4", color: fiche.actif ? "#B91C1C" : "#2F7D5C" }}
-                        >
+                        <button onClick={() => toggleActif(fiche)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${fiche.actif ? "#FECACA" : "#BBF7D0"}`, background: fiche.actif ? "#FEF2F2" : "#F0FDF4", color: fiche.actif ? "#B91C1C" : "#2F7D5C" }}>
                           <i className={`ti ${fiche.actif ? "ti-user-off" : "ti-user-check"}`} style={{ fontSize: "13px" }} />
                           {fiche.actif ? "Désactiver le compte" : "Activer le compte"}
                         </button>
                       </div>
                     </div>
                   )}
-
-                  {/* ── Actifs ── */}
                   {ongletFiche === "actifs" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {fiche.actifs.length === 0 ? (
@@ -527,8 +500,6 @@ export default function Clients() {
                       ))}
                     </div>
                   )}
-
-                  {/* ── Campagnes ── */}
                   {ongletFiche === "campagnes" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {fiche.campagnes.length === 0 ? (
@@ -552,8 +523,6 @@ export default function Clients() {
                       ))}
                     </div>
                   )}
-
-                  {/* ── Demandes ── */}
                   {ongletFiche === "demandes" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {fiche.demandes.length === 0 ? (
@@ -575,8 +544,6 @@ export default function Clients() {
                       ))}
                     </div>
                   )}
-
-                  {/* ── Rapports ── */}
                   {ongletFiche === "rapports" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {fiche.rapports.length === 0 ? (
@@ -610,43 +577,123 @@ export default function Clients() {
                 </>
               )}
             </div>
+          </div>
+        </>
+      )}
 
+      {/* ── Drawer nouveau client ── */}
+      {newClientOpen && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => !newClientCreds && setNewClientOpen(false)} />
+          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "420px", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div>
+                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Nouveau client</h2>
+                <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>Créer un accès client à la plateforme</p>
+              </div>
+              {!newClientCreds && (
+                <button onClick={() => setNewClientOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                  <i className="ti ti-x" style={{ fontSize: "14px" }} />
+                </button>
+              )}
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              {newClientCreds ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ padding: "16px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "10px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                    <i className="ti ti-circle-check" style={{ fontSize: "20px", color: "#2F7D5C", flexShrink: 0, marginTop: "2px" }} />
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#2F7D5C", marginBottom: "4px" }}>Client créé avec succès</div>
+                      <div style={{ fontSize: "12px", color: "#374151" }}>{newClientSuccess}</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "16px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "10px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "#92400E", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <i className="ti ti-alert-triangle" style={{ fontSize: "14px" }} />
+                      Identifiants provisoires — à transmettre au client
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {[
+                        { label: "Email", value: newClientCreds.email },
+                        { label: "Mot de passe", value: newClientCreds.password },
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#FFFFFF", borderRadius: "6px", border: "1px solid #FDE68A" }}>
+                          <span style={{ fontSize: "12px", color: "#6B7280" }}>{item.label}</span>
+                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px", fontWeight: 600, color: "#111827" }}>{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: "11px", color: "#92400E", marginTop: "10px" }}>
+                      Le client devra changer son mot de passe lors de sa première connexion.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {newClientError && (
+                    <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "13px", color: "#B91C1C", display: "flex", gap: "8px", alignItems: "center" }}>
+                      <i className="ti ti-alert-triangle" style={{ fontSize: "14px", flexShrink: 0 }} />{newClientError}
+                    </div>
+                  )}
+                  <div>
+                    <label style={labelStyle}>Raison sociale <span style={{ color: "#B91C1C" }}>*</span></label>
+                    <input className="input" value={newClientForm.raison_sociale} onChange={e => setNewClientForm({ ...newClientForm, raison_sociale: e.target.value })} placeholder="Ex : Allianz France" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Type de client <span style={{ color: "#B91C1C" }}>*</span></label>
+                    <select className="input" value={newClientForm.type_client} onChange={e => setNewClientForm({ ...newClientForm, type_client: e.target.value })}>
+                      <option value="banque">Banque</option>
+                      <option value="assureur">Assurance</option>
+                      <option value="entreprise">Entreprise</option>
+                      <option value="collectivite">Collectivité</option>
+                      <option value="proprietaire">Particulier</option>
+                    </select>
+                  </div>
+                  <div style={{ paddingTop: "8px", borderTop: "1px solid #E2DDD8" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "12px" }}>Contact principal</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                      <div>
+                        <label style={labelStyle}>Prénom</label>
+                        <input className="input" value={newClientForm.prenom} onChange={e => setNewClientForm({ ...newClientForm, prenom: e.target.value })} placeholder="Prénom" />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Nom</label>
+                        <input className="input" value={newClientForm.nom} onChange={e => setNewClientForm({ ...newClientForm, nom: e.target.value })} placeholder="Nom" />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: "12px" }}>
+                      <label style={labelStyle}>Email <span style={{ color: "#B91C1C" }}>*</span></label>
+                      <input className="input" type="email" value={newClientForm.email} onChange={e => setNewClientForm({ ...newClientForm, email: e.target.value })} placeholder="contact@societe.fr" />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Mot de passe provisoire <span style={{ color: "#B91C1C" }}>*</span></label>
+                      <input className="input" type="password" value={newClientForm.password} onChange={e => setNewClientForm({ ...newClientForm, password: e.target.value })} placeholder="Min. 8 caractères" />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", display: "flex", gap: "8px", flexShrink: 0 }}>
+              {newClientCreds ? (
+                <button className="btn-primary" style={{ flex: 1 }} onClick={() => setNewClientOpen(false)}>
+                  <i className="ti ti-check" style={{ fontSize: "14px" }} /> Terminer
+                </button>
+              ) : (
+                <>
+                  <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setNewClientOpen(false)}>Annuler</button>
+                  <button className="btn-primary" style={{ flex: 2 }} onClick={handleCreerClient} disabled={newClientLoading}>
+                    {newClientLoading
+                      ? <><i className="ti ti-loader" style={{ fontSize: "14px" }} /> Création…</>
+                      : <><i className="ti ti-user-plus" style={{ fontSize: "14px" }} /> Créer le client</>
+                    }
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
 
     </div>
   )
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const thStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  fontSize: "11px",
-  fontWeight: 500,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "#6B7280",
-  textAlign: "left",
-  whiteSpace: "nowrap",
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: "0 16px",
-  fontSize: "14px",
-  color: "#111827",
-}
-
-const actionBtnStyle: React.CSSProperties = {
-  width: "30px",
-  height: "30px",
-  border: "1px solid #E2DDD8",
-  background: "#F4F3F0",
-  borderRadius: "6px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "#6B7280",
-  transition: "all 0.1s",
 }
