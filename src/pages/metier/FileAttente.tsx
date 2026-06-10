@@ -171,7 +171,7 @@ console.log("campagnes:", campagnes, "missions:", missions, "rdvs:", rdvs)
    let query = supabase
   .from("profils")
   .select("id, prenom, nom, region")
-  .in("role", ["responsable_regional", "consultant"])
+  .eq("role", "responsable_regional")
 
 if (d.region && !d.multi_region) {
   query = query.eq("region", d.region)
