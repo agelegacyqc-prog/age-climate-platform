@@ -1,6 +1,6 @@
-// supabase/functions/create-user/index.ts
-// Edge Function — création d'un utilisateur AGE
-// Déploiement : supabase functions deploy create-user
+// supabase/functions/update-user/index.ts
+// Edge Function — mise à jour d'un utilisateur AGE
+// Déploiement : supabase functions deploy update-user
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
@@ -51,18 +51,11 @@ serve(async (req) => {
       )
     }
 
-    const { email, password, prenom, nom, role, region } = await req.json()
+    const { user_id, email, prenom, nom, role, region, is_active } = await req.json()
 
-    if (!email || !password || !prenom || !nom || !role) {
+    if (!user_id) {
       return new Response(
-        JSON.stringify({ error: "Champs obligatoires manquants" }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
-    if (["responsable_regional", "consultant"].includes(role) && !region) {
-      return new Response(
-        JSON.stringify({ error: "La région est obligatoire pour ce rôle" }),
+        JSON.stringify({ error: "user_id obligatoire" }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -72,43 +65,42 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     )
 
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    })
-
-    if (authError) {
-      return new Response(
-        JSON.stringify({ error: authError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
+    // Mettre à jour l'email dans auth si fourni
+    if (email) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user_id, { email })
+      if (authError) {
+        return new Response(
+          JSON.stringify({ error: authError.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
     }
 
-    const userId = authData.user.id
+    // Mettre à jour le profil
+    const updates: Record<string, any> = {}
+    if (prenom !== undefined) updates.prenom = prenom
+    if (nom !== undefined)    updates.nom    = nom
+    if (role !== undefined)   updates.role   = role
+    if (region !== undefined) updates.region = region || null
+    if (is_active !== undefined) updates.is_active = is_active
 
-    const { error: profilError } = await supabaseAdmin
-      .from("profils")
-      .insert({
-        id: userId,
-        prenom,
-        nom,
-        role,
-        region: region || null,
-        profil: "age",
-      })
+    if (Object.keys(updates).length > 0) {
+      const { error: profilError } = await supabaseAdmin
+        .from("profils")
+        .update(updates)
+        .eq("id", user_id)
 
-    if (profilError) {
-      await supabaseAdmin.auth.admin.deleteUser(userId)
-      return new Response(
-        JSON.stringify({ error: profilError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
+      if (profilError) {
+        return new Response(
+          JSON.stringify({ error: profilError.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
     }
 
     return new Response(
-      JSON.stringify({ user_id: userId, email }),
-      { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
 
   } catch (err) {
@@ -118,4 +110,3 @@ serve(async (req) => {
     )
   }
 })
- 

@@ -218,7 +218,7 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
         setNbMessagesAGE(countMsg || 0)
 // Realtime — nouveaux messages non lus
 supabase
-  .channel("messages-non-lus")
+  .channel(`messages-non-lus-${Date.now()}`)
   .on("postgres_changes", {
     event: "INSERT",
     schema: "public",
@@ -259,7 +259,7 @@ setMonProfilClient(profilClient)
           .neq("expediteur_id", user.id)
         setNbMessagesClient(countMsgClient || 0)
 supabase
-  .channel("messages-client-non-lus")
+   .channel(`messages-client-non-lus-${Date.now()}`)
   .on("postgres_changes", {
     event: "INSERT",
     schema: "public",

@@ -103,13 +103,13 @@ export default function Messagerie() {
   async function loadConversations() {
     if (!userId) return
 
-    if (onglet === "interne") {
+if (onglet === "interne") {
       // Messages entre membres AGE
       const { data: msgs } = await supabase
         .from("messages")
         .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id)")
         .eq("type_conversation", "interne")
-        .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId}`)
+        .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId},destinataire_id.is.null`)
         .order("created_at", { ascending: false })
 
       if (!msgs) { setConversations([]); return }
@@ -212,6 +212,8 @@ export default function Messagerie() {
         orgs?.forEach(o => { orgMap[o.id] = o.raison_sociale })
         const pcMap: Record<string, string> = {}
         pcs?.forEach(p => { if (p.organisation_id) pcMap[p.id] = orgMap[p.organisation_id] ?? "" })
+          console.log("clientIds:", clientIds)
+console.log("pcMap:", pcMap)
         map.forEach((conv, key) => {
           if (conv.clientId && pcMap[conv.clientId]) {
             map.set(key, { ...conv, clientNom: pcMap[conv.clientId] })
@@ -229,6 +231,7 @@ export default function Messagerie() {
       .from("messages")
       .select("id", { count: "exact", head: true })
       .eq("type_conversation", "interne")
+      .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId},destinataire_id.is.null`)
       .eq("destinataire_id", userId)
       .eq("lu", false)
 
@@ -270,8 +273,24 @@ export default function Messagerie() {
       const { data: profilsAGE } = await supabase.from("profils").select("id, prenom, nom, role").in("id", ids)
       const map: Record<string, ProfilCache> = {}
       profilsAGE?.forEach(p => { map[p.id] = p })
-      const { data: profilsClient } = await supabase.from("profils_client").select("id, type_client").in("id", ids)
-      profilsClient?.forEach(p => { if (!map[p.id]) map[p.id] = { id: p.id, prenom: "Client", nom: p.type_client || "", role: "client" } })
+     const { data: profilsClient } = await supabase
+  .from("profils_client")
+  .select("id, type_client, organisation_id")
+  .in("id", ids)
+
+const orgIdsClient = [...new Set((profilsClient || []).map((p: any) => p.organisation_id).filter(Boolean))]
+const { data: orgsClient } = orgIdsClient.length > 0
+  ? await supabase.from("organisations").select("id, raison_sociale").in("id", orgIdsClient)
+  : { data: [] }
+const orgMapClient: Record<string, string> = {}
+orgsClient?.forEach((o: any) => { orgMapClient[o.id] = o.raison_sociale })
+
+profilsClient?.forEach((p: any) => {
+  if (!map[p.id]) {
+    const raisonSociale = p.organisation_id ? (orgMapClient[p.organisation_id] || p.type_client || "Client") : (p.type_client || "Client")
+    map[p.id] = { id: p.id, prenom: raisonSociale, nom: "", role: "client" }
+  }
+})
       setProfils(map)
     }
 
@@ -401,14 +420,14 @@ export default function Messagerie() {
                             <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#B91C1C", flexShrink: 0 }} />
                           )}
                         </div>
-                        <div style={{ fontSize: "12px", fontWeight: 500, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {c.titre}
-                        </div>
                         {c.clientNom && (
-                          <div style={{ fontSize: "11px", color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {c.clientNom}
-                          </div>
-                        )}
+  <div style={{ fontSize: "12px", fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+    {c.clientNom}
+  </div>
+)}
+<div style={{ fontSize: "11px", color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+  {c.titre}
+</div>
                       </div>
                       {c.nbNonLus > 0 && (
                         <span style={{ background: "#B91C1C", color: "white", fontSize: "9px", fontWeight: 600, padding: "1px 5px", borderRadius: "8px", flexShrink: 0 }}>
