@@ -211,6 +211,7 @@ export default function Accueil() {
   .select("profil, prenom, role")
   .eq("id", user.id)
   .maybeSingle()
+  console.log("=== profilAGE:", profilAGE)
 if (profilAGE && profilAGE.role) {
   // Rediriger les admins vers l'espace métier
  if (profilAGE.role === 'partenaire') {
@@ -261,16 +262,18 @@ if (actifsData && actifsData.length > 0) {
         const diffJours = Math.ceil((echeance.getTime() - today.getTime()) / 86400000)
         const niveau: "rouge" | "orange" | "bleu" = diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu"
         const labels: Record<string, string> = {
-          tertiaire: "Décret Tertiaire — rapport annuel",
-          bacs: "Décret BACS — mise en conformité",
-          audit_energetique: "Audit énergétique — renouvellement",
-          csrd: "CSRD — reporting durabilité",
-          eu_taxonomy: "EU Taxonomy — alignement",
-          sfdr: "SFDR — classification portefeuille",
-          esrs: "ESRS — reporting durabilité",
-          ifrs_s2: "IFRS S2 — reporting climatique",
-          iso50001: "ISO 50001 — management énergie",
-        }
+  tertiaire: "Décret Tertiaire — rapport annuel",
+  bacs: "Décret BACS — mise en conformité",
+  audit_energetique: "Audit énergétique — renouvellement",
+  csrd: "CSRD — reporting durabilité",
+  eu_taxonomy: "EU Taxonomy — alignement",
+  sfdr: "SFDR — classification portefeuille",
+  esrs: "ESRS — reporting durabilité",
+  ifrs_s2: "IFRS S2 — reporting climatique",
+  iso50001: "ISO 50001 — management énergie",
+  bilan_ges: "Bilan GES — rapport annuel",
+  loi_climat: "Loi Climat & Résilience",
+}
         alertes.push({
           label: labels[r.reglementation] || r.reglementation,
           echeance: echeance.toLocaleDateString("fr-FR"),
@@ -280,6 +283,10 @@ if (actifsData && actifsData.length > 0) {
     }
     setAlertesDynamiques(alertes)
     setReglemRaw(reglemData.map((r: any) => ({ reglementation: r.reglementation })))
+    console.log("alertes finales:", alertes)
+console.log("reglemRaw:", reglemData.map((r: any) => ({ reglementation: r.reglementation })))
+    console.log("alertesDynamiques:", alertes)
+console.log("reglemRaw:", reglemData.map((r: any) => ({ reglementation: r.reglementation })))
   }
 }
 
@@ -292,7 +299,11 @@ return
       .select("type_client, sous_profil, roadmap")
       .eq("id", user.id)
       .single()
-    if (profilClient) {
+      console.log("profilClient:", profilClient)
+console.log("user.id:", user.id)
+ if (profilClient) {
+    console.log("=== BLOC PROFIL CLIENT ===", profilClient)
+
       const mapping: Record<string, string> = {
         banque_assurance: profilClient.sous_profil || "banque",
         proprietaire: "particulier", collectivite: "collectivite",
@@ -301,6 +312,58 @@ return
       }
       setProfil((mapping[profilClient.type_client] || profilClient.type_client) as Profil)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
+
+     // Charger les alertes réglementaires dynamiques
+const { data: actifsData } = await supabase
+  .from("actifs")
+  .select("id")
+  .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+  .neq("categorie", "import_csv")
+
+if (actifsData && actifsData.length > 0) {
+  console.log("actifsData:", actifsData)
+        const actifIds = actifsData.map((a: any) => a.id)
+        const { data: reglemData } = await supabase
+          .from("actifs_reglementaire")
+          .select("reglementation, statut, echeance")
+          .in("actif_id", actifIds)
+          .eq("statut", "eligible")
+          .not("echeance", "is", null)
+          .order("echeance", { ascending: true })
+console.log("reglemData:", reglemData)
+        if (reglemData) {
+          const vus = new Set<string>()
+          const alertes: AlerteRegl[] = []
+          for (const r of reglemData) {
+            if (!vus.has(r.reglementation)) {
+              vus.add(r.reglementation)
+              const echeance = new Date(r.echeance)
+              const today = new Date()
+              const diffJours = Math.ceil((echeance.getTime() - today.getTime()) / 86400000)
+              const niveau: "rouge" | "orange" | "bleu" = diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu"
+              const labels: Record<string, string> = {
+                tertiaire: "Décret Tertiaire — rapport annuel",
+                bacs: "Décret BACS — mise en conformité",
+                audit_energetique: "Audit énergétique — renouvellement",
+                csrd: "CSRD — reporting durabilité",
+                eu_taxonomy: "EU Taxonomy — alignement",
+                sfdr: "SFDR — classification portefeuille",
+                esrs: "ESRS — reporting durabilité",
+                ifrs_s2: "IFRS S2 — reporting climatique",
+                iso50001: "ISO 50001 — management énergie",
+              }
+              alertes.push({
+                label: labels[r.reglementation] || r.reglementation,
+                echeance: echeance.toLocaleDateString("fr-FR"),
+                niveau,
+              })
+            }
+          }
+          console.log("alertes construites:", alertes)
+          setAlertesDynamiques(alertes)
+        }
+      }
+
       setLoading(false)
       return
     }
@@ -408,13 +471,14 @@ return
       </div>
 
       {/* Roadmap + Alertes */}
-      {!loading && config.afficherRoadmap && (roadmap.length > 0 || alertesDynamiques.length > 0) && (
+      {!loading && (roadmap.length > 0 || alertesDynamiques.length > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
         {/* Consultants recommandés */}
         {alertesDynamiques.length > 0 && (
+          
 <ConsultantsRecommandes
-  alertesRegl={alertesDynamiques.map(a => ({ reglementation: a.label.split(" —")[0].toLowerCase().replace(/ /g, "_") }))}
+alertesRegl={reglemRaw}
 />
 )}
           {/* Alertes réglementaires */}

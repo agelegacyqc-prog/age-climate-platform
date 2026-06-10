@@ -61,7 +61,7 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
           score: c.competences.filter(comp => competencesRecherchees.includes(comp)).length,
         }))
         .sort((a: any, b: any) => b.score - a.score)
-        .slice(0, 3)
+        .slice(0, 6)
 
       setConsultants(sorted)
     } finally {
@@ -149,7 +149,7 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
                   <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{c.prenom} {c.nom}</div>
                   <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px" }}>{c.titre}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                    {(matchingComps.length > 0 ? matchingComps : c.competences).slice(0, 3).map(comp => (
+                    {(matchingComps.length > 0 ? matchingComps : c.competences).slice(0, 6).map(comp => (
                       <span key={comp} style={{ background: "#B25C2A", color: "white", fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500 }}>
                         {COMPETENCE_LABELS[comp] || comp}
                       </span>
