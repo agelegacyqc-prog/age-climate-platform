@@ -127,12 +127,8 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
     </div>
   )
 
-  if (consultants.length === 0) return (
-    <div style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", padding: "20px" }}>
-      <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827", marginBottom: "8px" }}>Consultants recommandés</div>
-      <div style={{ fontSize: "13px", color: "#9CA3AF" }}>Aucun consultant disponible pour le moment.</div>
-    </div>
-  )
+   
+ if (consultants.length === 0) return null
 
   return (
     <>

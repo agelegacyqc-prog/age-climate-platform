@@ -206,12 +206,12 @@ export default function Accueil() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data: profilAGE } = await supabase
-      .from("profils")
-      .select("profil, prenom, role")
-      .eq("id", user.id)
-      .single()
-  if (profilAGE) {
+   const { data: profilAGE } = await supabase
+  .from("profils")
+  .select("profil, prenom, role")
+  .eq("id", user.id)
+  .maybeSingle()
+if (profilAGE && profilAGE.role) {
   // Rediriger les admins vers l'espace métier
  if (profilAGE.role === 'partenaire') {
   navigate('/partenaire/dashboard')
@@ -309,7 +309,7 @@ return
   }
 
   const config  = PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut
-  const alertes = alertesDynamiques.length > 0 ? alertesDynamiques : ALERTES_PAR_PROFIL[profil || ""] || []
+  const alertes = alertesDynamiques
   const today   = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   const niveauStyle = {
@@ -408,14 +408,15 @@ return
       </div>
 
       {/* Roadmap + Alertes */}
-      {!loading && config.afficherRoadmap && (roadmap.length > 0 || alertes.length > 0) && (
+      {!loading && config.afficherRoadmap && (roadmap.length > 0 || alertesDynamiques.length > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
         {/* Consultants recommandés */}
+        {alertesDynamiques.length > 0 && (
 <ConsultantsRecommandes
   alertesRegl={alertesDynamiques.map(a => ({ reglementation: a.label.split(" —")[0].toLowerCase().replace(/ /g, "_") }))}
 />
-
+)}
           {/* Alertes réglementaires */}
           {alertes.length > 0 && (
             <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
