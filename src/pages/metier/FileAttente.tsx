@@ -43,9 +43,10 @@ const COMPETENCE_LABELS: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function FileAttente() {
-  const [onglet, setOnglet]                   = useState<"dispatch" | "rdv">("dispatch")
+  const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace">("dispatch")
   const [demandesDispatch, setDemandesDispatch] = useState<DemandeDispatch[]>([])
   const [demandesRdv, setDemandesRdv]         = useState<DemandeRDV[]>([])
+  const [demandesMarketplace, setDemandesMarketplace] = useState<any[]>([])
   const [loading, setLoading]                 = useState(true)
 
   // Drawer assignation
@@ -157,6 +158,25 @@ console.log("campagnes:", campagnes, "missions:", missions, "rdvs:", rdvs)
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ))
       setDemandesRdv(rdvsMapped)
+      const { data: marketplaceData } = await supabase
+  .from("demandes_marketplace")
+  .select("id, type_prestation, statut, client_id, created_at, description")
+  .eq("statut", "soumise")
+  .order("created_at", { ascending: false })
+
+if (marketplaceData && marketplaceData.length > 0) {
+  const clientIds = [...new Set(marketplaceData.map((d: any) => d.client_id).filter(Boolean))]
+  const { data: pcs } = await supabase.from("profils_client").select("id, organisation_id").in("id", clientIds)
+  const orgIds = [...new Set((pcs || []).map((p: any) => p.organisation_id).filter(Boolean))]
+  const { data: orgs } = await supabase.from("organisations").select("id, raison_sociale").in("id", orgIds)
+  const orgMap: Record<string, string> = {}
+  orgs?.forEach((o: any) => { orgMap[o.id] = o.raison_sociale })
+  const pcMap: Record<string, string> = {}
+  pcs?.forEach((p: any) => { if (p.organisation_id) pcMap[p.id] = orgMap[p.organisation_id] ?? "" })
+  setDemandesMarketplace(marketplaceData.map((d: any) => ({ ...d, client_nom: pcMap[d.client_id] || null })))
+} else {
+  setDemandesMarketplace([])
+}
     } finally {
       setLoading(false)
     }
@@ -272,6 +292,7 @@ if (d.region && !d.multi_region) {
         {[
           { id: "dispatch", label: "Campagnes & Missions", count: demandesDispatch.filter(d => !d.responsable_id).length },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
+          { id: "marketplace", label: "Marketplace", count: demandesMarketplace.length },
         ].map(o => (
           <button
             key={o.id}
@@ -471,7 +492,75 @@ if (d.region && !d.multi_region) {
           )}
         </>
       )}
-
+{/* ── Onglet Marketplace ── */}
+{onglet === "marketplace" && (
+  <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+    {demandesMarketplace.length === 0 ? (
+      <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+        <i className="ti ti-shopping-cart-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
+        Aucune demande marketplace
+      </div>
+    ) : (
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
+            <th style={thStyle}>Type de prestation</th>
+            <th style={thStyle}>Client</th>
+            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Statut</th>
+            <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {demandesMarketplace.map(d => (
+            <tr key={d.id} style={{ borderBottom: "1px solid #E2DDD8", height: "52px" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <td style={{ ...tdStyle, fontWeight: 500 }}>{d.type_prestation || "—"}</td>
+              <td style={{ ...tdStyle, color: "#6B7280", fontSize: "13px" }}>{d.client_nom || d.client_id || "—"}</td>
+              <td style={{ ...tdStyle, color: "#6B7280", fontSize: "13px" }}>{formatDate(d.created_at)}</td>
+              <td style={tdStyle}>
+                <span style={{ background: "#FFFBEB", color: "#D97706", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500 }}>
+                  En attente
+                </span>
+              </td>
+              <td style={{ ...tdStyle, textAlign: "right" }}>
+                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={async () => {
+                      await supabase.from("demandes_marketplace").update({ statut: "validee" }).eq("id", d.id)
+                      setDemandesMarketplace(prev => prev.filter(m => m.id !== d.id))
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "none", background: "#B25C2A", color: "white", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    <i className="ti ti-check" style={{ fontSize: "12px" }} /> Valider
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await supabase.from("demandes_marketplace").update({ statut: "rejetee" }).eq("id", d.id)
+                      setDemandesMarketplace(prev => prev.filter(m => m.id !== d.id))
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#B91C1C", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    <i className="ti ti-x" style={{ fontSize: "12px" }} /> Rejeter
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+    {demandesMarketplace.length > 0 && (
+      <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
+        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+          {demandesMarketplace.length} demande{demandesMarketplace.length > 1 ? "s" : ""}
+        </span>
+      </div>
+    )}
+  </div>
+)}
       {/* ── Drawer Assignation ── */}
       {drawerOpen && selectedDemande && (
         <>
