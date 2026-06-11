@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import { exportFacturePDF } from "../../utils/exportFacturePDF"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
@@ -811,9 +812,21 @@ export default function Factures() {
                     </td>
                     <td style={{ padding: "14px 16px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => ouvrirEdition(f)} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#64748B", padding: "5px 8px", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center" }}>
-                          <i className="ti ti-pencil" style={{ fontSize: "13px" }} />
-                        </button>
+  <button
+    onClick={async e => {
+      e.stopPropagation()
+      const { data: lignesData } = await supabase
+        .from("factures_lignes").select("*").eq("facture_id", f.id).order("ordre")
+      exportFacturePDF(f, lignesData || [])
+    }}
+    style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", color: "#1E40AF", padding: "5px 8px", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center" }}
+    title="Télécharger PDF"
+  >
+    <i className="ti ti-file-download" style={{ fontSize: "13px" }} />
+  </button>
+  <button onClick={() => ouvrirEdition(f)} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#64748B", padding: "5px 8px", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+    <i className="ti ti-pencil" style={{ fontSize: "13px" }} />
+  </button>
                         <button onClick={() => supprimerFacture(f.id)} style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", padding: "5px 8px", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center" }}>
                           <i className="ti ti-trash" style={{ fontSize: "13px" }} />
                         </button>
