@@ -30,6 +30,7 @@ import Missions from "./pages/metier/Missions"
 import Messagerie from "./pages/metier/Messagerie"
 import Financement from "./pages/metier/Financement"
 import Reporting from "./pages/metier/Reporting"
+import Factures from "./pages/metier/Factures"
 import Administration from "./pages/metier/Administration"
 import FileAttente from "./pages/metier/FileAttente"
 import Clients from "./pages/metier/Clients"
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="metier/messagerie" element={<ProtectedRoute><Messagerie /></ProtectedRoute>} />
           <Route path="metier/financement" element={<ProtectedRoute><Financement /></ProtectedRoute>} />
           <Route path="metier/reporting" element={<ProtectedRoute><Reporting /></ProtectedRoute>} />
+<Route path="metier/factures" element={<ProtectedRoute><Factures /></ProtectedRoute>} />
           <Route path="metier/ged" element={<ProtectedRoute><GED /></ProtectedRoute>} />
           <Route path="metier/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
           <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />

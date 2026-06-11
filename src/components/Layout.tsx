@@ -24,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/utilisateurs":        "Utilisateurs",
   "/metier/messagerie":          "Messagerie",
   "/metier/reporting":           "Reporting",
+"/metier/factures":            "Factures",
   "/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
@@ -448,9 +449,14 @@ supabase
                 badge={nbMessagesAGE}
               />
 
-              {/* Reporting — admin_national et responsable_regional */}
+             {/* Reporting — admin_national et responsable_regional */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
+              )}
+
+              {/* Factures — admin_national uniquement */}
+              {roleAGE === "admin_national" && (
+                <NavItem to="/metier/factures" icon="ti-receipt" label="Factures" />
               )}
 
               {/* Documents — tous les rôles AGE */}

@@ -445,7 +445,7 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:"1rem",marginBottom:"2rem"}}>
-        <button onClick={() => navigate("/client")} style={{background:"white",border:"1px solid #e5e1da",padding:"0.5rem 1rem",borderRadius:"8px",cursor:"pointer",color:"#666"}}>← Retour</button>
+<button onClick={() => navigate("/")} style={{background:"white",border:"1px solid #e5e1da",padding:"0.5rem 1rem",borderRadius:"8px",cursor:"pointer",color:"#666"}}>← Retour</button>
         <h2 style={{color:"#1a3a2a"}}>Créer un actif</h2>
       </div>
 
@@ -840,7 +840,7 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
             </div>
             <div style={{display:"flex",gap:"1rem",justifyContent:"center"}}>
               <button onClick={() => navigate("/client/actifs")} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Voir mes actifs</button>
-              <button onClick={() => navigate("/client")} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>Mon compte</button>
+              <button onClick={() => navigate("/")} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>Accueil</button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
 
@@ -35,8 +35,13 @@ const typesDocuments = [
 ]
 
 export default function FicheActif() {
-  const { id }     = useParams()
-  const navigate   = useNavigate()
+  const { id }   = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Récupération de la route d'origine transmise via state (React Router v6)
+  const from = (location.state as { from?: string } | null)?.from ?? "/client/accueil"
+
   const [actif, setActif]                       = useState<any>(null)
   const [reglementations, setReglementations]   = useState<any[]>([])
   const [documents, setDocuments]               = useState<any[]>([])
@@ -48,9 +53,9 @@ export default function FicheActif() {
   const [typeDocSelectionne, setTypeDocSelectionne] = useState("")
   const [uploadingDoc, setUploadingDoc]         = useState(false)
   const [erreurUpload, setErreurUpload]         = useState("")
-  const [photoUrl, setPhotoUrl]           = useState<string | null>(null)
-const [uploadingPhoto, setUploadingPhoto] = useState(false)
-const [erreurPhoto, setErreurPhoto]     = useState("")
+  const [photoUrl, setPhotoUrl]                 = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto]     = useState(false)
+  const [erreurPhoto, setErreurPhoto]           = useState("")
 
   useEffect(() => { loadActif() }, [id])
 
@@ -66,13 +71,15 @@ const [erreurPhoto, setErreurPhoto]     = useState("")
     ])
 
     setActif(actifData)
+
     // Charger la photo du bâtiment
-if (actifData?.photo_batiment) {
-  const { data: urlData } = await supabase.storage
-    .from("documents-clients")
-    .createSignedUrl(actifData.photo_batiment, 60 * 60 * 24)
-  if (urlData?.signedUrl) setPhotoUrl(urlData.signedUrl)
-}
+    if (actifData?.photo_batiment) {
+      const { data: urlData } = await supabase.storage
+        .from("documents-clients")
+        .createSignedUrl(actifData.photo_batiment, 60 * 60 * 24)
+      if (urlData?.signedUrl) setPhotoUrl(urlData.signedUrl)
+    }
+
     setReglementations(reglData || [])
     setDocuments(docData || [])
     setRapports(rapportsData || [])
@@ -133,14 +140,8 @@ if (actifData?.photo_batiment) {
     const maxSize = 5 * 1024 * 1024
     const formats = ["image/jpeg", "image/png", "image/webp", "image/heic"]
 
-    if (file.size > maxSize) {
-      setErreurPhoto("La photo ne doit pas dépasser 5 Mo.")
-      return
-    }
-    if (!formats.includes(file.type)) {
-      setErreurPhoto("Format accepté : jpg, png, webp, heic.")
-      return
-    }
+    if (file.size > maxSize) { setErreurPhoto("La photo ne doit pas dépasser 5 Mo."); return }
+    if (!formats.includes(file.type)) { setErreurPhoto("Format accepté : jpg, png, webp, heic."); return }
 
     setUploadingPhoto(true)
     setErreurPhoto("")
@@ -152,18 +153,13 @@ if (actifData?.photo_batiment) {
       const { error: uploadError } = await supabase.storage
         .from("documents-clients")
         .upload(path, file, { upsert: true })
-
       if (uploadError) throw uploadError
 
-      await supabase
-        .from("actifs")
-        .update({ photo_batiment: path })
-        .eq("id", actif.id)
+      await supabase.from("actifs").update({ photo_batiment: path }).eq("id", actif.id)
 
       const { data: urlData } = await supabase.storage
         .from("documents-clients")
         .createSignedUrl(path, 60 * 60 * 24)
-
       if (urlData?.signedUrl) setPhotoUrl(urlData.signedUrl)
     } catch (err: any) {
       setErreurPhoto(err.message || "Erreur lors de l'upload.")
@@ -176,20 +172,20 @@ if (actifData?.photo_batiment) {
     if (!actif || !typeDocument) return
     setUploadingDoc(true)
     setErreurUpload("")
-    const { data: { user } } = await supabase.auth.getUser()
     const path = `actifs/${actif.id}/${typeDocument}/${file.name}`
     const { error: uploadError } = await supabase.storage.from("documents-clients").upload(path, file, { upsert: true })
-   if (uploadError) { console.error("Upload error:", uploadError); setErreurUpload("Erreur lors de l'upload. Veuillez réessayer."); setUploadingDoc(false); return }
-const { data: urlData } = await supabase.storage
-  .from("documents-clients")
-  .createSignedUrl(path, 60 * 60 * 24 * 365) // 1 an
-
-await supabase.from("actifs_documents").insert({
-  actif_id:      actif.id,
-  nom:           file.name,
-  type_document: typeDocument,
-  url:           path, // stocker le path, pas l'URL signée
-})
+    if (uploadError) {
+      console.error("Upload error:", uploadError)
+      setErreurUpload("Erreur lors de l'upload. Veuillez réessayer.")
+      setUploadingDoc(false)
+      return
+    }
+    await supabase.from("actifs_documents").insert({
+      actif_id:      actif.id,
+      nom:           file.name,
+      type_document: typeDocument,
+      url:           path,
+    })
     await loadActif()
     setUploadingDoc(false)
     setAjoutDoc(false)
@@ -205,115 +201,110 @@ await supabase.from("actifs_documents").insert({
   return (
     <div>
       {/* Header */}
-<div style={{ marginBottom: "1.5rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
 
-  {/* Photo + infos */}
-  <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", background: "white", borderRadius: "12px", border: "1px solid #E2DDD8", overflow: "hidden", marginBottom: "16px" }}>
+        {/* Photo + infos */}
+        <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", background: "white", borderRadius: "12px", border: "1px solid #E2DDD8", overflow: "hidden", marginBottom: "16px" }}>
 
-    {/* Zone photo */}
-    <div style={{ position: "relative", width: "280px", minHeight: "180px", flexShrink: 0, background: "#F4F3F0" }}>
-      {photoUrl ? (
-        <img
-          src={photoUrl}
-          alt={actif.nom}
-          style={{ width: "280px", height: "180px", objectFit: "cover", display: "block" }}
-        />
-      ) : (
-        <div style={{ width: "280px", height: "180px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", color: "#9CA3AF" }}>
-          <i className="ti ti-building" style={{ fontSize: "36px" }} />
-          <span style={{ fontSize: "12px" }}>Aucune photo</span>
-        </div>
-      )}
+          {/* Zone photo */}
+          <div style={{ position: "relative", width: "280px", minHeight: "180px", flexShrink: 0, background: "#F4F3F0" }}>
+            {photoUrl ? (
+              <img
+                src={photoUrl}
+                alt={actif.nom}
+                style={{ width: "280px", height: "180px", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div style={{ width: "280px", height: "180px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", color: "#9CA3AF" }}>
+                <i className="ti ti-building" style={{ fontSize: "36px" }} />
+                <span style={{ fontSize: "12px" }}>Aucune photo</span>
+              </div>
+            )}
 
-      {/* Bouton upload photo */}
-      <label style={{
-        position: "absolute", bottom: "8px", right: "8px",
-        display: "flex", alignItems: "center", gap: "5px",
-        background: "rgba(0,0,0,0.6)", color: "white",
-        padding: "5px 10px", borderRadius: "6px",
-        fontSize: "11px", fontWeight: 500, cursor: "pointer",
-        backdropFilter: "blur(4px)",
-      }}>
-        <i className="ti ti-camera" style={{ fontSize: "13px" }} />
-        {uploadingPhoto ? "Upload…" : photoUrl ? "Modifier" : "Ajouter une photo"}
-        <input
-          type="file"
-          accept=".jpg,.jpeg,.png,.webp,.heic"
-          style={{ display: "none" }}
-          onChange={(e) => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]) }}
-        />
-      </label>
-    </div>
-
-    {/* Infos principales */}
-    <div style={{ flex: 1, padding: "20px 20px 20px 0", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: "180px" }}>
-      <div>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-          <div>
-            <button
-              onClick={() => {
-                if (actif?.categorie === "biens_assures" || actif?.categorie === "biens_finances") {
-                  navigate("/client/biens-campagnes")
-                } else {
-                  navigate("/client/actifs")
-                }
-              }}
-              style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", padding: 0, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px", fontFamily: "inherit" }}
-            >
-              <i className="ti ti-arrow-left" style={{ fontSize: "12px" }} />
-              Retour
-            </button>
-            <h2 style={{ color: "#111827", fontSize: "20px", fontWeight: 700, letterSpacing: "-0.02em", marginBottom: "4px" }}>{actif.nom}</h2>
-            <p style={{ color: "#6B7280", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
-              <i className="ti ti-map-pin" style={{ fontSize: "13px" }} />
-              {actif.adresse} — {actif.ville} {actif.code_postal}
-            </p>
+            {/* Bouton upload photo */}
+            <label style={{
+              position: "absolute", bottom: "8px", right: "8px",
+              display: "flex", alignItems: "center", gap: "5px",
+              background: "rgba(0,0,0,0.6)", color: "white",
+              padding: "5px 10px", borderRadius: "6px",
+              fontSize: "11px", fontWeight: 500, cursor: "pointer",
+              backdropFilter: "blur(4px)",
+            }}>
+              <i className="ti ti-camera" style={{ fontSize: "13px" }} />
+              {uploadingPhoto ? "Upload…" : photoUrl ? "Modifier" : "Ajouter une photo"}
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.heic"
+                style={{ display: "none" }}
+                onChange={(e) => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]) }}
+              />
+            </label>
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-            <span style={{ background: "#FEF2F2", color: "#B91C1C", padding: "6px 14px", borderRadius: "999px", fontWeight: 700, fontSize: "15px", fontFamily: "JetBrains Mono, monospace" }}>
-              {actif.score_climatique || "—"}/100
-            </span>
-            <span style={{ background: "#FFFBEB", color: "#D97706", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
-              <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
-              En attente d'analyse
-            </span>
+
+          {/* Infos principales */}
+          <div style={{ flex: 1, padding: "20px 20px 20px 0", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: "180px" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                <div>
+                  {/* ── Bouton Retour corrigé ── */}
+                  <button
+                    onClick={() => navigate(from)}
+                    style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", padding: 0, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px", fontFamily: "inherit" }}
+                  >
+                    <i className="ti ti-arrow-left" style={{ fontSize: "12px" }} />
+                    Retour
+                  </button>
+                  <h2 style={{ color: "#111827", fontSize: "20px", fontWeight: 700, letterSpacing: "-0.02em", marginBottom: "4px" }}>{actif.nom}</h2>
+                  <p style={{ color: "#6B7280", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <i className="ti ti-map-pin" style={{ fontSize: "13px" }} />
+                    {actif.adresse} — {actif.ville} {actif.code_postal}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                  <span style={{ background: "#FEF2F2", color: "#B91C1C", padding: "6px 14px", borderRadius: "999px", fontWeight: 700, fontSize: "15px", fontFamily: "JetBrains Mono, monospace" }}>
+                    {actif.score_climatique || "—"}/100
+                  </span>
+                  <span style={{ background: "#FFFBEB", color: "#D97706", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
+                    En attente d'analyse
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Infos rapides */}
+            <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+              {[
+                { icon: "ti-ruler-2", label: actif.surface + " m²" },
+                { icon: "ti-users",   label: actif.effectifs + " salariés" },
+                { icon: "ti-building",label: actif.type_batiment || "—" },
+                { icon: "ti-calendar",label: actif.annee_construction || "—" },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#6B7280" }}>
+                  <i className={`ti ${item.icon}`} style={{ fontSize: "13px" }} />
+                  {item.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Erreur photo */}
+            {erreurPhoto && (
+              <div style={{ marginTop: "8px", fontSize: "12px", color: "#B91C1C", display: "flex", alignItems: "center", gap: "4px" }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
+                {erreurPhoto}
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Infos rapides */}
-      <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
-        {[
-          { icon: "ti-ruler-2", label: actif.surface + " m²" },
-          { icon: "ti-users", label: actif.effectifs + " salariés" },
-          { icon: "ti-building", label: actif.type_batiment || "—" },
-          { icon: "ti-calendar", label: actif.annee_construction || "—" },
-        ].map((item, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#6B7280" }}>
-            <i className={`ti ${item.icon}`} style={{ fontSize: "13px" }} />
-            {item.label}
-          </div>
-        ))}
-      </div>
-
-      {/* Erreur photo */}
-      {erreurPhoto && (
-        <div style={{ marginTop: "8px", fontSize: "12px", color: "#B91C1C", display: "flex", alignItems: "center", gap: "4px" }}>
-          <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
-          {erreurPhoto}
-        </div>
-      )}
-    </div>
-  </div>
-</div>
 
       {/* KPIs rapides */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
         {[
-          { label:"Surface",                      val: actif.surface+"m²",         icone:"ti-ruler-2" },
-{ label:"Effectifs",                     val: actif.effectifs+" salariés", icone:"ti-users" },
-{ label:"Réglementations obligatoires",  val: nbObligatoires.toString(),   icone:"ti-scale" },
-{ label:"Documents",                     val: documents.length.toString(), icone:"ti-file-text" },
+          { label:"Surface",                     val: actif.surface+"m²",         icone:"ti-ruler-2" },
+          { label:"Effectifs",                   val: actif.effectifs+" salariés", icone:"ti-users" },
+          { label:"Réglementations obligatoires",val: nbObligatoires.toString(),   icone:"ti-scale" },
+          { label:"Documents",                   val: documents.length.toString(), icone:"ti-file-text" },
         ].map((k,i) => (
           <div key={i} style={{background:"white",padding:"1.25rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
             <i className={`ti ${k.icone}`} style={{fontSize:"20px",color:"#B25C2A",marginBottom:"0.25rem",display:"block"}} />
@@ -326,16 +317,16 @@ await supabase.from("actifs_documents").insert({
       {/* Onglets */}
       <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.5rem"}}>
         {[
-          { id:"synthese",       label:"Synthèse",       icon:"ti-layout-list" },
-{ id:"reglementaire",  label:"Réglementaire",  icon:"ti-scale" },
-{ id:"climatique",     label:"Climatique",     icon:"ti-thermometer" },
-{ id:"documents",      label:"Documents",      icon:"ti-file-text" },
-{ id:"roadmap",        label:"Roadmap",        icon:"ti-map-2" },
+          { id:"synthese",      label:"Synthèse",      icon:"ti-layout-list" },
+          { id:"reglementaire", label:"Réglementaire", icon:"ti-scale" },
+          { id:"climatique",    label:"Climatique",    icon:"ti-thermometer" },
+          { id:"documents",     label:"Documents",     icon:"ti-file-text" },
+          { id:"roadmap",       label:"Roadmap",       icon:"ti-map-2" },
         ].map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)} style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 16px",borderRadius:"8px",border:"none",cursor:"pointer",fontWeight:500,fontSize:"13px",background:onglet===o.id?"#B25C2A":"white",color:onglet===o.id?"white":"#6B7280",boxShadow:"0 1px 2px rgba(0,0,0,0.04)"}}>
-  <i className={`ti ${o.icon}`} style={{fontSize:"14px"}} />
-  {o.label}
-</button>
+            <i className={`ti ${o.icon}`} style={{fontSize:"14px"}} />
+            {o.label}
+          </button>
         ))}
       </div>
 
@@ -368,12 +359,12 @@ await supabase.from("actifs_documents").insert({
                 reglementations.map((r,i) => (
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
                     <span style={{fontSize:"0.9rem",color:"#111827",display:"flex",alignItems:"center",gap:"6px"}}>
-  <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"15px",color:statutReglColor[r.statut]?.color||"#6B7280"}} />
-  {reglLabels[r.reglementation]||r.reglementation}
-</span>
+                      <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"15px",color:statutReglColor[r.statut]?.color||"#6B7280"}} />
+                      {reglLabels[r.reglementation]||r.reglementation}
+                    </span>
                     <span style={{background:statutReglColor[r.statut]?.bg||"#f0f0f0",color:statutReglColor[r.statut]?.color||"#666",padding:"0.2rem 0.6rem",borderRadius:"999px",fontSize:"0.75rem",fontWeight:"600"}}>
                       <i className={`ti ${statutReglColor[r.statut]?.icone}`} style={{fontSize:"11px"}} />
-{statutReglColor[r.statut]?.label||r.statut}
+                      {statutReglColor[r.statut]?.label||r.statut}
                     </span>
                   </div>
                 ))
@@ -421,14 +412,16 @@ await supabase.from("actifs_documents").insert({
                     </div>
                     <span style={{background:"white",color:statutReglColor[r.statut]?.color||"#666",padding:"0.3rem 0.875rem",borderRadius:"999px",fontSize:"0.8rem",fontWeight:"700",border:`1px solid ${statutReglColor[r.statut]?.color||"#e5e1da"}`}}>
                       <i className={`ti ${statutReglColor[r.statut]?.icone}`} style={{fontSize:"11px"}} />
-{statutReglColor[r.statut]?.label||r.statut}
+                      {statutReglColor[r.statut]?.label||r.statut}
                     </span>
                   </div>
                   {r.details && (
                     <div style={{fontSize:"0.85rem",color:"#444",background:"white",padding:"0.75rem",borderRadius:"8px"}}>{r.details}</div>
                   )}
                   {r.echeance && (
-                    <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.5rem"}}><i className="ti ti-calendar" style={{fontSize:"13px"}} /> Échéance : {new Date(r.echeance).toLocaleDateString("fr-FR")}</div>
+                    <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.5rem"}}>
+                      <i className="ti ti-calendar" style={{fontSize:"13px"}} /> Échéance : {new Date(r.echeance).toLocaleDateString("fr-FR")}
+                    </div>
                   )}
                 </div>
               ))}
@@ -503,13 +496,14 @@ await supabase.from("actifs_documents").insert({
                     </div>
                   ))}
                 </div>
-              <div onClick={() => setTypeDocSelectionne("autre")}
-                style={{border:`2px solid ${typeDocSelectionne === "autre" ? "#0F6E56" : "#e5e1da"}`,borderRadius:"8px",padding:"1rem",textAlign:"center",cursor:"pointer",background:typeDocSelectionne === "autre" ? "#ECFDF5" : "white",transition:"all 0.12s",marginTop:"8px"}}>
-                <i className="ti ti-plus" style={{fontSize:"20px",color:typeDocSelectionne === "autre" ? "#0F6E56" : "#94A3B8",display:"block",marginBottom:"6px"}} aria-hidden="true" />
-                <div style={{fontWeight:600,color:typeDocSelectionne === "autre" ? "#065F46" : "#1a3a2a",fontSize:"12px",marginBottom:"3px"}}>Autre document</div>
-                <div style={{fontSize:"11px",color:"#64748B"}}>PDF, Word, Excel</div>
+                <div onClick={() => setTypeDocSelectionne("autre")}
+                  style={{border:`2px solid ${typeDocSelectionne === "autre" ? "#0F6E56" : "#e5e1da"}`,borderRadius:"8px",padding:"1rem",textAlign:"center",cursor:"pointer",background:typeDocSelectionne === "autre" ? "#ECFDF5" : "white",transition:"all 0.12s",marginTop:"8px"}}>
+                  <i className="ti ti-plus" style={{fontSize:"20px",color:typeDocSelectionne === "autre" ? "#0F6E56" : "#94A3B8",display:"block",marginBottom:"6px"}} aria-hidden="true" />
+                  <div style={{fontWeight:600,color:typeDocSelectionne === "autre" ? "#065F46" : "#1a3a2a",fontSize:"12px",marginBottom:"3px"}}>Autre document</div>
+                  <div style={{fontSize:"11px",color:"#64748B"}}>PDF, Word, Excel</div>
+                </div>
               </div>
-            </div>
+
               {typeDocSelectionne && (
                 <label style={{display:"flex",alignItems:"center",gap:"8px",padding:"10px 16px",borderRadius:"8px",border:"none",background:"#0F6E56",color:"white",fontSize:"13px",fontWeight:500,cursor:"pointer",width:"fit-content"}}>
                   <i className="ti ti-upload" style={{fontSize:"15px"}} aria-hidden="true" />
@@ -543,16 +537,14 @@ await supabase.from("actifs_documents").insert({
                       <div style={{fontSize:"0.8rem",color:"#666"}}>{d.type_document}</div>
                     </div>
                   </div>
-               {d.url && (
-  <button onClick={async () => {
-    const { data } = await supabase.storage
-      .from("documents-clients")
-      .createSignedUrl(d.url, 3600)
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank")
-  }} style={{background:"white",color:"#111827",border:"1px solid #e5e1da",padding:"0.4rem 1rem",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem",fontWeight:"600"}}>
-    Voir
-  </button>
-)}
+                  {d.url && (
+                    <button onClick={async () => {
+                      const { data } = await supabase.storage.from("documents-clients").createSignedUrl(d.url, 3600)
+                      if (data?.signedUrl) window.open(data.signedUrl, "_blank")
+                    }} style={{background:"white",color:"#111827",border:"1px solid #e5e1da",padding:"0.4rem 1rem",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem",fontWeight:"600"}}>
+                      Voir
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

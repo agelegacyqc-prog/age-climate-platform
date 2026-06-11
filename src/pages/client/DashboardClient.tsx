@@ -310,7 +310,7 @@ const { data: actifsData } = await supabase
           </div>
         </div>
         <button
-          onClick={() => navigate("/client/actifs/nouveau")}
+          onClick={() => navigate("/client/actifs/nouveau", { state: { from: "/client/accueil" } })}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
             background: "#0F6E56", color: "white", border: "none",
@@ -408,7 +408,8 @@ const { data: actifsData } = await supabase
                     {etape.statut === "a_faire" && (
                       <button
                         onClick={() => {
-                          if (etape.id === "actif")       navigate("/client/actifs/nouveau")
+                          // Roadmap étape "actif"
+if (etape.id === "actif") navigate("/client/actifs/nouveau", { state: { from: "/client/accueil" } })
                           else if (etape.id === "aides")  navigate("/client/aides")
                           else if (etape.id === "marketplace") navigate("/marketplace")
                           else navigate("/client/actifs")
