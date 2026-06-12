@@ -107,9 +107,9 @@ if (onglet === "interne") {
       // Messages entre membres AGE
       const { data: msgs } = await supabase
         .from("messages")
-        .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id)")
-        .eq("type_conversation", "interne")
-        .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId},destinataire_id.is.null`)
+        .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id), actif:actif_id(id, nom, user_id)")
+        .eq("type_conversation", "client")
+        .or(`destinataire_id.eq.${userId},destinataire_id.is.null,expediteur_id.eq.${userId}`)
         .order("created_at", { ascending: false })
 
       if (!msgs) { setConversations([]); return }
@@ -316,7 +316,11 @@ profilsClient?.forEach((p: any) => {
       type_conversation: onglet,
       client_id:         selected.clientId || null,
     }
-    if (onglet === "interne" && destinataireId) payload.destinataire_id = destinataireId
+    if (onglet === "interne" && destinataireId) {
+      payload.destinataire_id = destinataireId
+    } else if (onglet === "clients" && selected.clientId) {
+      payload.destinataire_id = selected.clientId
+    }
     if (selected.contexte === "campagne") payload.campagne_id = selected.refId
     if (selected.contexte === "mission")  payload.mission_id  = selected.refId
     if (selected.contexte === "demande")  payload.demande_id  = selected.refId

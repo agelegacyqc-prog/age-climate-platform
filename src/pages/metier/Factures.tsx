@@ -37,7 +37,11 @@ interface Facture {
   conditions_paiement: string
   taux_penalites: string
   escompte: string
-  notes: string
+notes: string
+  numero_client: string
+  iban: string
+  bic: string
+  nom_banque: string
   created_at: string
 }
 
@@ -342,9 +346,13 @@ export default function Factures() {
     escompte: "Aucun escompte pour paiement anticipé",
     emetteur_raison_sociale: "", emetteur_siren: "", emetteur_adresse: "", emetteur_tva_intracom: "",
     destinataire_raison_sociale: "", destinataire_siren: "", destinataire_adresse: "", destinataire_tva_intracom: "",
-    mission_id: null as string | null,
+   mission_id: null as string | null,
     campagne_id: null as string | null,
     notes: "",
+    numero_client: "",
+    iban: "",
+    bic: "",
+    nom_banque: "",
   }
 
   const [form, setForm] = useState<any>({ ...formVide })
@@ -578,7 +586,15 @@ export default function Factures() {
             <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Conditions de paiement :</strong> {f.conditions_paiement}</div>
             <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Pénalités de retard :</strong> {f.taux_penalites}</div>
             <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Escompte :</strong> {f.escompte}</div>
-            {f.notes && <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Notes :</strong> {f.notes}</div>}
+           {f.notes && <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Notes :</strong> {f.notes}</div>}
+            {(f.iban || f.bic || f.nom_banque) && (
+              <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #E2E8F0" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "#64748B", marginBottom: "6px" }}>Coordonnées bancaires</div>
+                {f.nom_banque && <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>Banque :</strong> {f.nom_banque}</div>}
+                {f.iban       && <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>IBAN :</strong> {f.iban}</div>}
+                {f.bic        && <div style={{ fontSize: "11px", color: "#94A3B8" }}><strong style={{ color: "#64748B" }}>BIC :</strong> {f.bic}</div>}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -697,6 +713,29 @@ export default function Factures() {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#64748B" }}><span>Total TVA</span><span style={{ fontFamily: "JetBrains Mono, monospace" }}>{formatEur(totauxForm.tva)}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 700, color: "#B25C2A", borderTop: "2px solid #0F172A", paddingTop: "8px", marginTop: "4px" }}><span>Total TTC</span><span style={{ fontFamily: "JetBrains Mono, monospace" }}>{formatEur(totauxForm.ttc)}</span></div>
             </div>
+          </div>
+        </div>
+
+        {/* Coordonnées bancaires + N° client */}
+        <div className="card" style={{ padding: "20px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "14px" }}>Coordonnées bancaires</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+            {[
+              { field: "numero_client", label: "N° client",  placeholder: "CLT00000001" },
+              { field: "nom_banque",    label: "Banque",      placeholder: "BNP Paribas" },
+              { field: "iban",          label: "IBAN",        placeholder: "FR76 3000 4012 85..." },
+              { field: "bic",           label: "BIC",         placeholder: "BNPAFRPPXXX" },
+            ].map(({ field, label, placeholder }) => (
+              <div key={field}>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "5px" }}>{label}</label>
+                <input
+                  value={form[field] || ""}
+                  onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))}
+                  placeholder={placeholder}
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            ))}
           </div>
         </div>
 

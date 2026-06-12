@@ -22,7 +22,7 @@ export async function exportFacturePDF(facture: any, lignes: any[]) {
 
   // ── Logo ──────────────────────────────────────────────────────────────────
   try {
-    doc.addImage("data:image/png;base64," + LOGO_B64, "PNG", margin, y, 40, 14)
+    doc.addImage("data:image/png;base64," + LOGO_B64, "PNG", margin, y, 32, 11)
   } catch (e) {
     doc.setFontSize(14)
     doc.setFont("helvetica", "bold")
