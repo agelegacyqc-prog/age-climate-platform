@@ -24,11 +24,11 @@ interface ProfilCache {
 }
 
 const ROLE_CONFIG: Record<string, { label: string; bg: string; color: string; initBg: string; initColor: string }> = {
-  admin_national:       { label: "Admin national",    bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
-  admin:                { label: "Admin national",    bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
-  responsable_regional: { label: "Resp. régional",    bg: "#F9F0EA", color: "#B25C2A", initBg: "#F9F0EA", initColor: "#B25C2A" },
-  consultant:           { label: "Consultant",        bg: "#EFF6FF", color: "#0369A1", initBg: "#EFF6FF", initColor: "#0369A1" },
-  client:               { label: "Client",            bg: "#F0FDF4", color: "#2F7D5C", initBg: "#F0FDF4", initColor: "#2F7D5C" },
+  admin_national:       { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
+  admin:                { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
+  responsable_regional: { label: "Resp. régional",  bg: "#F9F0EA", color: "#B25C2A", initBg: "#F9F0EA", initColor: "#B25C2A" },
+  consultant:           { label: "Consultant",      bg: "#EFF6FF", color: "#0369A1", initBg: "#EFF6FF", initColor: "#0369A1" },
+  client:               { label: "Client",          bg: "#F0FDF4", color: "#2F7D5C", initBg: "#F0FDF4", initColor: "#2F7D5C" },
 }
 
 const CONTEXTE_CONFIG: Record<ContexteType, { label: string; bg: string; color: string }> = {
@@ -40,16 +40,6 @@ const CONTEXTE_CONFIG: Record<ContexteType, { label: string; bg: string; color: 
 
 function initiales(prenom: string, nom: string) {
   return `${(prenom[0] || "").toUpperCase()}${(nom[0] || "").toUpperCase()}`
-}
-
-function formatHeure(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const h = Math.floor(diff / 3600000)
-  if (h < 1) return "à l'instant"
-  if (h < 24) return `il y a ${h}h`
-  const j = Math.floor(h / 24)
-  if (j === 1) return "hier"
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
 }
 
 function formatHeureMsg(iso: string) {
@@ -103,8 +93,38 @@ export default function Messagerie() {
   async function loadConversations() {
     if (!userId) return
 
-if (onglet === "interne") {
-      // Messages entre membres AGE
+    if (onglet === "interne") {
+      // Messages internes entre membres AGE
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id)")
+        .eq("type_conversation", "interne")
+        .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId},destinataire_id.is.null`)
+        .order("created_at", { ascending: false })
+
+      if (!msgs) { setConversations([]); return }
+
+      const map = new Map<string, Conversation>()
+      for (const msg of msgs) {
+        let key = "", titre = "", sousTitre = "", contexte: ContexteType = "campagne", refId = ""
+        if (msg.campagne_id) {
+          key = `campagne_${msg.campagne_id}`; titre = (msg.campagne as any)?.nom || "Campagne"; sousTitre = "Campagne"; contexte = "campagne"; refId = msg.campagne_id
+        } else if (msg.mission_id) {
+          key = `mission_${msg.mission_id}`;   titre = (msg.mission as any)?.societe || "Mission"; sousTitre = "Mission"; contexte = "mission"; refId = msg.mission_id
+        } else if (msg.demande_id) {
+          key = `demande_${msg.demande_id}`;   titre = (msg.demande as any)?.type_prestation || "Demande"; sousTitre = "Demande"; contexte = "demande"; refId = msg.demande_id
+        } else continue
+
+        if (!map.has(key)) map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0 })
+        if (!msg.lu && msg.expediteur_id !== userId) map.get(key)!.nbNonLus++
+      }
+
+      const convs = Array.from(map.values())
+      setConversations(convs)
+      if (convs.length > 0 && !selected) setSelected(convs[0])
+
+    } else {
+      // Messages avec clients — filtrés par destinataire ou expéditeur
       const { data: msgs } = await supabase
         .from("messages")
         .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id), actif:actif_id(id, nom, user_id)")
@@ -116,90 +136,24 @@ if (onglet === "interne") {
 
       const map = new Map<string, Conversation>()
       for (const msg of msgs) {
-        let key = "", titre = "", sousTitre = "", contexte: ContexteType = "campagne", refId = ""
-
-        if (msg.campagne_id) {
-          key = `campagne_${msg.campagne_id}`
-          titre = (msg.campagne as any)?.nom || "Campagne"
-          sousTitre = "Campagne"
-          contexte = "campagne"
-          refId = msg.campagne_id
-        } else if (msg.mission_id) {
-          key = `mission_${msg.mission_id}`
-          titre = (msg.mission as any)?.societe || "Mission"
-          sousTitre = "Mission"
-          contexte = "mission"
-          refId = msg.mission_id
-        } else if (msg.demande_id) {
-          key = `demande_${msg.demande_id}`
-          titre = (msg.demande as any)?.type_prestation || "Demande"
-          sousTitre = "Demande"
-          contexte = "demande"
-          refId = msg.demande_id
-        } else continue
-
-        if (!map.has(key)) {
-          map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0 })
-        }
-        if (!msg.lu && msg.expediteur_id !== userId) {
-          map.get(key)!.nbNonLus++
-        }
-      }
-
-      const convs = Array.from(map.values())
-      setConversations(convs)
-      if (convs.length > 0 && !selected) setSelected(convs[0])
-
-    } else {
-      // Messages avec clients
-      const { data: msgs } = await supabase
-        .from("messages")
-        .select("*, campagne:campagne_id(id, nom, client_id), mission:mission_id(id, societe, client_id), demande:demande_id(id, type_prestation, client_id), actif:actif_id(id, nom, user_id)")
-        .eq("type_conversation", "client")
-        .order("created_at", { ascending: false })
-
-      if (!msgs) { setConversations([]); return }
-
-      const map = new Map<string, Conversation>()
-      for (const msg of msgs) {
         let key = "", titre = "", sousTitre = "", contexte: ContexteType = "campagne", refId = "", clientId = msg.client_id
 
         if (msg.campagne_id) {
-          key = `campagne_${msg.campagne_id}`
-          titre = (msg.campagne as any)?.nom || "Campagne"
-          sousTitre = "Campagne"
-          contexte = "campagne"
-          refId = msg.campagne_id
+          key = `campagne_${msg.campagne_id}`; titre = (msg.campagne as any)?.nom || "Campagne"; sousTitre = "Campagne"; contexte = "campagne"; refId = msg.campagne_id
           clientId = clientId || (msg.campagne as any)?.client_id
         } else if (msg.mission_id) {
-          key = `mission_${msg.mission_id}`
-          titre = (msg.mission as any)?.societe || "Mission"
-          sousTitre = "Mission"
-          contexte = "mission"
-          refId = msg.mission_id
+          key = `mission_${msg.mission_id}`; titre = (msg.mission as any)?.societe || "Mission"; sousTitre = "Mission"; contexte = "mission"; refId = msg.mission_id
           clientId = clientId || (msg.mission as any)?.client_id
         } else if (msg.demande_id) {
-          key = `demande_${msg.demande_id}`
-          titre = (msg.demande as any)?.type_prestation || "Demande"
-          sousTitre = "Demande"
-          contexte = "demande"
-          refId = msg.demande_id
+          key = `demande_${msg.demande_id}`; titre = (msg.demande as any)?.type_prestation || "Demande"; sousTitre = "Demande"; contexte = "demande"; refId = msg.demande_id
           clientId = clientId || (msg.demande as any)?.client_id
         } else if (msg.actif_id) {
-          key = `actif_${msg.actif_id}`
-          titre = (msg.actif as any)?.nom || "Actif"
-          sousTitre = "Actif"
-          contexte = "actif"
-          refId = msg.actif_id
+          key = `actif_${msg.actif_id}`; titre = (msg.actif as any)?.nom || "Actif"; sousTitre = "Actif"; contexte = "actif"; refId = msg.actif_id
           clientId = clientId || (msg.actif as any)?.user_id
         } else continue
 
-        if (!map.has(key)) {
-          map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0, clientId })
-        }
-        if (!msg.lu && msg.expediteur_id !== userId) {
-          map.get(key)!.nbNonLus++
-        }
+        if (!map.has(key)) map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0, clientId })
+        if (!msg.lu && msg.expediteur_id !== userId) map.get(key)!.nbNonLus++
       }
 
       // Enrichir avec raison sociale client
@@ -212,12 +166,8 @@ if (onglet === "interne") {
         orgs?.forEach(o => { orgMap[o.id] = o.raison_sociale })
         const pcMap: Record<string, string> = {}
         pcs?.forEach(p => { if (p.organisation_id) pcMap[p.id] = orgMap[p.organisation_id] ?? "" })
-          console.log("clientIds:", clientIds)
-console.log("pcMap:", pcMap)
         map.forEach((conv, key) => {
-          if (conv.clientId && pcMap[conv.clientId]) {
-            map.set(key, { ...conv, clientNom: pcMap[conv.clientId] })
-          }
+          if (conv.clientId && pcMap[conv.clientId]) map.set(key, { ...conv, clientNom: pcMap[conv.clientId] })
         })
       }
 
@@ -226,12 +176,11 @@ console.log("pcMap:", pcMap)
       if (convs.length > 0 && !selected) setSelected(convs[0])
     }
 
-    // Compter non lus globaux
+    // Compter non lus
     const { count: nbInterne } = await supabase
       .from("messages")
       .select("id", { count: "exact", head: true })
       .eq("type_conversation", "interne")
-      .or(`expediteur_id.eq.${userId},destinataire_id.eq.${userId},destinataire_id.is.null`)
       .eq("destinataire_id", userId)
       .eq("lu", false)
 
@@ -239,6 +188,7 @@ console.log("pcMap:", pcMap)
       .from("messages")
       .select("id", { count: "exact", head: true })
       .eq("type_conversation", "client")
+      .or(`destinataire_id.eq.${userId},destinataire_id.is.null`)
       .neq("expediteur_id", userId)
       .eq("lu", false)
 
@@ -257,10 +207,21 @@ console.log("pcMap:", pcMap)
     if (onglet === "clients") query = query.eq("type_conversation", "client")
 
     const { data } = await query.order("created_at", { ascending: true })
-    setMessages(data || [])
+
+    // Dédupliquer les messages (éviter les doublons de copies)
+    const seen = new Set<string>()
+    const dedup = (data || []).filter((m: any) => {
+      const key = `${m.expediteur_id}_${m.contenu}_${m.created_at}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    setMessages(dedup)
 
     // Marquer comme lus
-    let upd = supabase.from("messages").update({ lu: true }).neq("expediteur_id", userId)
+    let upd = supabase.from("messages").update({ lu: true })
+      .neq("expediteur_id", userId)
+      .or(`destinataire_id.eq.${userId},destinataire_id.is.null`)
     if (selected.contexte === "campagne") upd = upd.eq("campagne_id", selected.refId)
     if (selected.contexte === "mission")  upd = upd.eq("mission_id",  selected.refId)
     if (selected.contexte === "demande")  upd = upd.eq("demande_id",  selected.refId)
@@ -268,37 +229,33 @@ console.log("pcMap:", pcMap)
     await upd
 
     // Charger profils expéditeurs
-    const ids = [...new Set((data || []).map((m: any) => m.expediteur_id))]
+    const ids = [...new Set((dedup || []).map((m: any) => m.expediteur_id))]
     if (ids.length > 0) {
       const { data: profilsAGE } = await supabase.from("profils").select("id, prenom, nom, role").in("id", ids)
       const map: Record<string, ProfilCache> = {}
       profilsAGE?.forEach(p => { map[p.id] = p })
-     const { data: profilsClient } = await supabase
-  .from("profils_client")
-  .select("id, type_client, organisation_id")
-  .in("id", ids)
 
-const orgIdsClient = [...new Set((profilsClient || []).map((p: any) => p.organisation_id).filter(Boolean))]
-const { data: orgsClient } = orgIdsClient.length > 0
-  ? await supabase.from("organisations").select("id, raison_sociale").in("id", orgIdsClient)
-  : { data: [] }
-const orgMapClient: Record<string, string> = {}
-orgsClient?.forEach((o: any) => { orgMapClient[o.id] = o.raison_sociale })
-
-profilsClient?.forEach((p: any) => {
-  if (!map[p.id]) {
-    const raisonSociale = p.organisation_id ? (orgMapClient[p.organisation_id] || p.type_client || "Client") : (p.type_client || "Client")
-    map[p.id] = { id: p.id, prenom: raisonSociale, nom: "", role: "client" }
-  }
-})
+      const { data: profilsClient } = await supabase
+        .from("profils_client").select("id, type_client, organisation_id").in("id", ids)
+      const orgIdsClient = [...new Set((profilsClient || []).map((p: any) => p.organisation_id).filter(Boolean))]
+      const { data: orgsClient } = orgIdsClient.length > 0
+        ? await supabase.from("organisations").select("id, raison_sociale").in("id", orgIdsClient)
+        : { data: [] }
+      const orgMapClient: Record<string, string> = {}
+      orgsClient?.forEach((o: any) => { orgMapClient[o.id] = o.raison_sociale })
+      profilsClient?.forEach((p: any) => {
+        if (!map[p.id]) {
+          const rs = p.organisation_id ? (orgMapClient[p.organisation_id] || p.type_client || "Client") : (p.type_client || "Client")
+          map[p.id] = { id: p.id, prenom: rs, nom: "", role: "client" }
+        }
+      })
       setProfils(map)
     }
 
-    // Charger interlocuteurs possibles pour le sélecteur destinataire
+    // Interlocuteurs (interne uniquement)
     if (onglet === "interne") {
       const { data: membres } = await supabase
-        .from("profils")
-        .select("id, prenom, nom, role")
+        .from("profils").select("id, prenom, nom, role")
         .in("role", ["admin_national", "admin", "responsable_regional", "consultant"])
         .neq("id", userId)
       setInterlocuteurs(membres || [])
@@ -309,6 +266,7 @@ profilsClient?.forEach((p: any) => {
   async function handleEnvoyer() {
     if (!contenu.trim() || !selected || !userId) return
     setSending(true)
+
     const payload: any = {
       expediteur_id:     userId,
       contenu:           contenu.trim(),
@@ -316,16 +274,29 @@ profilsClient?.forEach((p: any) => {
       type_conversation: onglet,
       client_id:         selected.clientId || null,
     }
+
     if (onglet === "interne" && destinataireId) {
       payload.destinataire_id = destinataireId
-    } else if (onglet === "clients" && selected.clientId) {
-      payload.destinataire_id = selected.clientId
     }
+
     if (selected.contexte === "campagne") payload.campagne_id = selected.refId
     if (selected.contexte === "mission")  payload.mission_id  = selected.refId
     if (selected.contexte === "demande")  payload.demande_id  = selected.refId
     if (selected.contexte === "actif")    payload.actif_id    = selected.refId
+
+    // Résoudre client_id et destinataire_id depuis messages existants (pour responsable/consultant)
+    if (onglet === "clients") {
+      const premierMsg = messages.find((m: any) => m.client_id)
+      if (premierMsg?.client_id) {
+        payload.client_id       = premierMsg.client_id
+        payload.destinataire_id = premierMsg.client_id
+      } else if (selected.clientId) {
+        payload.destinataire_id = selected.clientId
+      }
+    }
+
     await supabase.from("messages").insert(payload)
+
     setContenu("")
     await loadMessages()
     setSending(false)
@@ -363,7 +334,6 @@ profilsClient?.forEach((p: any) => {
               </span>
             )}
           </div>
-          {/* Onglets Interne / Clients */}
           <div style={{ display: "flex", background: "#F4F3F0", borderRadius: "8px", padding: "3px", gap: "2px" }}>
             {([
               { key: "interne" as const, label: "Interne AGE", icon: "ti-users" },
@@ -390,7 +360,7 @@ profilsClient?.forEach((p: any) => {
           </div>
         </div>
 
-        {/* Liste conversations groupées */}
+        {/* Liste conversations */}
         <div style={{ flex: 1, overflowY: "auto" }}>
           {conversations.length === 0 ? (
             <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
@@ -425,13 +395,13 @@ profilsClient?.forEach((p: any) => {
                           )}
                         </div>
                         {c.clientNom && (
-  <div style={{ fontSize: "12px", fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-    {c.clientNom}
-  </div>
-)}
-<div style={{ fontSize: "11px", color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-  {c.titre}
-</div>
+                          <div style={{ fontSize: "12px", fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {c.clientNom}
+                          </div>
+                        )}
+                        <div style={{ fontSize: "11px", color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.titre}
+                        </div>
                       </div>
                       {c.nbNonLus > 0 && (
                         <span style={{ background: "#B91C1C", color: "white", fontSize: "9px", fontWeight: 600, padding: "1px 5px", borderRadius: "8px", flexShrink: 0 }}>
@@ -451,7 +421,6 @@ profilsClient?.forEach((p: any) => {
       {selected ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
-          {/* Header conversation */}
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2DDD8" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ background: CONTEXTE_CONFIG[selected.contexte].bg, color: CONTEXTE_CONFIG[selected.contexte].color, fontSize: "10px", padding: "2px 8px", borderRadius: "8px", fontWeight: 500 }}>
@@ -464,7 +433,6 @@ profilsClient?.forEach((p: any) => {
             </div>
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
             {messages.length === 0 ? (
               <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", marginTop: "40px" }}>
@@ -472,13 +440,13 @@ profilsClient?.forEach((p: any) => {
                 Aucun message
               </div>
             ) : messages.map((msg, i) => {
-              const isMine = msg.expediteur_id === userId
-              const profil = profils[msg.expediteur_id]
-              const role = profil?.role || "client"
-              const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.client
-              const showDate = i === 0 || formatDate(messages[i - 1].created_at) !== formatDate(msg.created_at)
+              const isMine    = msg.expediteur_id === userId
+              const profil    = profils[msg.expediteur_id]
+              const role      = profil?.role || "client"
+              const cfg       = ROLE_CONFIG[role] || ROLE_CONFIG.client
+              const showDate  = i === 0 || formatDate(messages[i - 1].created_at) !== formatDate(msg.created_at)
               const prenomExp = profil?.prenom || "?"
-              const nomExp = profil?.nom || ""
+              const nomExp    = profil?.nom    || ""
               return (
                 <React.Fragment key={msg.id}>
                   {showDate && (
@@ -487,25 +455,21 @@ profilsClient?.forEach((p: any) => {
                     </div>
                   )}
                   <div style={{ display: "flex", flexDirection: isMine ? "row-reverse" : "row", gap: "8px", alignItems: "flex-end" }}>
-                    {/* Avatar */}
                     <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: isMine ? "#B25C2A" : cfg.initBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "10px", fontWeight: 600, color: isMine ? "white" : cfg.initColor }}>
                       {isMine ? initiales(monPrenom, monNom) : initiales(prenomExp, nomExp)}
                     </div>
                     <div style={{ maxWidth: "65%" }}>
-                      {/* Nom + rôle */}
                       <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "3px", flexDirection: isMine ? "row-reverse" : "row" }}>
                         <span style={{ fontSize: "11px", color: "#6B7280" }}>
                           {isMine ? `${monPrenom} ${monNom}`.trim() : `${prenomExp} ${nomExp}`.trim()}
                         </span>
                         <span style={{ background: isMine ? "#F9F0EA" : cfg.bg, color: isMine ? "#B25C2A" : cfg.color, fontSize: "9px", padding: "1px 5px", borderRadius: "8px", fontWeight: 500 }}>
-                          {isMine ? (ROLE_CONFIG[monRole]?.label || monRole) : (cfg.label)}
+                          {isMine ? (ROLE_CONFIG[monRole]?.label || monRole) : cfg.label}
                         </span>
                       </div>
-                      {/* Bulle */}
                       <div style={{ background: isMine ? "#B25C2A" : "#F4F3F0", color: isMine ? "white" : "#111827", padding: "10px 14px", borderRadius: isMine ? "12px 12px 2px 12px" : "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.5 }}>
                         {msg.contenu}
                       </div>
-                      {/* Heure + lu */}
                       <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "2px", textAlign: isMine ? "right" : "left" }}>
                         {formatHeureMsg(msg.created_at)}
                         {isMine && <span style={{ marginLeft: "4px" }}>{msg.lu ? "✓✓" : "✓"}</span>}
@@ -518,10 +482,7 @@ profilsClient?.forEach((p: any) => {
             <div ref={bottomRef} />
           </div>
 
-          {/* Zone saisie */}
           <div style={{ padding: "12px 20px", borderTop: "1px solid #E2DDD8", display: "flex", flexDirection: "column", gap: "8px" }}>
-
-            {/* Sélecteur destinataire (interne uniquement) */}
             {onglet === "interne" && interlocuteurs.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "11px", color: "#6B7280", flexShrink: 0 }}>À :</span>
@@ -538,7 +499,6 @@ profilsClient?.forEach((p: any) => {
                 </select>
               </div>
             )}
-
             <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
               <textarea
                 value={contenu}

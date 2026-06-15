@@ -12,6 +12,7 @@ interface Client {
   onboarding_complete: boolean
   created_at: string
   responsable_commercial_id: string | null
+  region: string | null
   nb_actifs: number
   nb_campagnes: number
   derniere_activite: string | null
@@ -105,7 +106,7 @@ export default function Clients() {
     try {
       const { data: profilsData } = await supabase
         .from("profils_client")
-        .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, prenom, nom")
+        .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, region, prenom, nom")
         .order("created_at", { ascending: false })
 
       if (!profilsData) { setLoading(false); return }
@@ -134,6 +135,7 @@ export default function Clients() {
         onboarding_complete: p.onboarding_complete || false,
         created_at: p.created_at,
         responsable_commercial_id: p.responsable_commercial_id,
+        region: p.region || null,
         nb_actifs: actifsMap[p.id] || 0,
         nb_campagnes: campagnesMap[p.id] || 0,
         derniere_activite: null,
@@ -142,7 +144,7 @@ export default function Clients() {
       setClients(mapped)
 
       const { data: resps } = await supabase
-        .from("profils").select("id, prenom, nom")
+        .from("profils").select("id, prenom, nom, role, region")
         .in("role", ["admin", "admin_national", "responsable_regional"])
       setResponsables(resps || [])
     } finally {
@@ -456,6 +458,28 @@ export default function Clients() {
                       </div>
                       <div>
                         <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>Responsable commercial</p>
+                        {/* Proposition automatique selon région */}
+                        {fiche.region && !fiche.responsable_commercial_id && (() => {
+                          const suggeres = (responsables as any[]).filter(r => r.region === fiche.region && r.role === "responsable_regional")
+                          if (suggeres.length === 0) return null
+                          return (
+                            <div style={{ padding: "10px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", marginBottom: "10px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 600, color: "#1E40AF", marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                <i className="ti ti-map-pin" style={{ fontSize: "12px" }} />
+                                Suggestion — région {fiche.region}
+                              </div>
+                              {suggeres.map((r: any) => (
+                                <button key={r.id} onClick={() => assignerResponsable(r.id)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 10px", background: "#FFFFFF", border: "1px solid #BFDBFE", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", marginBottom: "4px" }}>
+                                  <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#F9F0EA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", fontWeight: 600, color: "#B25C2A" }}>
+                                    {r.prenom[0]}{r.nom[0]}
+                                  </div>
+                                  <span style={{ fontSize: "12px", fontWeight: 500, color: "#0F172A" }}>{r.prenom} {r.nom}</span>
+                                  <span style={{ marginLeft: "auto", fontSize: "10px", color: "#1E40AF", background: "#EFF6FF", padding: "1px 6px", borderRadius: "4px" }}>Assigner</span>
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        })()}
                         {assignSuccess && (
                           <div style={{ padding: "8px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", fontSize: "12px", color: "#2F7D5C", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
                             <i className="ti ti-circle-check" style={{ fontSize: "13px" }} /> Responsable assigné
@@ -463,7 +487,11 @@ export default function Clients() {
                         )}
                         <select className="input" value={fiche.responsable_commercial_id || ""} onChange={e => assignerResponsable(e.target.value)} disabled={assignLoading}>
                           <option value="">Sélectionner un responsable…</option>
-                          {responsables.map(r => <option key={r.id} value={r.id}>{r.prenom} {r.nom}</option>)}
+                          {(responsables as any[]).map(r => (
+                            <option key={r.id} value={r.id}>
+                              {r.prenom} {r.nom}{r.region ? ` — ${r.region}` : r.role === "admin" || r.role === "admin_national" ? " — National" : ""}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div style={{ paddingTop: "8px", borderTop: "1px solid #E2DDD8" }}>

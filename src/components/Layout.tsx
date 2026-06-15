@@ -211,11 +211,12 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
         }
 
         // Messages non lus (tous rôles AGE)
-        const { count: countMsg } = await supabase
+       const { count: countMsg } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
           .eq("lu", false)
           .neq("expediteur_id", user.id)
+          .or(`destinataire_id.eq.${user.id},destinataire_id.is.null`)
         setNbMessagesAGE(countMsg || 0)
 // Realtime — nouveaux messages non lus
 supabase

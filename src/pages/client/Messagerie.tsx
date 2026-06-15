@@ -108,9 +108,10 @@ export default function ClientMessagerie() {
   async function loadMessages() {
     if (!selected) return
 
-    let query = supabase.from("messages").select("*").eq("type_conversation", "client")
+let query = supabase.from("messages").select("*")
+      .eq("type_conversation", "client")
     if (onglet === "demandes")  query = query.eq("demande_id",  selected.id)
-    if (onglet === "campagnes") query = query.eq("campagne_id", selected.id).eq("client_id", userId)
+    if (onglet === "campagnes") query = query.eq("campagne_id", selected.id)
     if (onglet === "actifs")    query = query.eq("actif_id",    selected.id)
 
     const { data } = await query.order("created_at", { ascending: true })
@@ -142,7 +143,7 @@ export default function ClientMessagerie() {
     const { data: nonLus } = await supabase
       .from("messages")
       .select("demande_id, campagne_id, actif_id")
-      .eq("client_id", userId)
+      .or(`client_id.eq.${userId},destinataire_id.eq.${userId}`)
       .eq("type_conversation", "client")
       .eq("lu", false)
       .neq("expediteur_id", userId)
@@ -169,7 +170,30 @@ export default function ClientMessagerie() {
     if (onglet === "demandes")  payload.demande_id  = selected.id
     if (onglet === "campagnes") payload.campagne_id = selected.id
     if (onglet === "actifs")    payload.actif_id    = selected.id
-    await supabase.from("messages").insert(payload)
+   await supabase.from("messages").insert(payload)
+
+    // Copie au responsable commercial + admin
+    const { data: pcData } = await supabase
+      .from("profils_client")
+      .select("responsable_commercial_id")
+      .eq("id", userId)
+      .maybeSingle()
+   const respId = pcData?.responsable_commercial_id
+    if (respId) {
+      await supabase.from("messages").insert({ ...payload, destinataire_id: respId, lu: false })
+    }
+
+    // Copie au consultant assigné
+    const { data: pcDataConsultant } = await supabase
+      .from("profils_client")
+      .select("consultant_id")
+      .eq("id", userId)
+      .maybeSingle()
+    const consultantId = pcDataConsultant?.consultant_id
+    if (consultantId && consultantId !== respId) {
+      await supabase.from("messages").insert({ ...payload, destinataire_id: consultantId, lu: false })
+    }
+
     setContenu("")
     await loadMessages()
     setSending(false)
