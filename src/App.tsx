@@ -40,6 +40,7 @@ import AGEadapt from "./pages/metier/AGEadapt"
 import AGEadaptMission from "./pages/metier/AGEadaptMission"
 import AGEcarbon from "./pages/metier/AGEcarbon"
 import AGEcarbonNouveau from "./pages/metier/AGEcarbonNouveau"
+import AGEcarbonSaisie from "./pages/metier/AGEcarbonSaisie"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
 import PartenaireInscription from "./pages/partenaire/PartenaireInscription"
@@ -101,6 +102,7 @@ export default function App() {
 <Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />
 <Route path="metier/agecarbon" element={<ProtectedRoute><AGEcarbon /></ProtectedRoute>} />
 <Route path="metier/agecarbon/nouveau" element={<ProtectedRoute><AGEcarbonNouveau /></ProtectedRoute>} />
+<Route path="metier/agecarbon/:id" element={<ProtectedRoute><AGEcarbonSaisie /></ProtectedRoute>} />
         </Route>
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
