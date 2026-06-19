@@ -55,7 +55,24 @@ const LIBELLES_SCOPE: Record<number, string> = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTco2e(val: number): string {
-  return val.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' tCO₂e'
+  return val.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' tCO₂e'
+}
+
+function formatNombre(val: number, decimales = 2): string {
+  return val.toFixed(decimales).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+}
+
+const LIBELLES_POSTES: Record<string, string> = {
+  energie: 'Énergie',
+  hors_energie: 'Émissions hors énergie',
+  deplacements: 'Déplacements',
+  fret: 'Fret',
+  intrants: 'Intrants',
+  immobilisations: 'Immobilisations',
+  dechets: 'Déchets',
+  futurs_emballages: 'Emballages futurs',
+  utilisation: 'Utilisation des produits',
+  fin_de_vie: 'Fin de vie',
 }
 
 function niveauEmissions(total: number): { label: string; couleur: string; icone: 'check' | 'warning' | 'alert' } {
@@ -165,7 +182,7 @@ export default function AGEcarbonResultats() {
       doc.setFontSize(13)
       doc.text('TOTAL ÉMISSIONS', 20, 51)
       doc.setFontSize(15)
-      doc.text(`${agreges.total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e`, 120, 51)
+      doc.text(`${formatNombre(agreges.total)} tCO2e`, 120, 51)
 
       // Tableau scopes
       doc.setTextColor(...bleu)
@@ -185,7 +202,7 @@ export default function AGEcarbonResultats() {
       doc.setFontSize(9)
       doc.setTextColor(...bleu)
       doc.text('Scope', 18, 79.5)
-      doc.text('tCO₂e', 130, 79.5)
+      doc.text('tCO2e', 130, 79.5)
       doc.text('% du total', 160, 79.5)
 
       scopes.forEach((s, i) => {
@@ -198,7 +215,7 @@ export default function AGEcarbonResultats() {
         doc.setTextColor(31, 41, 55)
         doc.text(s.label, 18, y)
         doc.setFont('helvetica', 'bold')
-        doc.text(s.val.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 130, y)
+        doc.text(formatNombre(s.val), 130, y)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(...gris)
         doc.text(`${s.pct.toFixed(1)} %`, 162, y)
@@ -219,7 +236,7 @@ export default function AGEcarbonResultats() {
       doc.setTextColor(...bleu)
       doc.text('Poste', 18, y + 5.5)
       doc.text('Scope', 130, y + 5.5)
-      doc.text('tCO₂e', 158, y + 5.5)
+      doc.text('tCO2e', 158, y + 5.5)
       y += 8
 
       agreges.parPoste.forEach((p, i) => {
@@ -233,13 +250,14 @@ export default function AGEcarbonResultats() {
         }
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(31, 41, 55)
-        const libelle = p.poste.length > 55 ? p.poste.substring(0, 52) + '…' : p.poste
+        const libellePoste = LIBELLES_POSTES[p.poste] ?? p.poste
+const libelle = libellePoste.length > 55 ? libellePoste.substring(0, 52) + '...' : libellePoste
         doc.text(libelle, 18, y + 5.5)
         doc.setTextColor(...gris)
         doc.text(`S${p.scope}`, 132, y + 5.5)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(31, 41, 55)
-        doc.text(p.tco2e.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 158, y + 5.5)
+        doc.text(formatNombre(p.tco2e), 158, y + 5.5)
         y += 8
       })
 
