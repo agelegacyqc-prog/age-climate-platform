@@ -49,7 +49,51 @@ interface NavItemProps {
   badge?: number
   end?: boolean
 }
+function EnvironnementMenu() {
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const isActive = location.pathname.startsWith('/metier/ageadapt') || 
+                   location.pathname.startsWith('/metier/agecarbon')
 
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          width: '100%', padding: '8px 12px', border: 'none',
+          background: isActive ? 'rgba(29,158,117,0.12)' : 'transparent',
+          borderRadius: '8px', cursor: 'pointer', color: isActive ? '#1D9E75' : '#78716C',
+          fontSize: '13px', fontWeight: isActive ? 600 : 400,
+        }}
+      >
+        <i className="ti ti-leaf" style={{ fontSize: '16px' }} />
+        <span style={{ flex: 1, textAlign: 'left' }}>Environnement</span>
+        <i className={`ti ${open || isActive ? 'ti-chevron-down' : 'ti-chevron-right'}`} style={{ fontSize: '12px' }} />
+      </button>
+      {(open || isActive) && (
+        <div style={{ paddingLeft: '28px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <NavLink
+            to="/metier/ageadapt"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-chart-bar nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">AGEadapt</span>
+          </NavLink>
+          <NavLink
+            to="/metier/agecarbon"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-calculator nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">AGEcarbon</span>
+          </NavLink>
+        </div>
+      )}
+    </div>
+  )
+}
 // ─── NavItem ─────────────────────────────────────────────────────────────────
 function NavItem({ to, icon, label, badge, end }: NavItemProps) {
   return (
@@ -461,8 +505,8 @@ supabase
               {roleAGE === "admin_national" && (
                 <NavItem to="/metier/factures" icon="ti-receipt" label="Factures" />
               )}
-{/* AGEadapt — tous les rôles AGE */}
-<NavItem to="/metier/ageadapt" icon="ti-leaf" label="AGEadapt" />
+{/* Environnement — tous les rôles AGE */}
+<EnvironnementMenu />
               {/* Documents — tous les rôles AGE */}
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
 
