@@ -25,6 +25,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/messagerie":          "Messagerie",
   "/metier/reporting":           "Reporting",
 "/metier/factures":            "Factures",
+"/metier/ageadapt":            "AGEadapt",
+"/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
   "/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
@@ -459,7 +461,8 @@ supabase
               {roleAGE === "admin_national" && (
                 <NavItem to="/metier/factures" icon="ti-receipt" label="Factures" />
               )}
-
+{/* AGEadapt — tous les rôles AGE */}
+<NavItem to="/metier/ageadapt" icon="ti-leaf" label="AGEadapt" />
               {/* Documents — tous les rôles AGE */}
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
 

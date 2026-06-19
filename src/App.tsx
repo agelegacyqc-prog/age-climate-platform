@@ -36,6 +36,8 @@ import FileAttente from "./pages/metier/FileAttente"
 import Clients from "./pages/metier/Clients"
 import MonEquipe from "./pages/metier/MonEquipe"
 import GED from "./pages/metier/GED"
+import AGEadapt from "./pages/metier/AGEadapt"
+import AGEadaptMission from "./pages/metier/AGEadaptMission"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
 import PartenaireInscription from "./pages/partenaire/PartenaireInscription"
@@ -94,7 +96,8 @@ export default function App() {
           <Route path="metier/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
         </Route>
-
+<Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
+<Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
         {/* ── Portail Partenaire ── */}
