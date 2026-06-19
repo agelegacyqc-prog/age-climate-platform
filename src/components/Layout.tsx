@@ -49,6 +49,54 @@ interface NavItemProps {
   badge?: number
   end?: boolean
 }
+function FinanceMenu({ roleAGE }: { roleAGE: string }) {
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const isActive = location.pathname.startsWith('/metier/reporting') ||
+                   location.pathname.startsWith('/metier/factures')
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          width: '100%', padding: '8px 12px', border: 'none',
+          background: isActive ? 'rgba(3,105,161,0.10)' : 'transparent',
+          borderRadius: '8px', cursor: 'pointer',
+          color: isActive ? '#0369A1' : '#78716C',
+          fontSize: '13px', fontWeight: isActive ? 600 : 400,
+        }}
+      >
+        <i className="ti ti-chart-pie" style={{ fontSize: '16px' }} />
+        <span style={{ flex: 1, textAlign: 'left' }}>Finance</span>
+        <i className={`ti ${open || isActive ? 'ti-chevron-down' : 'ti-chevron-right'}`} style={{ fontSize: '12px' }} />
+      </button>
+      {(open || isActive) && (
+        <div style={{ paddingLeft: '28px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <NavLink
+            to="/metier/reporting"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-file-analytics nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Reporting</span>
+          </NavLink>
+          {roleAGE === 'admin_national' && (
+            <NavLink
+              to="/metier/factures"
+              className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+              style={{ fontSize: '12px', padding: '6px 10px' }}
+            >
+              <i className="ti ti-receipt nav-item__icon" style={{ fontSize: '14px' }} />
+              <span className="nav-item__label">Facturation</span>
+            </NavLink>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 function EnvironnementMenu() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
@@ -496,14 +544,9 @@ supabase
                 badge={nbMessagesAGE}
               />
 
-             {/* Reporting — admin_national et responsable_regional */}
+            {/* Finance — admin_national et responsable_regional */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
-                <NavItem to="/metier/reporting" icon="ti-file-analytics" label="Reporting" />
-              )}
-
-              {/* Factures — admin_national uniquement */}
-              {roleAGE === "admin_national" && (
-                <NavItem to="/metier/factures" icon="ti-receipt" label="Factures" />
+                <FinanceMenu roleAGE={roleAGE} />
               )}
 {/* Environnement — tous les rôles AGE */}
 <EnvironnementMenu />
