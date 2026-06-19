@@ -12,7 +12,7 @@ const ETAPES = [
 ]
 
 const METHODES = [
-  { id: 'abc', label: 'Bilan Carbone® ABC', desc: 'GES Scope 1–3, plateforme ORKI, plan de transition', tags: ['Entreprise', 'Collectivité'] },
+  { id: 'abc', label: 'Bilan Carbone® ABC', desc: 'GES Scope 1–3, AGEcarbon, plan de transition', tags: ['Entreprise', 'Collectivité'] },
   { id: 'act', label: 'ACT Adaptation', desc: 'Maturité adaptation, 3 dimensions, 9 modules, matrice 5 niveaux', tags: ['Entreprise'] },
   { id: 'vuln', label: 'Diagnostic vulnérabilité', desc: 'Exposition, sensibilité, capacité adaptation, aléas TRACC / GIEC', tags: ['Collectivité'] },
   { id: 'full', label: 'Mission complète', desc: 'ABC + ACT + Vulnérabilité, livrables CSRD-compatibles', tags: ['Entreprise', 'Collectivité'] },
@@ -338,20 +338,16 @@ const selectEntreprise = (e: any) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
         <button
           onClick={() => etape === 0 ? navigate('/metier/ageadapt') : setEtape(e => e - 1)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #E5E1DA', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', cursor: 'pointer', color: '#78716C' }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            background: 'transparent', border: '1px solid #E5E1DA',
+            borderRadius: '8px', padding: '9px 16px', fontSize: '13px',
+            cursor: 'pointer', color: '#78716C', fontFamily: 'inherit'
+          }}
         >
-          <button
-  onClick={() => etape === 0 ? navigate('/metier/ageadapt') : setEtape(e => e - 1)}
-  style={{ 
-    display: 'flex', alignItems: 'center', gap: '6px',
-    background: 'transparent', border: '1px solid #E5E1DA', 
-    borderRadius: '8px', padding: '9px 16px', fontSize: '13px', 
-    cursor: 'pointer', color: '#78716C', fontFamily: 'inherit'
-  }}
->
-  <ChevronLeft size={15} /> {etape === 0 ? 'Retour' : 'Précédent'}
-</button>
+          <ChevronLeft size={15} /> {etape === 0 ? 'Retour' : 'Précédent'}
         </button>
+
         {etape < 4 ? (
           <button
             onClick={() => setEtape(e => e + 1)}
