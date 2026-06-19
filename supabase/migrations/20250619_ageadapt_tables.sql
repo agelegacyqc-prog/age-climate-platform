@@ -144,3 +144,71 @@ CREATE POLICY "ageadapt_missions_write" ON ageadapt_missions
       AND p.role IN ('admin','admin_national','responsable_regional','consultant')
     )
   );
+  -- AGEcarbon v1.0 — tables et facteurs d'émission
+
+CREATE TABLE abc_facteurs_emission (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  poste             TEXT NOT NULL,
+  sous_poste        TEXT,
+  libelle           TEXT NOT NULL,
+  source            TEXT DEFAULT 'Base Carbone ADEME',
+  unite_physique    TEXT,
+  facteur_kg_co2e   NUMERIC(12,6) NOT NULL,
+  incertitude_pct   NUMERIC(5,2),
+  scope             INT CHECK (scope IN (1,2,3)),
+  actif             BOOLEAN DEFAULT true
+);
+
+CREATE TABLE abc_bilans (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at        TIMESTAMPTZ DEFAULT now(),
+  updated_at        TIMESTAMPTZ DEFAULT now(),
+  raison_sociale    TEXT NOT NULL,
+  siren             TEXT,
+  secteur_naf       TEXT,
+  effectif          INT,
+  chiffre_affaires  NUMERIC(15,2),
+  annee_reporting   INT NOT NULL,
+  perimetre_geo     TEXT DEFAULT 'France métropolitaine',
+  mode_consolidation TEXT DEFAULT 'operationnel',
+  statut            TEXT DEFAULT 'en_cours'
+                      CHECK (statut IN ('en_cours','finalise','archive')),
+  consultant_id     UUID REFERENCES profils(id),
+  region_code       TEXT,
+  total_scope1      NUMERIC(12,2) DEFAULT 0,
+  total_scope2      NUMERIC(12,2) DEFAULT 0,
+  total_scope3      NUMERIC(12,2) DEFAULT 0,
+  total_tco2e       NUMERIC(12,2) DEFAULT 0,
+  intensite_ca      NUMERIC(10,4),
+  intensite_employe NUMERIC(10,4)
+);
+
+CREATE TABLE abc_saisies (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bilan_id          UUID REFERENCES abc_bilans(id) ON DELETE CASCADE,
+  created_at        TIMESTAMPTZ DEFAULT now(),
+  poste             TEXT NOT NULL,
+  sous_poste        TEXT,
+  libelle_saisie    TEXT,
+  facteur_id        UUID REFERENCES abc_facteurs_emission(id),
+  mode_saisie       TEXT CHECK (mode_saisie IN ('physique','monetaire')),
+  quantite          NUMERIC(15,4),
+  unite             TEXT,
+  montant_eur       NUMERIC(15,2),
+  ratio_monetaire   NUMERIC(12,6),
+  kg_co2e           NUMERIC(12,2),
+  incertitude_pct   NUMERIC(5,2),
+  scope             INT CHECK (scope IN (1,2,3)),
+  hypothese         TEXT,
+  source_donnee     TEXT
+);
+
+CREATE TABLE abc_resultats (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bilan_id          UUID REFERENCES abc_bilans(id) ON DELETE CASCADE,
+  calculated_at     TIMESTAMPTZ DEFAULT now(),
+  poste             TEXT NOT NULL,
+  scope             INT,
+  total_kg_co2e     NUMERIC(12,2),
+  pct_total         NUMERIC(5,2)
+);
