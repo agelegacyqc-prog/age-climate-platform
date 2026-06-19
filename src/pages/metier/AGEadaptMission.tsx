@@ -277,7 +277,17 @@ export default function AGEadaptMission() {
           onClick={() => etape === 0 ? navigate('/metier/ageadapt') : setEtape(e => e - 1)}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #E5E1DA', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', cursor: 'pointer', color: '#78716C' }}
         >
-          <ChevronLeft size={15} /> {etape === 0 ? 'Annuler' : 'Précédent'}
+          <button
+  onClick={() => etape === 0 ? navigate('/metier/ageadapt') : setEtape(e => e - 1)}
+  style={{ 
+    display: 'flex', alignItems: 'center', gap: '6px',
+    background: 'transparent', border: '1px solid #E5E1DA', 
+    borderRadius: '8px', padding: '9px 16px', fontSize: '13px', 
+    cursor: 'pointer', color: '#78716C', fontFamily: 'inherit'
+  }}
+>
+  <ChevronLeft size={15} /> {etape === 0 ? 'Retour' : 'Précédent'}
+</button>
         </button>
         {etape < 4 ? (
           <button
