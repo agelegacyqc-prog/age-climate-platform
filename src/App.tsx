@@ -95,9 +95,9 @@ export default function App() {
           <Route path="metier/file-attente" element={<ProtectedRoute><FileAttente /></ProtectedRoute>} />
           <Route path="metier/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
-        </Route>
-<Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
+          <Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
 <Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />
+        </Route>
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
         {/* ── Portail Partenaire ── */}
