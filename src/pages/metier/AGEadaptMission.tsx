@@ -28,6 +28,30 @@ export default function AGEadaptMission() {
   const navigate = useNavigate()
   const [etape, setEtape] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [suggestions, setSuggestions] = useState<any[]>([])
+const [loadingSiren, setLoadingSiren] = useState(false)
+
+const searchEntreprise = async (nom: string) => {
+  set('raison_sociale', nom)
+  if (nom.length < 3) { setSuggestions([]); return }
+  setLoadingSiren(true)
+  try {
+    const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(nom)}&limit=5`)
+    const data = await res.json()
+    setSuggestions(data.results || [])
+  } catch { setSuggestions([]) }
+  setLoadingSiren(false)
+}
+
+const selectEntreprise = (e: any) => {
+  setForm(f => ({
+    ...f,
+    raison_sociale: e.nom_complet || e.nom_raison_sociale || '',
+    siren: e.siren || '',
+    secteur_naf: e.activite_principale || '',
+  }))
+  setSuggestions([])
+}
 
   const [form, setForm] = useState({
     raison_sociale: '',
@@ -149,7 +173,46 @@ export default function AGEadaptMission() {
         <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
           <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '16px' }}>Qualification client</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div><label style={labelStyle}>Raison sociale *</label><input style={inputStyle} value={form.raison_sociale} onChange={e => set('raison_sociale', e.target.value)} placeholder="Ex. : Groupe TCP" /></div>
+            <div><label style={labelStyle}>Raison sociale *</label>
+<div style={{ position: 'relative' }}>
+  <input
+    style={inputStyle}
+    value={form.raison_sociale}
+    onChange={e => searchEntreprise(e.target.value)}
+    placeholder="Tapez le nom de l'entreprise..."
+    autoComplete="off"
+  />
+  {loadingSiren && (
+    <div style={{ position: 'absolute', right: '10px', top: '8px', fontSize: '11px', color: '#78716C' }}>
+      Recherche...
+    </div>
+  )}
+  {suggestions.length > 0 && (
+    <div style={{
+      position: 'absolute', top: '100%', left: 0, right: 0,
+      background: 'white', border: '1px solid #E5E1DA',
+      borderRadius: '8px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+      maxHeight: '200px', overflowY: 'auto'
+    }}>
+      {suggestions.map((e, i) => (
+        <div
+          key={i}
+          onClick={() => selectEntreprise(e)}
+          style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F8F7F4' }}
+          onMouseEnter={ev => (ev.currentTarget.style.background = '#F8F7F4')}
+          onMouseLeave={ev => (ev.currentTarget.style.background = 'white')}
+        >
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1F2937' }}>
+            {e.nom_complet || e.nom_raison_sociale}
+          </div>
+          <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>
+            SIREN : {e.siren} — {e.activite_principale} — {e.siege?.commune}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div></div>
             <div><label style={labelStyle}>SIREN</label><input style={inputStyle} value={form.siren} onChange={e => set('siren', e.target.value)} placeholder="9 chiffres" /></div>
             <div>
               <label style={labelStyle}>Type de structure *</label>
