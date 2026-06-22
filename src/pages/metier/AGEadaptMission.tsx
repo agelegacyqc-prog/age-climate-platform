@@ -128,8 +128,79 @@ const selectEntreprise = (e: any) => {
       statut: 'brouillon',
     })
     setSaving(false)
-    if (!error) navigate('/metier/ageadapt')
-    else alert('Erreur : ' + error.message)
+    if (error) {
+      alert('Erreur : ' + error.message)
+      setSaving(false)
+      return
+    }
+
+    // Récupérer l'id de la mission créée
+    const { data: missionCreee } = await supabase
+      .from('ageadapt_missions')
+      .select('id')
+      .eq('raison_sociale', form.raison_sociale)
+      .eq('siren', form.siren)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (missionCreee) {
+      const TJM = 950
+      const BASE_J: Record<string, number[]> = {
+        abc:  [3, 5, 7, 10, 14, 18],
+        act:  [4, 6, 9, 13, 17, 22],
+        vuln: [5, 8, 12, 17, 22, 28],
+        full: [10, 15, 22, 30, 40, 50],
+      }
+      const PHASES: Record<string, [number, number, number]> = {
+        abc:  [35, 35, 30],
+        act:  [30, 40, 30],
+        vuln: [40, 35, 25],
+        full: [30, 40, 30],
+      }
+      const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
+      const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
+      const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
+      const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
+      const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
+      const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
+      const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
+      const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
+      const tL = Math.round(j * TJM * 0.90 / 100) * 100
+      const tH = Math.round(j * TJM * 1.15 / 100) * 100
+      const phases = PHASES[form.methode] ?? [33, 34, 33]
+      const ph1j = Math.round(j * phases[0] / 100)
+      const ph2j = Math.round(j * phases[1] / 100)
+      const ph3j = j - ph1j - ph2j
+
+      await supabase.from('ageadapt_simulations').insert({
+        mission_id: missionCreee.id,
+        type_structure: form.type_structure,
+        effectif_tranche: parseInt(form.effectif_tranche) || null,
+        nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
+        methode: form.methode,
+        bilan_existant: form.bilan_existant,
+        maturite_donnees: parseInt(form.maturite_donnees),
+        jours_consultant: j,
+        duree_mois: duree,
+        tarif_bas_ht: tL,
+        tarif_haut_ht: tH,
+        tjm_reference: TJM,
+        phase1_jours: ph1j,
+        phase1_pct: phases[0],
+        phase1_montant: Math.round(ph1j * TJM),
+        phase2_jours: ph2j,
+        phase2_pct: phases[1],
+        phase2_montant: Math.round(ph2j * TJM),
+        phase3_jours: ph3j,
+        phase3_pct: phases[2],
+        phase3_montant: Math.round(ph3j * TJM),
+      })
+
+      navigate(`/metier/ageadapt/${missionCreee.id}`)
+    } else {
+      navigate('/metier/ageadapt')
+    }
   }
 
   const inputStyle = {

@@ -38,6 +38,7 @@ import MonEquipe from "./pages/metier/MonEquipe"
 import GED from "./pages/metier/GED"
 import AGEadapt from "./pages/metier/AGEadapt"
 import AGEadaptMission from "./pages/metier/AGEadaptMission"
+import AGEadaptFiche from "./pages/metier/AGEadaptFiche"
 import AGEcarbon from "./pages/metier/AGEcarbon"
 import AGEcarbonNouveau from "./pages/metier/AGEcarbonNouveau"
 import AGEcarbonSaisie from "./pages/metier/AGEcarbonSaisie"
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
           <Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
 <Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />
+<Route path="metier/ageadapt/:id" element={<ProtectedRoute><AGEadaptFiche /></ProtectedRoute>} />
 <Route path="metier/agecarbon" element={<ProtectedRoute><AGEcarbon /></ProtectedRoute>} />
 <Route path="metier/agecarbon/nouveau" element={<ProtectedRoute><AGEcarbonNouveau /></ProtectedRoute>} />
 <Route path="metier/agecarbon/:id" element={<ProtectedRoute><AGEcarbonSaisie /></ProtectedRoute>} />
