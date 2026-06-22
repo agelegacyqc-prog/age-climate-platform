@@ -122,10 +122,14 @@ export default function AGEadapt() {
             const pct = Math.round((m.etape_courante / 5) * 100)
             const mc = METHODE_COLORS[m.methode] || { bg: '#F3F4F6', text: '#6B7280' }
             return (
-              <div key={m.id} style={{
+              <div key={m.id} onClick={() => navigate(`/metier/ageadapt/${m.id}`)} style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '10px 0', borderBottom: '1px solid #E5E1DA'
-              }}>
+                padding: '10px 0', borderBottom: '1px solid #E5E1DA',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#F8F7F4')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
                 <div style={{
                   width: '34px', height: '34px', borderRadius: '8px',
                   background: m.type_structure === 'collectivite' ? '#FEF3C7' : '#DBEAFE',

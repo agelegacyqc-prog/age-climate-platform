@@ -54,12 +54,39 @@ export default function AGEadaptFiche() {
   const [mission, setMission] = useState<Mission | null>(null)
   const [simulation, setSimulation] = useState<Simulation | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState({
+    type_structure: '',
+    effectif_tranche: '',
+    region: '',
+    methode: '',
+    nb_sites_tranche: '',
+    bilan_existant: false,
+  })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!id) return
     charger()
   }, [id])
-
+async function sauvegarder() {
+    setSaving(true)
+    const { error } = await supabase
+      .from('ageadapt_missions')
+      .update({
+        type_structure: editForm.type_structure || null,
+        effectif_tranche: parseInt(editForm.effectif_tranche) || null,
+        region: editForm.region || null,
+        methode: editForm.methode || null,
+        nb_sites_tranche: parseInt(editForm.nb_sites_tranche) || null,
+        bilan_existant: editForm.bilan_existant,
+      })
+      .eq('id', id)
+    setSaving(false)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setEditMode(false)
+    charger()
+  }
   async function charger() {
     setLoading(true)
     const { data: m } = await supabase
@@ -68,6 +95,16 @@ export default function AGEadaptFiche() {
       .eq('id', id)
       .single()
     setMission(m)
+    if (m) {
+      setEditForm({
+        type_structure: m.type_structure || '',
+        effectif_tranche: String(m.effectif_tranche || ''),
+        region: m.region || '',
+        methode: m.methode || '',
+        nb_sites_tranche: String(m.nb_sites_tranche || ''),
+        bilan_existant: m.bilan_existant || false,
+      })
+    }
 
     const { data: s } = await supabase
       .from('ageadapt_simulations')
@@ -125,27 +162,114 @@ export default function AGEadaptFiche() {
         </span>
       </div>
 
+      
       {/* Infos client */}
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 14px' }}>Identification client</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {[
-            { icone: <Leaf size={14} color="#1D9E75" />, label: 'Structure', val: mission.type_structure || '—' },
-            { icone: <Users size={14} color="#1D9E75" />, label: 'Effectif', val: LIBELLES_EFFECTIF[mission.effectif_tranche] ?? '—' },
-            { icone: <MapPin size={14} color="#1D9E75" />, label: 'Région', val: mission.region || '—' },
-            { icone: <Target size={14} color="#1D9E75" />, label: 'Méthode', val: LIBELLES_METHODE[mission.methode] ?? '—' },
-            { icone: <Users size={14} color="#1D9E75" />, label: 'Sites', val: LIBELLES_SITES[mission.nb_sites_tranche] ?? '—' },
-            { icone: <Calendar size={14} color="#1D9E75" />, label: 'Bilan existant', val: mission.bilan_existant ? 'Oui (−35 %)' : 'Non' },
-          ].map(item => (
-            <div key={item.label} style={{ padding: '10px 12px', background: '#F8F7F4', borderRadius: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                {item.icone}
-                <span style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>{item.val}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Identification client</h2>
+          {!editMode ? (
+            <button onClick={() => setEditMode(true)} style={{ fontSize: 12, color: '#1D9E75', background: 'none', border: '1px solid #1D9E75', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+              Modifier
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditMode(false)} style={{ fontSize: 12, color: '#78716C', background: 'none', border: '1px solid #E5E1DA', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={sauvegarder} disabled={saving} style={{ fontSize: 12, color: 'white', background: '#1D9E75', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+                {saving ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
             </div>
-          ))}
+          )}
         </div>
+       {!editMode ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {[
+              { icone: <Leaf size={14} color="#1D9E75" />, label: 'Structure', val: mission.type_structure || '—' },
+              { icone: <Users size={14} color="#1D9E75" />, label: 'Effectif', val: LIBELLES_EFFECTIF[mission.effectif_tranche] ?? '—' },
+              { icone: <MapPin size={14} color="#1D9E75" />, label: 'Région', val: mission.region || '—' },
+              { icone: <Target size={14} color="#1D9E75" />, label: 'Méthode', val: LIBELLES_METHODE[mission.methode] ?? '—' },
+              { icone: <Users size={14} color="#1D9E75" />, label: 'Sites', val: LIBELLES_SITES[mission.nb_sites_tranche] ?? '—' },
+              { icone: <Calendar size={14} color="#1D9E75" />, label: 'Bilan existant', val: mission.bilan_existant ? 'Oui (−35 %)' : 'Non' },
+            ].map(item => (
+              <div key={item.label} style={{ padding: '10px 12px', background: '#F8F7F4', borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  {item.icone}
+                  <span style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>{item.val}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Structure</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.type_structure} onChange={e => setEditForm(f => ({ ...f, type_structure: e.target.value }))}>
+                <option value="">—</option>
+                <option value="entreprise">Entreprise / Groupe</option>
+                <option value="collectivite">Collectivité / EPCI</option>
+                <option value="asso">Association</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Effectif</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.effectif_tranche} onChange={e => setEditForm(f => ({ ...f, effectif_tranche: e.target.value }))}>
+                <option value="">—</option>
+                <option value="1">1 – 10</option>
+                <option value="2">11 – 49</option>
+                <option value="3">50 – 249</option>
+                <option value="4">250 – 499</option>
+                <option value="5">500 – 999</option>
+                <option value="6">1 000+</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Région</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.region} onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))}>
+                <option value="">—</option>
+                <option>Nouvelle-Aquitaine</option>
+                <option>Île-de-France</option>
+                <option>Occitanie</option>
+                <option>Auvergne-Rhône-Alpes</option>
+                <option>Autre</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Méthode</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.methode} onChange={e => setEditForm(f => ({ ...f, methode: e.target.value }))}>
+                <option value="">—</option>
+                <option value="abc">Bilan Carbone® ABC</option>
+                <option value="act">ACT Adaptation</option>
+                <option value="vuln">Diagnostic vulnérabilité</option>
+                <option value="full">Mission complète</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Sites</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.nb_sites_tranche} onChange={e => setEditForm(f => ({ ...f, nb_sites_tranche: e.target.value }))}>
+                <option value="">—</option>
+                <option value="1">1 site</option>
+                <option value="2">2 – 3 sites</option>
+                <option value="3">4 – 9 sites</option>
+                <option value="4">10 sites et +</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Bilan existant</label>
+              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+                value={editForm.bilan_existant ? 'oui' : 'non'} onChange={e => setEditForm(f => ({ ...f, bilan_existant: e.target.value === 'oui' }))}>
+                <option value="non">Non</option>
+                <option value="oui">Oui</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Simulation tarifaire */}
