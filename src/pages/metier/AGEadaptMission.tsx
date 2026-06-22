@@ -106,7 +106,7 @@ const selectEntreprise = (e: any) => {
     const { error } = await supabase.from('ageadapt_missions').insert({
       raison_sociale: form.raison_sociale,
       siren: form.siren,
-      type_structure: form.type_structure,
+      type_structure: form.type_structure || null,
       secteur_naf: form.secteur_naf,
       effectif_tranche: parseInt(form.effectif_tranche) || null,
       nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
@@ -115,7 +115,7 @@ const selectEntreprise = (e: any) => {
       diagnostic_existant: form.diagnostic_existant,
       plan_transition_init: form.plan_transition_init,
       pcaet_adopte: form.pcaet_adopte,
-      methode: form.methode,
+      methode: form.methode || null,
       scope1: form.scope1,
       scope2: form.scope2,
       scope3_transport: form.scope3_transport,
@@ -675,7 +675,17 @@ const selectEntreprise = (e: any) => {
 
         {etape < 4 ? (
           <button
-            onClick={() => setEtape(e => e + 1)}
+            onClick={() => {
+              if (etape === 0 && !form.type_structure) {
+                alert('Veuillez sélectionner un type de structure.')
+                return
+              }
+              if (etape === 1 && !form.methode) {
+                alert('Veuillez sélectionner une méthode.')
+                return
+              }
+              setEtape(e => e + 1)
+            }}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#1D9E75', color: 'white', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
           >
             Suivant <ChevronRight size={15} />
