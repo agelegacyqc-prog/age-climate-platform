@@ -56,7 +56,14 @@ export default function FileAttente() {
   const [selectedResponsable, setSelectedResponsable] = useState("")
   const [assignLoading, setAssignLoading]     = useState(false)
   const [assignSuccess, setAssignSuccess]     = useState(false)
-
+// Drawer Marketplace
+  const [drawerMarketplaceOpen, setDrawerMarketplaceOpen] = useState(false)
+  const [selectedMarketplace, setSelectedMarketplace] = useState<any>(null)
+  const [marketplaceRegion, setMarketplaceRegion] = useState("")
+  const [marketplaceResponsables, setMarketplaceResponsables] = useState<Responsable[]>([])
+  const [marketplaceResponsable, setMarketplaceResponsable] = useState("")
+  const [marketplaceActionLoading, setMarketplaceActionLoading] = useState(false)
+  const [marketplaceSuccess, setMarketplaceSuccess] = useState(false)
   // Drawer RDV
   const [drawerRdvOpen, setDrawerRdvOpen]     = useState(false)
   const [selectedRdv, setSelectedRdv]         = useState<DemandeRDV | null>(null)
@@ -223,7 +230,72 @@ if (d.region && !d.multi_region) {
       setAssignLoading(false)
     }
   }
+async function ouvrirMarketplace(d: any) {
+    setSelectedMarketplace(d)
+    setMarketplaceRegion(d.region || "")
+    setMarketplaceResponsable("")
+    setMarketplaceSuccess(false)
+   await chargerResponsablesMarketplace()
+    setDrawerMarketplaceOpen(true)
+  }
 
+ async function chargerResponsablesMarketplace() {
+    const { data } = await supabase
+      .from("profils")
+      .select("id, prenom, nom, region")
+      .eq("role", "responsable_regional")
+    setMarketplaceResponsables(data || [])
+  }
+
+  async function handleMarketplaceValider() {
+    if (!selectedMarketplace || !marketplaceResponsable) return
+    setMarketplaceActionLoading(true)
+    try {
+      // Récupérer la région du responsable sélectionné
+      const responsable = marketplaceResponsables.find(r => r.id === marketplaceResponsable)
+
+      // Mettre à jour la demande marketplace
+      await supabase.from("demandes_marketplace").update({
+        statut: "validee",
+        region: responsable?.region || null,
+        consultant_id: marketplaceResponsable,
+      }).eq("id", selectedMarketplace.id)
+
+      // Créer la mission correspondante
+      await supabase.from("missions").insert({
+        societe: selectedMarketplace.client_nom || "Client marketplace",
+        type_manager: selectedMarketplace.type_prestation || null,
+        description: selectedMarketplace.description || null,
+        origine: "marketplace",
+        statut: "nouvelle",
+        phase: 1,
+        region: responsable?.region || null,
+        responsable_id: marketplaceResponsable,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      setMarketplaceSuccess(true)
+      charger()
+      setTimeout(() => {
+        setDrawerMarketplaceOpen(false)
+        setMarketplaceSuccess(false)
+      }, 1500)
+    } finally {
+      setMarketplaceActionLoading(false)
+    }
+  }
+
+  async function handleMarketplaceRejeter() {
+    if (!selectedMarketplace) return
+    setMarketplaceActionLoading(true)
+    try {
+      await supabase.from("demandes_marketplace").update({ statut: "rejetee" }).eq("id", selectedMarketplace.id)
+      setDemandesMarketplace(prev => prev.filter(m => m.id !== selectedMarketplace.id))
+      setDrawerMarketplaceOpen(false)
+    } finally {
+      setMarketplaceActionLoading(false)
+    }
+  }
   async function ouvrirRdv(rdv: DemandeRDV) {
     setSelectedRdv(rdv)
     setDrawerRdvOpen(true)
@@ -526,26 +598,12 @@ if (d.region && !d.multi_region) {
                 </span>
               </td>
               <td style={{ ...tdStyle, textAlign: "right" }}>
-                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                  <button
-                    onClick={async () => {
-                      await supabase.from("demandes_marketplace").update({ statut: "validee" }).eq("id", d.id)
-                      setDemandesMarketplace(prev => prev.filter(m => m.id !== d.id))
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "none", background: "#B25C2A", color: "white", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    <i className="ti ti-check" style={{ fontSize: "12px" }} /> Valider
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await supabase.from("demandes_marketplace").update({ statut: "rejetee" }).eq("id", d.id)
-                      setDemandesMarketplace(prev => prev.filter(m => m.id !== d.id))
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#B91C1C", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    <i className="ti ti-x" style={{ fontSize: "12px" }} /> Rejeter
-                  </button>
-                </div>
+               <button
+                  onClick={() => ouvrirMarketplace(d)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-eye" style={{ fontSize: "13px" }} /> Traiter
+                </button>
               </td>
             </tr>
           ))}
@@ -561,6 +619,102 @@ if (d.region && !d.multi_region) {
     )}
   </div>
 )}
+{/* ── Drawer Marketplace ── */}
+      {drawerMarketplaceOpen && selectedMarketplace && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerMarketplaceOpen(false)} />
+          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "440px", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
+            
+            {/* En-tête */}
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div>
+                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Demande Marketplace</h2>
+                <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>{selectedMarketplace.client_nom || selectedMarketplace.client_id}</p>
+              </div>
+              <button onClick={() => setDrawerMarketplaceOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                <i className="ti ti-x" style={{ fontSize: "14px" }} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+              {/* Type de prescription */}
+              <div style={{ padding: "14px", background: "#F9F0EA", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
+                <p style={{ fontSize: "11px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Type de prescription</p>
+                <p style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{selectedMarketplace.type_prestation || "—"}</p>
+              </div>
+
+              {/* Description */}
+              {selectedMarketplace.description && (
+                <div>
+                  <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "6px" }}>Description</p>
+                  <div style={{ padding: "12px", background: "#F4F3F0", borderRadius: "8px", fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>
+                    {selectedMarketplace.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Date */}
+              <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "12px", borderBottom: "1px solid #F4F3F0" }}>
+                <span style={{ fontSize: "12px", color: "#6B7280" }}>Reçue le</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{formatDate(selectedMarketplace.created_at)}</span>
+              </div>
+
+              {marketplaceSuccess ? (
+                <div style={{ padding: "14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "8px", display: "flex", gap: "10px", alignItems: "center" }}>
+                  <i className="ti ti-circle-check" style={{ fontSize: "20px", color: "#2F7D5C" }} />
+                  <div style={{ fontSize: "13px", fontWeight: 500, color: "#2F7D5C" }}>Demande validée et assignée</div>
+                </div>
+              ) : (
+                <>
+                 
+              {/* Responsables */}
+                  <div>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
+                      Assigner à un responsable régional
+                    </p>
+                    {marketplaceResponsables.length === 0 ? (
+                      <p style={{ fontSize: "13px", color: "#9CA3AF" }}>Aucun responsable régional disponible.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {marketplaceResponsables.map(r => (
+                          <label key={r.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px", borderRadius: "8px", cursor: "pointer", border: `1px solid ${marketplaceResponsable === r.id ? "#B25C2A" : "#E2DDD8"}`, background: marketplaceResponsable === r.id ? "#F9F0EA" : "white" }}>
+                            <input type="radio" name="marketplace_responsable" value={r.id} checked={marketplaceResponsable === r.id} onChange={() => setMarketplaceResponsable(r.id)} style={{ accentColor: "#B25C2A" }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{r.prenom} {r.nom}</div>
+                              <div style={{ fontSize: "11px", color: "#6B7280" }}>{r.region}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Actions */}
+            {!marketplaceSuccess && (
+              <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", display: "flex", gap: "8px", flexShrink: 0 }}>
+                <button
+                  onClick={handleMarketplaceRejeter}
+                  disabled={marketplaceActionLoading}
+                  style={{ flex: 1, padding: "10px", background: "white", color: "#B91C1C", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-x" style={{ fontSize: "14px" }} /> Rejeter
+                </button>
+                <button
+                  onClick={handleMarketplaceValider}
+                  disabled={!marketplaceResponsable || marketplaceActionLoading}
+                  style={{ flex: 2, padding: "10px", background: !marketplaceResponsable ? "#E5E1DA" : "#B25C2A", color: !marketplaceResponsable ? "#78716C" : "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: !marketplaceResponsable ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-user-check" style={{ fontSize: "14px" }} /> Valider & Assigner
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
       {/* ── Drawer Assignation ── */}
       {drawerOpen && selectedDemande && (
         <>
