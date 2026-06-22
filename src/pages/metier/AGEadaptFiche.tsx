@@ -65,11 +65,54 @@ export default function AGEadaptFiche() {
     bilan_existant: false,
   })
   const [saving, setSaving] = useState(false)
-const [exportEnCours, setExportEnCours] = useState(false)
+  const [exportEnCours, setExportEnCours] = useState(false)
+  const [rapportEnCours, setRapportEnCours] = useState(false)
+  const [rapport, setRapport] = useState<string | null>(null)
+
   useEffect(() => {
     if (!id) return
     charger()
   }, [id])
+
+  async function genererRapport() {
+    if (!mission) return
+    setRapportEnCours(true)
+    try {
+      const { data: simData } = await supabase
+        .from('ageadapt_simulations')
+        .select('*')
+        .eq('mission_id', mission.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const sessionResult = await supabase.auth.getSession()
+      const session = sessionResult.data.session
+
+      const response = await fetch(
+        'https://vkclvfsblsjpuycjfiso.supabase.co/functions/v1/generate-rapport',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            module: 'ageadapt',
+            data: { mission, simulation: simData },
+          }),
+        }
+      )
+      const result = await response.json()
+      setRapport(result.rapport ?? null)
+    } catch (e) {
+      console.error('Erreur génération rapport:', e)
+      alert('Erreur : ' + String(e))
+    } finally {
+      setRapportEnCours(false)
+    }
+  }
+
   async function exporterPDF() {
     if (!mission) return
     setExportEnCours(true)
@@ -79,7 +122,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
       const vert = [29, 158, 117] as [number, number, number]
       const gris = [120, 113, 108] as [number, number, number]
 
-      // En-tête
       doc.setFillColor(...bleu)
       doc.rect(0, 0, 210, 32, 'F')
       doc.setTextColor(255, 255, 255)
@@ -94,7 +136,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
       doc.setFontSize(9)
       doc.text(`Edite le ${new Date().toLocaleDateString('fr-FR')}`, 150, 28)
 
-      // Statut
       doc.setFillColor(...vert)
       doc.rect(15, 40, 180, 12, 'F')
       doc.setTextColor(255, 255, 255)
@@ -103,7 +144,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
       doc.text(`METHODE : ${LIBELLES_METHODE[mission.methode] ?? '—'}`, 20, 48)
       doc.text(`STATUT : ${mission.statut.toUpperCase()}`, 130, 48)
 
-      // Identification client
       doc.setTextColor(...bleu)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
@@ -130,7 +170,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
         doc.text(info[1], col, row + 5)
       })
 
-      // Aléas
       if (mission.aleas && mission.aleas.length > 0) {
         let y = 96
         doc.setFont('helvetica', 'bold')
@@ -144,7 +183,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
         doc.text(mission.aleas.join(' · '), 15, y)
       }
 
-      // Simulation tarifaire
       if (simulation) {
         let y = 120
         doc.setFont('helvetica', 'bold')
@@ -153,7 +191,6 @@ const [exportEnCours, setExportEnCours] = useState(false)
         doc.text('Simulation tarifaire', 15, y)
         y += 8
 
-        // KPIs
         doc.setFillColor(241, 245, 249)
         doc.rect(15, y, 55, 20, 'F')
         doc.rect(75, y, 75, 20, 'F')
@@ -171,8 +208,8 @@ const [exportEnCours, setExportEnCours] = useState(false)
         doc.text(String(simulation.jours_consultant), 17, y + 14)
         doc.setFontSize(11)
         const tL = simulation.tarif_bas_ht.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-const tH = simulation.tarif_haut_ht.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-doc.text(`${tL} - ${tH} EUR`, 77, y + 14)
+        const tH = simulation.tarif_haut_ht.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+        doc.text(`${tL} - ${tH} EUR`, 77, y + 14)
         doc.setFontSize(14)
         doc.text(`${simulation.duree_mois} mois`, 157, y + 14)
 
@@ -216,7 +253,6 @@ doc.text(`${tL} - ${tH} EUR`, 77, y + 14)
         })
       }
 
-      // Pied de page
       doc.setTextColor(...gris)
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
@@ -230,7 +266,8 @@ doc.text(`${tL} - ${tH} EUR`, 77, y + 14)
       setExportEnCours(false)
     }
   }
-async function sauvegarder() {
+
+  async function sauvegarder() {
     setSaving(true)
     const { error } = await supabase
       .from('ageadapt_missions')
@@ -248,6 +285,7 @@ async function sauvegarder() {
     setEditMode(false)
     charger()
   }
+
   async function charger() {
     setLoading(true)
     const { data: m } = await supabase
@@ -266,7 +304,6 @@ async function sauvegarder() {
         bilan_existant: m.bilan_existant || false,
       })
     }
-
     const { data: s } = await supabase
       .from('ageadapt_simulations')
       .select('*')
@@ -323,6 +360,21 @@ async function sauvegarder() {
             {mission.statut.charAt(0).toUpperCase() + mission.statut.slice(1)}
           </span>
           <button
+            onClick={genererRapport}
+            disabled={rapportEnCours}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#1A3A5F', color: 'white',
+              border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              cursor: rapportEnCours ? 'not-allowed' : 'pointer',
+              opacity: rapportEnCours ? 0.7 : 1,
+            }}
+          >
+            <i className="ti ti-sparkles" style={{ fontSize: 15 }} />
+            {rapportEnCours ? 'Génération...' : 'Rapport IA'}
+          </button>
+          <button
             onClick={exporterPDF}
             disabled={exportEnCours}
             style={{
@@ -340,7 +392,6 @@ async function sauvegarder() {
         </div>
       </div>
 
-      
       {/* Infos client */}
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -360,7 +411,7 @@ async function sauvegarder() {
             </div>
           )}
         </div>
-       {!editMode ? (
+        {!editMode ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {[
               { icone: <Leaf size={14} color="#1D9E75" />, label: 'Structure', val: mission.type_structure || '—' },
@@ -474,7 +525,6 @@ async function sauvegarder() {
             </div>
           </div>
 
-          {/* Phases */}
           <p style={{ fontSize: 12, fontWeight: 600, color: '#1F2937', marginBottom: 10 }}>Répartition par phase</p>
           {[
             { label: 'Collecte & cadrage', j: simulation.phase1_jours, pct: simulation.phase1_pct, couleur: '#1D9E75' },
@@ -496,7 +546,7 @@ async function sauvegarder() {
 
       {/* Aléas */}
       {mission.aleas && mission.aleas.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px' }}>
+        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginBottom: 16 }}>
           <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' }}>Aléas climatiques</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {mission.aleas.map(a => (
@@ -505,6 +555,32 @@ async function sauvegarder() {
                 background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A',
               }}>{a}</span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rapport IA */}
+      {rapport && (
+        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="ti ti-sparkles" style={{ color: '#1A3A5F', fontSize: 18 }} />
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Rapport IA — AGEadapt</h2>
+            </div>
+            <button onClick={() => setRapport(null)} style={{ fontSize: 12, color: '#78716C', background: 'none', border: '1px solid #E5E1DA', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+              Effacer
+            </button>
+          </div>
+          <div style={{ fontSize: 13, color: '#1F2937', lineHeight: 1.8 }}>
+            {rapport.split('\n').map((line, i) => {
+              if (line.startsWith('**') && line.endsWith('**')) {
+                return <p key={i} style={{ fontWeight: 700, color: '#1A3A5F', marginTop: 16, marginBottom: 4 }}>{line.replace(/\*\*/g, '')}</p>
+              }
+              if (line.startsWith('- ')) {
+                return <p key={i} style={{ paddingLeft: 16, marginBottom: 4 }}>• {line.slice(2)}</p>
+              }
+              return <p key={i} style={{ marginBottom: 4 }}>{line}</p>
+            })}
           </div>
         </div>
       )}

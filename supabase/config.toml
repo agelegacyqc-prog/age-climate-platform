@@ -9,3 +9,14 @@ entrypoint = "./functions/analyse-actif/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/analyse-actif/*.html" ]
+
+[functions.generate-rapport]
+enabled = true
+verify_jwt = false
+import_map = "./functions/generate-rapport/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/generate-rapport/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/generate-rapport/*.html" ]
