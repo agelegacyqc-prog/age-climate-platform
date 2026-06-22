@@ -281,6 +281,22 @@ if (texte && mission.id) {
   }
 async function exporterRapportPDF() {
     if (!mission || !rapport) return
+    const nettoyerTexte = (t: string) => t
+      .replace(/✅/g, '[OK]')
+      .replace(/⚠️/g, '[!]')
+      .replace(/❌/g, '[X]')
+      .replace(/🌡️/g, '')
+      .replace(/💧/g, '')
+      .replace(/🌧️/g, '')
+      .replace(/🔥/g, '')
+      .replace(/⚡/g, '')
+      .replace(/📌/g, '')
+      .replace(/[^\x00-\x7F\u00C0-\u024F]/g, '')
+      .replace(/> \*/g, '')
+      .replace(/>\s*&.*?$/gm, '')
+
+    const rapportNettoye = nettoyerTexte(rapport)
+    const lignes = rapportNettoye.split('\n')
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const bleu = [26, 58, 95] as [number, number, number]
     const gris = [120, 113, 108] as [number, number, number]
@@ -296,7 +312,7 @@ async function exporterRapportPDF() {
     doc.text(`${mission.raison_sociale} · ${new Date().toLocaleDateString('fr-FR')}`, 15, 22)
 
     let y = 38
-    const lignes = rapport.split('\n')
+    
     for (const ligne of lignes) {
       if (y > 275) { doc.addPage(); y = 20 }
       if (!ligne.trim()) { y += 4; continue }
