@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Leaf, Calendar, Users, MapPin, Target } from 'lucide-react'
+import { ArrowLeft, Leaf, Calendar, Users, MapPin, Target, Download } from 'lucide-react'
+import jsPDF from 'jspdf'
 
 interface Mission {
   id: string
@@ -64,11 +65,171 @@ export default function AGEadaptFiche() {
     bilan_existant: false,
   })
   const [saving, setSaving] = useState(false)
-
+const [exportEnCours, setExportEnCours] = useState(false)
   useEffect(() => {
     if (!id) return
     charger()
   }, [id])
+  async function exporterPDF() {
+    if (!mission) return
+    setExportEnCours(true)
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const bleu = [26, 58, 95] as [number, number, number]
+      const vert = [29, 158, 117] as [number, number, number]
+      const gris = [120, 113, 108] as [number, number, number]
+
+      // En-tête
+      doc.setFillColor(...bleu)
+      doc.rect(0, 0, 210, 32, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.text('FICHE MISSION — AGEadapt', 15, 14)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${mission.raison_sociale}${mission.siren ? ' · SIREN ' + mission.siren : ''}`, 15, 22)
+      doc.text(`Creee le ${new Date(mission.created_at).toLocaleDateString('fr-FR')}`, 15, 28)
+      doc.setTextColor(...gris)
+      doc.setFontSize(9)
+      doc.text(`Edite le ${new Date().toLocaleDateString('fr-FR')}`, 150, 28)
+
+      // Statut
+      doc.setFillColor(...vert)
+      doc.rect(15, 40, 180, 12, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.text(`METHODE : ${LIBELLES_METHODE[mission.methode] ?? '—'}`, 20, 48)
+      doc.text(`STATUT : ${mission.statut.toUpperCase()}`, 130, 48)
+
+      // Identification client
+      doc.setTextColor(...bleu)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.text('Identification client', 15, 64)
+
+      const infos = [
+        ['Structure', mission.type_structure || '—'],
+        ['Effectif', LIBELLES_EFFECTIF[mission.effectif_tranche] ?? '—'],
+        ['Region', mission.region || '—'],
+        ['Nombre de sites', LIBELLES_SITES[mission.nb_sites_tranche] ?? '—'],
+        ['Bilan existant', mission.bilan_existant ? 'Oui (-35 %)' : 'Non'],
+        ['Secteur NAF', mission.secteur_naf || '—'],
+      ]
+
+      infos.forEach((info, i) => {
+        const col = i % 2 === 0 ? 15 : 110
+        const row = 70 + Math.floor(i / 2) * 10
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(...gris)
+        doc.text(info[0], col, row)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(31, 41, 55)
+        doc.text(info[1], col, row + 5)
+      })
+
+      // Aléas
+      if (mission.aleas && mission.aleas.length > 0) {
+        let y = 96
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(...bleu)
+        doc.text('Aleas climatiques', 15, y)
+        y += 6
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(31, 41, 55)
+        doc.text(mission.aleas.join(' · '), 15, y)
+      }
+
+      // Simulation tarifaire
+      if (simulation) {
+        let y = 120
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(...bleu)
+        doc.text('Simulation tarifaire', 15, y)
+        y += 8
+
+        // KPIs
+        doc.setFillColor(241, 245, 249)
+        doc.rect(15, y, 55, 20, 'F')
+        doc.rect(75, y, 75, 20, 'F')
+        doc.rect(155, y, 40, 20, 'F')
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(...gris)
+        doc.text('JOURS CONSULTANT', 17, y + 5)
+        doc.text('HONORAIRES HT', 77, y + 5)
+        doc.text('DUREE', 157, y + 5)
+
+        doc.setFontSize(14)
+        doc.setTextColor(31, 41, 55)
+        doc.text(String(simulation.jours_consultant), 17, y + 14)
+        doc.setFontSize(11)
+        const tL = simulation.tarif_bas_ht.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+const tH = simulation.tarif_haut_ht.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+doc.text(`${tL} - ${tH} EUR`, 77, y + 14)
+        doc.setFontSize(14)
+        doc.text(`${simulation.duree_mois} mois`, 157, y + 14)
+
+        y += 28
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(...bleu)
+        doc.text('Repartition par phase', 15, y)
+        y += 6
+
+        const phases = [
+          { label: 'Collecte & cadrage', j: simulation.phase1_jours, pct: simulation.phase1_pct },
+          { label: 'Calcul & analyse', j: simulation.phase2_jours, pct: simulation.phase2_pct },
+          { label: 'Plan transition & livrables', j: simulation.phase3_jours, pct: simulation.phase3_pct },
+        ]
+
+        doc.setFillColor(241, 245, 249)
+        doc.rect(15, y, 180, 8, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(...bleu)
+        doc.text('Phase', 18, y + 5.5)
+        doc.text('Jours', 140, y + 5.5)
+        doc.text('%', 170, y + 5.5)
+        y += 8
+
+        phases.forEach((ph, i) => {
+          if (i % 2 === 0) {
+            doc.setFillColor(248, 247, 244)
+            doc.rect(15, y, 180, 8, 'F')
+          }
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(9)
+          doc.setTextColor(31, 41, 55)
+          doc.text(ph.label, 18, y + 5.5)
+          doc.setFont('helvetica', 'bold')
+          doc.text(String(ph.j), 142, y + 5.5)
+          doc.setTextColor(...gris)
+          doc.text(`${ph.pct} %`, 170, y + 5.5)
+          y += 8
+        })
+      }
+
+      // Pied de page
+      doc.setTextColor(...gris)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.text('AGEadapt — Mission qualifiee par AGE Legacy QC', 15, 285)
+      doc.text('Page 1', 195, 285, { align: 'right' })
+
+      doc.save(`AGEadapt_${mission.raison_sociale}_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`)
+    } catch (e) {
+      console.error('Erreur export PDF', e)
+    } finally {
+      setExportEnCours(false)
+    }
+  }
 async function sauvegarder() {
     setSaving(true)
     const { error } = await supabase
@@ -153,13 +314,30 @@ async function sauvegarder() {
             </div>
           </div>
         </div>
-        <span style={{
-          padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-          background: mission.statut === 'brouillon' ? '#F1F5F9' : '#E1F5EE',
-          color: mission.statut === 'brouillon' ? '#78716C' : '#1D9E75',
-        }}>
-          {mission.statut.charAt(0).toUpperCase() + mission.statut.slice(1)}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+            background: mission.statut === 'brouillon' ? '#F1F5F9' : '#E1F5EE',
+            color: mission.statut === 'brouillon' ? '#78716C' : '#1D9E75',
+          }}>
+            {mission.statut.charAt(0).toUpperCase() + mission.statut.slice(1)}
+          </span>
+          <button
+            onClick={exporterPDF}
+            disabled={exportEnCours}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#1D9E75', color: 'white',
+              border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              cursor: exportEnCours ? 'not-allowed' : 'pointer',
+              opacity: exportEnCours ? 0.7 : 1,
+            }}
+          >
+            <Download size={15} />
+            {exportEnCours ? 'Export...' : 'Exporter PDF'}
+          </button>
+        </div>
       </div>
 
       
