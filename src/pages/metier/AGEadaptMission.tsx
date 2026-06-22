@@ -539,15 +539,125 @@ const selectEntreprise = (e: any) => {
         </div>
       )}
 
-      {/* Etape 5 — Validation */}
-      {etape === 4 && (
-        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
-          <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '16px' }}>Validation & enregistrement</h2>
-          <p style={{ fontSize: '13px', color: '#78716C' }}>Client : <strong>{form.raison_sociale}</strong></p>
-          <p style={{ fontSize: '13px', color: '#78716C' }}>Méthode : <strong>{form.methode}</strong></p>
-          <p style={{ fontSize: '13px', color: '#78716C' }}>Aléas sélectionnés : <strong>{form.aleas.join(', ') || '—'}</strong></p>
-        </div>
-      )}
+      {/* Etape 5 — Validation & tarif */}
+      {etape === 4 && (() => {
+        const TJM = 950
+        const BASE_J: Record<string, number[]> = {
+          abc:  [3, 5, 7, 10, 14, 18],
+          act:  [4, 6, 9, 13, 17, 22],
+          vuln: [5, 8, 12, 17, 22, 28],
+          full: [10, 15, 22, 30, 40, 50],
+        }
+        const PHASES: Record<string, [number, number, number]> = {
+          abc:  [35, 35, 30],
+          act:  [30, 40, 30],
+          vuln: [40, 35, 25],
+          full: [30, 40, 30],
+        }
+        const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
+        const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
+        const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
+
+        const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
+        const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
+        const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
+        const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
+
+        const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
+        const tL = Math.round(j * TJM * 0.90 / 100) * 100
+        const tH = Math.round(j * TJM * 1.15 / 100) * 100
+
+        const phases = PHASES[form.methode] ?? [33, 34, 33]
+        const ph1j = Math.round(j * phases[0] / 100)
+        const ph2j = Math.round(j * phases[1] / 100)
+        const ph3j = j - ph1j - ph2j
+
+        const LIBELLES_METHODE: Record<string, string> = {
+          abc: 'Bilan Carbone® ABC', act: 'ACT Adaptation',
+          vuln: 'Diagnostic vulnérabilité', full: 'Mission complète',
+        }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+            {/* Récap client */}
+            <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '14px' }}>Récapitulatif mission</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {[
+                  { label: 'Client', val: form.raison_sociale || '—' },
+                  { label: 'SIREN', val: form.siren || '—' },
+                  { label: 'Méthode', val: LIBELLES_METHODE[form.methode] || '—' },
+                  { label: 'Structure', val: form.type_structure || '—' },
+                  { label: 'Bilan existant', val: form.bilan_existant ? 'Oui (−35 %)' : 'Non' },
+                  { label: 'Maturité données', val: ['Faible', 'Moyen', 'Élevé'][parseInt(form.maturite_donnees) - 1] || '—' },
+                ].map(r => (
+                  <div key={r.label} style={{ padding: '8px', background: '#F8F7F4', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '10px', color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{r.label}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: '#1F2937', marginTop: '2px' }}>{r.val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Simulateur tarifaire */}
+            <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <i className="ti ti-calculator" style={{ color: '#1D9E75', fontSize: '18px' }} />
+                <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', margin: 0 }}>Simulation tarifaire</h2>
+              </div>
+
+              {/* KPIs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ background: '#1F2937', borderRadius: '10px', padding: '16px', color: 'white' }}>
+                  <div style={{ fontSize: '10px', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Jours consultant</div>
+                  <div style={{ fontSize: '26px', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>{j}</div>
+                  <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px' }}>jours · TJM {TJM} €/j</div>
+                </div>
+                <div style={{ background: '#E1F5EE', borderRadius: '10px', padding: '16px', border: '1px solid #1D9E75' }}>
+                  <div style={{ fontSize: '10px', color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Honoraires HT</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: '#1F2937' }}>
+                    {tL.toLocaleString('fr-FR')} – {tH.toLocaleString('fr-FR')} €
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>Fourchette indicative</div>
+                </div>
+                <div style={{ background: '#F8F7F4', borderRadius: '10px', padding: '16px', border: '1px solid #E5E1DA' }}>
+                  <div style={{ fontSize: '10px', color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Durée estimée</div>
+                  <div style={{ fontSize: '26px', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: '#1F2937' }}>{duree}</div>
+                  <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>mois</div>
+                </div>
+              </div>
+
+              {/* Répartition par phase */}
+              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Répartition par phase</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[
+                  { label: 'Collecte & cadrage', j: ph1j, pct: phases[0], couleur: '#1D9E75' },
+                  { label: 'Calcul & analyse', j: ph2j, pct: phases[1], couleur: '#D97706' },
+                  { label: 'Plan transition & livrables', j: ph3j, pct: phases[2], couleur: '#0369A1' },
+                ].map(ph => (
+                  <div key={ph.label} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '180px', fontSize: '12px', color: '#1F2937' }}>{ph.label}</div>
+                    <div style={{ flex: 1, height: '8px', background: '#E5E1DA', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ width: `${ph.pct}%`, height: '100%', background: ph.couleur, borderRadius: '4px' }} />
+                    </div>
+                    <div style={{ fontSize: '12px', fontFamily: 'JetBrains Mono, monospace', color: '#78716C', minWidth: '80px', textAlign: 'right' }}>
+                      {ph.j} j · {ph.pct} %
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {form.bilan_existant && (
+                <div style={{ marginTop: '14px', background: '#E1F5EE', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ti ti-discount-check" style={{ color: '#1D9E75', fontSize: '16px' }} />
+                  <span style={{ fontSize: '12px', color: '#0F6E56' }}>Bilan existant — <strong>−35 % appliqués</strong> sur les jours estimés</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Navigation */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
