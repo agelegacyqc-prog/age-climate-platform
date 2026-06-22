@@ -18,6 +18,7 @@ interface Mission {
   statut: string
   created_at: string
   aleas: string[]
+  rapport_ia?: string | null
 }
 
 interface Simulation {
@@ -104,7 +105,19 @@ export default function AGEadaptFiche() {
         }
       )
       const result = await response.json()
-      setRapport(result.rapport ?? null)
+const texte = result.rapport ?? null
+setRapport(texte)
+if (texte && mission.id) {
+  const { error: saveError } = await supabase
+    .from('ageadapt_missions')
+    .update({ rapport_ia: texte })
+    .eq('id', mission.id)
+  if (saveError) {
+    alert('Erreur sauvegarde : ' + saveError.message)
+  } else {
+    console.log('Rapport sauvegardé pour mission:', mission.id)
+  }
+}
     } catch (e) {
       console.error('Erreur génération rapport:', e)
       alert('Erreur : ' + String(e))
@@ -266,7 +279,74 @@ export default function AGEadaptFiche() {
       setExportEnCours(false)
     }
   }
+async function exporterRapportPDF() {
+    if (!mission || !rapport) return
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const bleu = [26, 58, 95] as [number, number, number]
+    const gris = [120, 113, 108] as [number, number, number]
 
+    doc.setFillColor(...bleu)
+    doc.rect(0, 0, 210, 28, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text('RAPPORT IA — AGEadapt', 15, 12)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`${mission.raison_sociale} · ${new Date().toLocaleDateString('fr-FR')}`, 15, 22)
+
+    let y = 38
+    const lignes = rapport.split('\n')
+    for (const ligne of lignes) {
+      if (y > 275) { doc.addPage(); y = 20 }
+      if (!ligne.trim()) { y += 4; continue }
+      if (ligne.startsWith('## ')) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(12)
+        doc.setTextColor(...bleu)
+        const wrapped = doc.splitTextToSize(ligne.replace(/^## /, ''), 180)
+        doc.text(wrapped, 15, y)
+        y += wrapped.length * 6 + 4
+      } else if (ligne.startsWith('### ')) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(31, 41, 55)
+        const wrapped = doc.splitTextToSize(ligne.replace(/^### /, ''), 180)
+        doc.text(wrapped, 15, y)
+        y += wrapped.length * 5 + 3
+      } else if (ligne.startsWith('**') && ligne.endsWith('**')) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(31, 41, 55)
+        const wrapped = doc.splitTextToSize(ligne.replace(/\*\*/g, ''), 180)
+        doc.text(wrapped, 15, y)
+        y += wrapped.length * 5 + 2
+      } else if (ligne.startsWith('- ') || ligne.startsWith('• ')) {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(31, 41, 55)
+        const wrapped = doc.splitTextToSize('• ' + ligne.replace(/^[-•] /, ''), 170)
+        doc.text(wrapped, 20, y)
+        y += wrapped.length * 5 + 1
+      } else if (ligne.startsWith('#')) {
+        continue
+      } else {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(50, 50, 50)
+        const wrapped = doc.splitTextToSize(ligne.replace(/\*\*/g, ''), 180)
+        doc.text(wrapped, 15, y)
+        y += wrapped.length * 5 + 1
+      }
+    }
+
+    doc.setTextColor(...gris)
+    doc.setFontSize(8)
+    doc.text('Rapport genere par AGEadapt IA — AGE Legacy QC', 15, 285)
+    doc.text(`Page 1`, 195, 285, { align: 'right' })
+
+    doc.save(`RapportIA_AGEadapt_${mission.raison_sociale}_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`)
+  }
   async function sauvegarder() {
     setSaving(true)
     const { error } = await supabase
@@ -312,7 +392,8 @@ export default function AGEadaptFiche() {
       .limit(1)
       .maybeSingle()
     setSimulation(s)
-    setLoading(false)
+if (m?.rapport_ia) setRapport(m.rapport_ia)
+setLoading(false)
   }
 
   if (loading) return (
@@ -567,9 +648,17 @@ export default function AGEadaptFiche() {
               <i className="ti ti-sparkles" style={{ color: '#1A3A5F', fontSize: 18 }} />
               <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Rapport IA — AGEadapt</h2>
             </div>
-            <button onClick={() => setRapport(null)} style={{ fontSize: 12, color: '#78716C', background: 'none', border: '1px solid #E5E1DA', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
-              Effacer
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => exporterRapportPDF()}
+                style={{ fontSize: 12, color: 'white', background: '#1A3A5F', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Download size={13} /> Exporter PDF
+              </button>
+              <button onClick={() => setRapport(null)} style={{ fontSize: 12, color: '#78716C', background: 'none', border: '1px solid #E5E1DA', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+                Effacer
+              </button>
+            </div>
           </div>
           <div style={{ fontSize: 13, color: '#1F2937', lineHeight: 1.8 }}>
             {rapport.split('\n').map((line, i) => {
