@@ -74,6 +74,22 @@ const selectEntreprise = (e: any) => {
     scope3_autres: false,
     aleas: [] as string[],
     maturite_donnees: '1',
+    total_tco2e: '',
+    annee_reporting: '',
+    methode_bilan: '',
+    scope1_pct: '',
+    scope2_pct: '',
+    scope3_pct: '',
+    poste_majeur_1: '',
+    objectif_reduction: '',
+    risques: {} as Record<string, string>,
+    horizon_2030: false,
+    horizon_2040: false,
+    horizon_2050: false,
+    mesure_33: false,
+    mesure_40: false,
+    mesure_41: false,
+    tracc_utilisee: false,
   })
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
@@ -317,10 +333,209 @@ const selectEntreprise = (e: any) => {
         </div>
       )}
 
-      {/* Etapes 3, 4 — placeholder */}
-      {(etape === 2 || etape === 3) && (
-        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '40px', textAlign: 'center' }}>
-          <p style={{ color: '#78716C', fontSize: '13px' }}>Étape {etape + 1} — À développer</p>
+     {/* Etape 3 — Données & bilan */}
+      {etape === 2 && (
+        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
+          <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '4px' }}>Données & bilan existant</h2>
+          <p style={{ fontSize: '12px', color: '#78716C', marginBottom: '20px' }}>
+            {form.bilan_existant
+              ? 'Un bilan carbone existant a été indiqué. Renseignez les données clés pour recaler le périmètre de la mission.'
+              : 'Aucun bilan existant. La mission démarrera de zéro.'}
+          </p>
+
+          {form.bilan_existant && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <label style={labelStyle}>Total émissions (tCO₂e)</label>
+                <input style={inputStyle} type="number" value={form.total_tco2e} onChange={e => set('total_tco2e', e.target.value)} placeholder="Ex. : 1 250" />
+              </div>
+              <div>
+                <label style={labelStyle}>Année de reporting</label>
+                <input style={inputStyle} type="number" value={form.annee_reporting} onChange={e => set('annee_reporting', e.target.value)} placeholder="Ex. : 2023" />
+              </div>
+              <div>
+                <label style={labelStyle}>Méthode utilisée</label>
+                <select style={inputStyle} value={form.methode_bilan} onChange={e => set('methode_bilan', e.target.value)}>
+                  <option value="">— sélectionner —</option>
+                  <option value="ABC">Bilan Carbone® ABC</option>
+                  <option value="BEGES">BEGES</option>
+                  <option value="GHG">GHG Protocol</option>
+                  <option value="Autre">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>% Scope 1</label>
+                <input style={inputStyle} type="number" value={form.scope1_pct} onChange={e => set('scope1_pct', e.target.value)} placeholder="Ex. : 35" />
+              </div>
+              <div>
+                <label style={labelStyle}>% Scope 2</label>
+                <input style={inputStyle} type="number" value={form.scope2_pct} onChange={e => set('scope2_pct', e.target.value)} placeholder="Ex. : 15" />
+              </div>
+              <div>
+                <label style={labelStyle}>% Scope 3</label>
+                <input style={inputStyle} type="number" value={form.scope3_pct} onChange={e => set('scope3_pct', e.target.value)} placeholder="Ex. : 50" />
+              </div>
+              <div>
+                <label style={labelStyle}>Poste dominant (libellé)</label>
+                <input style={inputStyle} value={form.poste_majeur_1} onChange={e => set('poste_majeur_1', e.target.value)} placeholder="Ex. : Déplacements professionnels" />
+              </div>
+              <div>
+                <label style={labelStyle}>Objectif de réduction (%)</label>
+                <input style={inputStyle} type="number" value={form.objectif_reduction} onChange={e => set('objectif_reduction', e.target.value)} placeholder="Ex. : 30" />
+              </div>
+            </div>
+          )}
+
+          {/* Maturité des données */}
+          <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Maturité des données disponibles</p>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {[
+              { val: '1', label: 'Faible', sub: 'Données partielles, estimations' },
+              { val: '2', label: 'Moyen', sub: 'Données disponibles, quelques lacunes' },
+              { val: '3', label: 'Élevé', sub: 'Données complètes et structurées' },
+            ].map(m => (
+              <div key={m.val} onClick={() => set('maturite_donnees', m.val)} style={{
+                flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                border: form.maturite_donnees === m.val ? '2px solid #1D9E75' : '1px solid #E5E1DA',
+                background: form.maturite_donnees === m.val ? '#E1F5EE' : 'white',
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '2px' }}>{m.label}</div>
+                <div style={{ fontSize: '11px', color: '#78716C' }}>{m.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {form.bilan_existant && (
+            <div style={{ marginTop: '16px', background: '#E1F5EE', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <i className="ti ti-info-circle" style={{ color: '#1D9E75', fontSize: '16px' }} />
+              <p style={{ fontSize: '12px', color: '#0F6E56', margin: 0 }}>
+                Bilan existant détecté — <strong>−35 % de jours estimés</strong> appliqués sur la simulation tarifaire.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Etape 4 — Cadrage mission */}
+      {etape === 3 && (
+        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
+          <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '4px' }}>Cadrage mission</h2>
+          <p style={{ fontSize: '12px', color: '#78716C', marginBottom: '20px' }}>
+            {form.type_structure === 'collectivite'
+              ? 'Exposition territoriale et ancrage réglementaire PNACC3.'
+              : 'Risques climatiques identifiés et horizons temporels analysés.'}
+          </p>
+
+          {/* Parcours Entreprise */}
+          {form.type_structure !== 'collectivite' && (
+            <>
+              {/* 3 catégories de risques */}
+              {[
+                {
+                  titre: 'Risques opérationnels', couleur: '#0369A1', bg: '#EFF6FF',
+                  icone: 'ti-settings',
+                  champs: [
+                    { key: 'risque_territoire', label: 'Exposition du/des sites aux aléas climatiques' },
+                    { key: 'risque_installations', label: 'Vulnérabilité des bâtiments et conditions de travail' },
+                    { key: 'risque_chaine', label: 'Dépendances eau / énergie / transport / télécom' },
+                  ]
+                },
+                {
+                  titre: 'Risques assurantiels', couleur: '#D97706', bg: '#FFFBEB',
+                  icone: 'ti-shield',
+                  champs: [
+                    { key: 'difficulte_assurance', label: 'Difficulté à assurer les actifs ou activités' },
+                    { key: 'sinistres_passes', label: 'Sinistres climatiques sur les 5 dernières années' },
+                  ]
+                },
+                {
+                  titre: 'Risques financiers', couleur: '#B91C1C', bg: '#FEF2F2',
+                  icone: 'ti-trending-down',
+                  champs: [
+                    { key: 'impact_couts', label: 'Répercussion sur les coûts d\'exploitation' },
+                    { key: 'impact_competitivite', label: 'Impact sur la compétitivité / clients / marchés' },
+                  ]
+                },
+              ].map(cat => (
+                <div key={cat.titre} style={{ marginBottom: '16px', background: cat.bg, borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <i className={`ti ${cat.icone}`} style={{ color: cat.couleur, fontSize: '16px' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: cat.couleur }}>{cat.titre}</span>
+                  </div>
+                  {cat.champs.map(champ => (
+                    <div key={champ.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${cat.couleur}20` }}>
+                      <span style={{ fontSize: '12px', color: '#1F2937' }}>{champ.label}</span>
+                      <select
+                        style={{ ...inputStyle, width: '140px', fontSize: '12px' }}
+                        value={(form.risques as Record<string, string>)[champ.key] || ''}
+                        onChange={e => setForm(f => ({ ...f, risques: { ...(f.risques as Record<string, string>), [champ.key]: e.target.value } }))}
+                      >
+                        <option value="">—</option>
+                        <option value="oui">Oui</option>
+                        <option value="non">Non</option>
+                        <option value="partiel">Partiel</option>
+                        <option value="ne_sait_pas">Ne sait pas</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Horizons temporels */}
+              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', margin: '16px 0 10px' }}>Horizons temporels analysés</p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {[
+                  { key: 'horizon_2030', label: '2030', sub: '+2°C · Court terme' },
+                  { key: 'horizon_2040', label: '2040', sub: '+2,7°C · Moyen terme' },
+                  { key: 'horizon_2050', label: '2050', sub: '+3,5°C · Long terme' },
+                ].map(h => (
+                  <div key={h.key} onClick={() => set(h.key, !(form as any)[h.key])} style={{
+                    flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
+                    border: (form as any)[h.key] ? '2px solid #1D9E75' : '1px solid #E5E1DA',
+                    background: (form as any)[h.key] ? '#E1F5EE' : 'white',
+                  }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#1F2937', fontFamily: 'JetBrains Mono, monospace' }}>{h.label}</div>
+                    <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>{h.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Parcours Collectivité */}
+          {form.type_structure === 'collectivite' && (
+            <>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Aléas déjà documentés</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px' }}>
+                {ALEAS.map(a => (
+                  <div key={a} onClick={() => toggleAlea(a)} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+                    border: form.aleas.includes(a) ? '1px solid #1D9E75' : '1px solid #E5E1DA',
+                    background: form.aleas.includes(a) ? '#E1F5EE' : 'white',
+                  }}>
+                    <span style={{ fontSize: '11px', color: form.aleas.includes(a) ? '#1D9E75' : '#78716C', fontWeight: form.aleas.includes(a) ? 600 : 400 }}>{a}</span>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Ancrage PNACC3</p>
+              {[
+                { key: 'mesure_33', label: 'Mesure 33', sub: 'Plan d\'adaptation entreprises du territoire' },
+                { key: 'mesure_40', label: 'Mesure 40', sub: 'Évaluation des actions d\'adaptation' },
+                { key: 'mesure_41', label: 'Mesure 41', sub: 'Outils ADEME déployés (Climadiag, DRIAS)' },
+                { key: 'tracc_utilisee', label: 'TRACC', sub: 'Utilisée comme référence de planification' },
+              ].map(item => (
+                <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E1DA' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: '#1F2937' }}>{item.label}</div>
+                    <div style={{ fontSize: '11px', color: '#78716C' }}>{item.sub}</div>
+                  </div>
+                  <input type="checkbox" checked={!!(form as any)[item.key]} onChange={e => set(item.key, e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#1D9E75' }} />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
 
