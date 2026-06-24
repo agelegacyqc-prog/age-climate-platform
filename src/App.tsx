@@ -4,13 +4,17 @@ import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import Login from "./pages/auth/Login"
 import Accueil from "./pages/Accueil"
+import DossierRGA from "./pages/client/DossierRGA"
+import DocumentsRGA from "./pages/client/DocumentsRGA"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
 import Marketplace from "./pages/Marketplace"
 import DashboardClient from "./pages/client/DashboardClient"
 import MesActifs from "./pages/client/MesActifs"
 import NouvelActif from "./pages/client/NouvelActif"
+import NouvelActifParticulier from "./pages/client/NouvelActifParticulier"
 import FicheActif from "./pages/client/FicheActif"
+import FicheActifParticulier from "./pages/client/FicheActifParticulier"
 import MonProfil from "./pages/client/MonProfil"
 import Onboarding from "./pages/client/Onboarding"
 import ClientCampagnes from "./pages/client/MesCampagnes"
@@ -71,8 +75,12 @@ export default function App() {
           {/* ── Routes client ── */}
           <Route path="client" element={<ProtectedRoute><DashboardClient /></ProtectedRoute>} />
           <Route path="client/actifs" element={<ProtectedRoute><MesActifs /></ProtectedRoute>} />
+          <Route path="/client/dossier-rga/:id" element={<DossierRGA />} />
+          <Route path="/client/documents-rga/:id" element={<DocumentsRGA />} />
           <Route path="client/actifs/nouveau" element={<ProtectedRoute><NouvelActif /></ProtectedRoute>} />
+          <Route path="/client/actifs/nouveau-particulier" element={<NouvelActifParticulier />} />
           <Route path="client/actifs/:id" element={<ProtectedRoute><FicheActif /></ProtectedRoute>} />
+          <Route path="/client/actifs-particulier/:id" element={<FicheActifParticulier />} />
           <Route path="client/profil" element={<ProtectedRoute><MonProfil /></ProtectedRoute>} />
           <Route path="client/campagnes" element={<ProtectedRoute><ClientCampagnes /></ProtectedRoute>} />
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />

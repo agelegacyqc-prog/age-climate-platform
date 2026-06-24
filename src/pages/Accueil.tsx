@@ -5,7 +5,72 @@ import CartePortefeuille from "../components/CartePortefeuille"
 import ConsultantsRecommandes from "../components/ConsultantsRecommandes"
 
 type Profil = "banque" | "assureur" | "particulier" | "collectivite" | "entreprise" | "expert" | null
+interface DossierRGA {
+  id: string
+  type_mission: 'amo' | 'moe' | 'amo_moe'
+  statut: string
+  statut_updated_at: string
+  actif: {
+    nom: string
+    adresse: string
+    ville: string
+    code_postal: string
+    exposition_rga: string | null
+  }
+}
 
+const STATUT_RGA_LABEL: Record<string, string> = {
+  dossier_ouvert:               'Dossier ouvert',
+  eligibilite_en_cours:         'Vérification d\'éligibilité en cours',
+  eligible_confirme:            'Éligibilité confirmée',
+  non_eligible:                 'Non éligible au dispositif',
+  dossier_etudes_a_constituer:  'Constitution du dossier Études',
+  complement_demande:           'Complément de pièces demandé',
+  dossier_etudes_depose:        'Dossier déposé en DDT',
+  aide_etudes_accordee:         'Aide Études accordée',
+  diagnostic_en_cours:          'Diagnostic de vulnérabilité en cours',
+  diagnostic_valide:            'Diagnostic validé',
+  diagnostic_non_concluant:     'Diagnostic non concluant',
+  dossier_travaux_a_constituer: 'Constitution du dossier Travaux',
+  dossier_travaux_depose:       'Dossier Travaux déposé en DDT',
+  aide_travaux_accordee:        'Aide Travaux accordée',
+  travaux_en_cours:             'Travaux en cours',
+  reception_travaux:            'Réception des travaux',
+  dossier_cloture:              'Dossier clôturé',
+}
+
+const STATUT_RGA_COULEUR: Record<string, { bg: string; border: string; texte: string; icone: string }> = {
+  dossier_ouvert:               { bg: '#F8F7F4', border: '#E5E1DA', texte: '#78716C', icone: 'ti-folder' },
+  eligibilite_en_cours:         { bg: '#FFF7ED', border: '#D97706', texte: '#92400E', icone: 'ti-hourglass' },
+  eligible_confirme:            { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-circle-check' },
+  non_eligible:                 { bg: '#FEF2F2', border: '#B91C1C', texte: '#7F1D1D', icone: 'ti-circle-x' },
+  complement_demande:           { bg: '#FFF7ED', border: '#D97706', texte: '#92400E', icone: 'ti-alert-triangle' },
+  dossier_etudes_depose:        { bg: '#EFF6FF', border: '#0369A1', texte: '#1E3A5F', icone: 'ti-send' },
+  dossier_etudes_a_constituer:  { bg: '#F8F7F4', border: '#78716C', texte: '#44403C', icone: 'ti-clipboard-list' },
+  aide_etudes_accordee:         { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-circle-check' },
+  diagnostic_en_cours:          { bg: '#EFF6FF', border: '#0369A1', texte: '#1E3A5F', icone: 'ti-search' },
+  diagnostic_valide:            { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-circle-check' },
+  diagnostic_non_concluant:     { bg: '#FEF2F2', border: '#B91C1C', texte: '#7F1D1D', icone: 'ti-circle-x' },
+  dossier_travaux_a_constituer: { bg: '#F8F7F4', border: '#78716C', texte: '#44403C', icone: 'ti-clipboard-list' },
+  dossier_travaux_depose:       { bg: '#EFF6FF', border: '#0369A1', texte: '#1E3A5F', icone: 'ti-send' },
+  aide_travaux_accordee:        { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-circle-check' },
+  travaux_en_cours:             { bg: '#FFF7ED', border: '#D97706', texte: '#92400E', icone: 'ti-tools' },
+  reception_travaux:            { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-home-check' },
+  dossier_cloture:              { bg: '#ECFDF5', border: '#1D9E75', texte: '#065F46', icone: 'ti-archive' },
+}
+
+const MISSION_LABEL: Record<string, string> = {
+  amo:     'AMO Études',
+  moe:     'MOE Travaux',
+  amo_moe: 'AMO + MOE',
+}
+
+const EXPOSITION_RGA: Record<string, { label: string; couleur: string }> = {
+  forte:      { label: 'Zone exposition forte',   couleur: '#B91C1C' },
+  moyenne:    { label: 'Zone exposition moyenne', couleur: '#D97706' },
+  faible:     { label: 'Zone exposition faible',  couleur: '#0369A1' },
+  non_expose: { label: 'Non exposé',              couleur: '#78716C' },
+}
 interface ProfilConfig {
   sousTitre: string
   boutons: { label: string; route: string; icon: string }[]
@@ -57,7 +122,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
  particulier: {
     sousTitre: "Évaluez le risque climatique de votre bien immobilier",
     boutons: [
-      { label: "Mon bien",            route: "/client/actifs", icon: "ti-home" },
+      { label: "Mon bien",            route: "/client/actifs/nouveau-particulier", icon: "ti-home" },
       { label: "Aides & Subventions", route: "/client/aides",  icon: "ti-coin" },
     ],
     afficherCarte: true, // <-- était false
@@ -198,7 +263,7 @@ export default function Accueil() {
   const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
   const [alertesDynamiques, setAlertesDynamiques] = useState<AlerteRegl[]>([])
   const [reglemRaw, setReglemRaw] = useState<{ reglementation: string }[]>([])
-
+const [dossiers, setDossiers] = useState<DossierRGA[]>([])
 
   useEffect(() => { chargerProfil() }, [])
 
@@ -364,6 +429,30 @@ console.log("reglemData:", reglemData)
         }
       }
 
+   // Chargement dossiers RGA si particulier
+      if (profilClient.type_client === 'proprietaire') {
+        const { data: dossiersData } = await supabase
+          .from('dossiers_rga')
+          .select(`
+            id,
+            type_mission,
+            statut,
+            statut_updated_at,
+            actif:actif_id (
+              nom,
+              adresse,
+              ville,
+              code_postal,
+              exposition_rga
+            )
+          `)
+          .eq('client_id', user.id)
+          .is('archived_at', null)
+          .order('created_at', { ascending: false })
+
+        if (dossiersData) setDossiers(dossiersData as unknown as DossierRGA[])
+      }
+
       setLoading(false)
       return
     }
@@ -441,7 +530,97 @@ console.log("reglemData:", reglemData)
           ))}
         </div>
       )}
+{/* Dossiers RGA — particulier uniquement */}
+      {profil === 'particulier' && !loading && dossiers.length > 0 && (
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '12px' }}>
+            Mes dossiers RGA — Fonds de Prévention Argile
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {dossiers.map(d => {
+              const couleur = STATUT_RGA_COULEUR[d.statut] || STATUT_RGA_COULEUR['dossier_ouvert']
+              const expo    = d.actif?.exposition_rga ? EXPOSITION_RGA[d.actif.exposition_rga] : null
+              return (
+                <div key={d.id} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px 24px' }}>
+                  {/* En-tête bien */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '10px', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <i className="ti ti-home" style={{ fontSize: '20px', color: '#B25C2A' }} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#0F172A', fontSize: '14px' }}>{d.actif?.nom || 'Bien immobilier'}</div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                          {d.actif?.adresse}, {d.actif?.code_postal} {d.actif?.ville}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      {expo && (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: expo.couleur, background: expo.couleur + '14', padding: '3px 8px', borderRadius: '4px', border: `1px solid ${expo.couleur}30` }}>
+                          {expo.label}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#B25C2A', background: '#FFF7ED', padding: '3px 8px', borderRadius: '4px', border: '1px solid #F5D0B0' }}>
+                        {MISSION_LABEL[d.type_mission] || d.type_mission}
+                      </span>
+                    </div>
+                  </div>
 
+                  {/* Statut courant */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: couleur.bg, borderRadius: '8px', borderLeft: `3px solid ${couleur.border}`, marginBottom: '16px' }}>
+                    <i className={`ti ${couleur.icone}`} style={{ fontSize: '16px', color: couleur.border, flexShrink: 0 }} aria-hidden="true" />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: couleur.texte }}>{STATUT_RGA_LABEL[d.statut] || d.statut}</div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>
+                        Mis à jour le {new Date(d.statut_updated_at).toLocaleDateString('fr-FR')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => navigate(`/client/dossier-rga/${d.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#B25C2A', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      <i className="ti ti-eye" style={{ fontSize: '14px' }} aria-hidden="true" />
+                      Voir le dossier
+                    </button>
+                    <button
+                      onClick={() => navigate(`/client/documents-rga/${d.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#FFFFFF', color: '#0F172A', border: '1px solid #E2E8F0', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      <i className="ti ti-paperclip" style={{ fontSize: '14px' }} aria-hidden="true" />
+                      Documents
+                    </button>
+                    <button
+                      onClick={() => navigate('/client/messagerie')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#FFFFFF', color: '#0F172A', border: '1px solid #E2E8F0', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      <i className="ti ti-message" style={{ fontSize: '14px' }} aria-hidden="true" />
+                      Messagerie
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Message si particulier sans dossier */}
+      {profil === 'particulier' && !loading && dossiers.length === 0 && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ width: 44, height: 44, borderRadius: '10px', background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-layers" style={{ fontSize: '22px', color: '#B25C2A' }} aria-hidden="true" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 500, color: '#0F172A', fontSize: '14px', marginBottom: '4px' }}>Aucun dossier RGA en cours</div>
+            <div style={{ fontSize: '13px', color: '#64748B' }}>Votre consultant AGE ouvrira votre dossier Fonds de Prévention Argile dès le démarrage de la mission.</div>
+          </div>
+        </div>
+      )}
       {/* Accès rapides */}
       <div>
         <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
