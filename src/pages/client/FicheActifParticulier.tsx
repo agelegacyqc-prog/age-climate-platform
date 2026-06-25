@@ -166,6 +166,7 @@ export default function FicheActifParticulier() {
   const [scoreClimatique, setScoreClimatique] = useState(0)
   const [expositionRGA, setExpositionRGA]     = useState<string | null>(null)
   const [loadingGeo, setLoadingGeo]           = useState(false)
+  const [georisquesIndisponible, setGeorisquesIndisponible] = useState(false)
 
   useEffect(() => { if (id) charger(id) }, [id])
 
@@ -209,21 +210,33 @@ export default function FicheActifParticulier() {
       setAleas(aleasCalcules)
       setScoreClimatique(Math.round(scoreTotal))
       setExpositionRGA(actifData.exposition_rga || "non_expose")
-    } else if (actifData.adresse && actifData.code_postal && actifData.ville) {
+  } else if (actifData.adresse && actifData.code_postal && actifData.ville) {
       // Fallback : appel direct navigateur si pas de données stockées
       setLoadingGeo(true)
-      const result = await fetchGeorisques(actifData.adresse, actifData.code_postal, actifData.ville)
-      setAleas(result.aleas)
-      setScoreClimatique(result.score_climatique)
-      setExpositionRGA(result.exposition)
-      await supabase.from("actifs").update({
-        exposition_rga:   result.exposition,
-        score_climatique: result.score_climatique,
-        georisques_data:  { risquesNaturels: {} },
-      }).eq("id", actifId)
-      setLoadingGeo(false)
+      try {
+        const result = await fetchGeorisques(actifData.adresse, actifData.code_postal, actifData.ville)
+        if (result && result.aleas && result.aleas.length > 0) {
+          setAleas(result.aleas)
+          setScoreClimatique(result.score_climatique)
+          setExpositionRGA(result.exposition)
+          await supabase.from("actifs").update({
+            exposition_rga:   result.exposition,
+            score_climatique: result.score_climatique,
+            georisques_data:  { risquesNaturels: {} },
+          }).eq("id", actifId)
+        } else {
+          setGeorisquesIndisponible(true)
+        }
+      } catch (e) {
+        setGeorisquesIndisponible(true)
+      } finally {
+        setLoadingGeo(false)
+      }
+    } else {
+      // Pas d'adresse suffisante pour appeler Géorisques
+      setGeorisquesIndisponible(true)
     }
-  }
+    }
 
   async function uploadPhoto(file: File) {
     if (!actif) return
@@ -483,6 +496,29 @@ export default function FicheActifParticulier() {
             </div>
           ) : (
             <>
+              {georisquesIndisponible && (
+                <div style={{
+                  background: "#FAEEDA",
+                  border: "1px solid #D97706",
+                  borderRadius: "8px",
+                  padding: "1rem 1.25rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  marginBottom: "1rem"
+                }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontWeight: "600", color: "#633806", marginBottom: "4px" }}>
+                      Données climatiques non disponibles
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#633806" }}>
+                      L'analyse Géorisques n'a pas pu être chargée pour cet actif.
+                      Modifiez l'actif pour relancer le scoring climatique.
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Score global */}
               <div style={{ background: "#0F172A", borderRadius: "12px", padding: "22px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
