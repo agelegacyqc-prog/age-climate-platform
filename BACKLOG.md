@@ -14,6 +14,7 @@
 |----|--------------|-------------|------------------------|--------|
 | BUG-01 | Espace particulier | `.single()` → `.maybeSingle()` sur `profils` pour utilisateurs particuliers — erreur 406 bloque l'accès | `Onboarding.tsx` — condition `typeClient !== "proprietaire"` ajoutée | `[x]` 25/06/2026 |
 | BUG-02 | Supabase / BDD | CHECK constraint `actifs.type_client` : `'particulier'` rejeté — migrer la contrainte pour inclure `'particulier'` | Migration SQL `ALTER TABLE actifs` | `[x]` 25/06/2026 |
+| BUG-03 | Espace particulier | Fallback manquant pour actifs sans `georisques_data` — affichage vide sans message d'erreur | `FicheActifParticulier.tsx` — bandeau orange + gestion try/catch + accolade `charger()` corrigée | `[x]` 25/06/2026 |
 
 ---
 
@@ -25,7 +26,7 @@
 | P1-02 | B2B | M04 — Import portefeuille | Page d'import CSV/Excel avec mapping colonnes, contrôle qualité, prévisualisation 20 lignes, déduplication | `src/pages/metier/ImportPortefeuille.tsx` · API `/api/import/*` | `[ ]` |
 | P1-03 | B2B | M07 — Pipeline contacts campagne | Table `contacts_campagne` (12 statuts) + vue pipeline suivi dans `Campagnes.tsx` | Migration SQL `contacts_campagne` · `Campagnes.tsx` | `[ ]` |
 | P1-04 | B2B | M02 — Fiche client structurée | Ajouter SIREN, NAF, secteur, vue consolidée (nb actifs, score moyen, campagnes) dans référentiel client | `src/pages/metier/FicheClient.tsx` · table `clients` | `[ ]` |
-| P1-05 | AGEadapt | Factures.tsx — champs manquants | Ajouter `numero_client`, `iban`, `bic`, `nom_banque` dans le formulaire (colonnes BDD déjà créées) | `src/pages/metier/Factures.tsx` | `[ ]` |
+| P1-05 | AGEadapt | Factures.tsx — champs manquants | Ajouter `numero_client`, `iban`, `bic`, `nom_banque` dans le formulaire (colonnes BDD déjà créées) | Déjà présents dans le formulaire — section "Coordonnées bancaires" confirmée | `[x]` 25/06/2026 |
 
 ---
 
