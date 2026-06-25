@@ -13,8 +13,7 @@
 | ID | Environnement | Description | Fichier(s) concerné(s) | Statut |
 |----|--------------|-------------|------------------------|--------|
 | BUG-01 | Espace particulier | `.single()` → `.maybeSingle()` sur `profils` pour utilisateurs particuliers — erreur 406 bloque l'accès | `Onboarding.tsx` — condition `typeClient !== "proprietaire"` ajoutée | `[x]` 25/06/2026 |
-| BUG-02 | Supabase / BDD | CHECK constraint `actifs.type_client` : `'particulier'` rejeté — migrer la contrainte pour inclure `'particulier'` | Migration SQL sur table `actifs` | `[ ]` |
-| BUG-03 | Espace particulier | Fallback manquant pour actifs sans `georisques_data` — affichage vide sans message d'erreur | `FicheActifParticulier.tsx` · `ScoreGeorisques.tsx` | `[ ]` |
+| BUG-02 | Supabase / BDD | CHECK constraint `actifs.type_client` : `'particulier'` rejeté — migrer la contrainte pour inclure `'particulier'` | Migration SQL `ALTER TABLE actifs` | `[x]` 25/06/2026 |
 
 ---
 
