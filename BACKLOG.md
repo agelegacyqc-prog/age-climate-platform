@@ -3,7 +3,7 @@
 > Format statut : `[ ]` À faire · `[~]` En cours · `[x]` Terminé
 
 **Dernière mise à jour :** 26/06/2026  
-**Rapport de référence :** Session 26/06/2026 — P1-01 RLS multi-tenant + P1-03 Pipeline contacts campagne
+**Rapport de référence :** Session 26/06/2026 — P1-04 terminé · Toutes P1 complètes
 
 ---
 
@@ -23,9 +23,9 @@
 | ID | Environnement | Module | Description | Fichier(s) à créer / modifier | Statut |
 |----|--------------|--------|-------------|-------------------------------|--------|
 | P1-01 | B2B / Tous | RLS multi-tenant | `client_id` ajouté dans `biens` et `dossiers` · policies réécrites sur 5 tables (`biens`, `campagnes`, `dossiers`, `actifs`, `documents`) · isolation stricte par tenant | Migrations SQL exécutées · policies vérifiées en base | `[x]` 26/06/2026 |
-| P1-02 | B2B | M04 — Import portefeuille | Page d'import CSV/Excel avec mapping colonnes, contrôle qualité, prévisualisation 20 lignes, déduplication | `src/pages/metier/ImportPortefeuille.tsx` · API `/api/import/*` | `[ ]` |
-| P1-03 | B2B | M07 — Pipeline contacts campagne | Table `contacts_campagne` (11 statuts) créée + RLS + index · Page kanban `CampagnePipeline.tsx` + route `/metier/campagnes/:id/pipeline` · Boutons Pipeline dans tableau et drawer `Campagnes.tsx` · Validé visuellement (état vide OK) | Migration SQL · `CampagnePipeline.tsx` · `Campagnes.tsx` · `App.tsx` | `[x]` 26/06/2026 |
-| P1-04 | B2B | M02 — Fiche client structurée | Ajouter SIREN, NAF, secteur, vue consolidée (nb actifs, score moyen, campagnes) dans référentiel client | `src/pages/metier/FicheClient.tsx` · table `clients` | `[ ]` |
+| P1-02 | B2B | M04 — Import portefeuille | Wizard 4 étapes · choix cible biens/actifs · mode libre/campagne · upload CSV/Excel · auto-mapping · prévisualisation 20 lignes · déduplication adresse+CP · toggle ignorer/MAJ · bilan résultat · bouton "Importer CSV" dans Portefeuille.tsx · redirection correcte selon cible | `ImportPortefeuille.tsx` · `Portefeuille.tsx` · `App.tsx` | `[x]` 26/06/2026 |
+| P1-03 | B2B | M07 — Pipeline contacts campagne | Table `contacts_campagne` (11 statuts) créée + RLS + index · Page kanban `CampagnePipeline.tsx` + route `/metier/campagnes/:id/pipeline` · Boutons Pipeline dans tableau et drawer `Campagnes.tsx` · Validé visuellement | Migration SQL · `CampagnePipeline.tsx` · `Campagnes.tsx` · `App.tsx` | `[x]` 26/06/2026 |
+| P1-04 | B2B | M02 — Fiche client structurée | Table `organisations` enrichie (code_naf, effectifs, nb_sites, ca_tranche, notes_consultant) · siren/siret corrigés en TEXT · index sur biens/campagnes/dossiers.client_id · `FicheClient.tsx` avec vue consolidée (nb biens, campagnes, dossiers, score moyen) + 3 onglets (Identité / Contact / Notes) + édition inline | `src/pages/metier/FicheClient.tsx` · Migration SQL organisations · `App.tsx` | `[x]` 26/06/2026 |
 | P1-05 | AGEadapt | Factures.tsx — champs manquants | Ajouter `numero_client`, `iban`, `bic`, `nom_banque` dans le formulaire (colonnes BDD déjà créées) | Déjà présents dans le formulaire — section "Coordonnées bancaires" confirmée | `[x]` 25/06/2026 |
 
 ---
@@ -66,6 +66,8 @@
 
 | Environnement | Fonctionnalité | Date |
 |--------------|----------------|------|
+| B2B | Fiche client structurée — `organisations` enrichie + `FicheClient.tsx` + vue consolidée | 26/06/2026 |
+| B2B | Import portefeuille CSV — wizard 4 étapes, déduplication, bilan résultat | 26/06/2026 |
 | B2B / Tous | RLS multi-tenant — `client_id` dans `biens` + `dossiers` · 5 tables sécurisées | 26/06/2026 |
 | B2B | Pipeline contacts campagne — table `contacts_campagne` + kanban `CampagnePipeline.tsx` | 26/06/2026 |
 | AGEadapt | Workflow qualification mission 5 étapes (entreprise + collectivité) | Avant 25/06/2026 |
@@ -74,26 +76,19 @@
 | AGEadapt | Dashboard KPIs missions | Avant 25/06/2026 |
 | AGEadapt | Factures v2 (SQL + RLS + TVA + export PDF jsPDF) | Avant 25/06/2026 |
 | Particulier | Pipeline RGA complet (Accueil / DossierRGA / Documents / FicheActif / NouvelActif) | Avant 25/06/2026 |
-| Particulier | Scoring Géorisques JSONB à la création + bucket `documents-rga` | Avant 25/06/2026 |
-| Métier | DashboardMetier KPIs + Funnel Supabase | Avant 25/06/2026 |
-| Métier | Portefeuille biens + FicheBien (4 onglets + Brown Value + Géorisques) | Avant 25/06/2026 |
-| Métier | Campagnes + graphique performance hebdomadaire | Avant 25/06/2026 |
-| Métier | Missions consulting + workflow 10 phases | Avant 25/06/2026 |
-| Métier | Financement pipeline (Déposé/Instruction/Validé/Payé) | Avant 25/06/2026 |
-| Métier | Reporting COMEX + graphiques ROI | Avant 25/06/2026 |
-| Métier | Administration (users / params / workflows / modèles docs) | Avant 25/06/2026 |
-| Public | Accueil + Dashboard climatique + Sensibilisation + Projets + Marketplace | Avant 25/06/2026 |
 
 ---
 
 ## NOTES TECHNIQUES — Session 26/06/2026
 
 ### Architecture BDD réelle (vérifiée en base)
-- Tables prod : `biens`, `campagnes`, `dossiers`, `actifs`, `documents`, `campagnes_actifs`, `campagnes_suivi_biens`
-- `biens` : pas de `client_id` natif (ajouté nullable), pas de FK vers `clients` (table inexistante en prod)
-- `profils` : pas de `client_id` — pattern RLS via `profils.role` uniquement
-- `contacts_campagne` : nouvelle table, 11 statuts CHECK, référence `biens` (pas `actifs`)
-- Doublon `Biens` / `biens` (casse) à surveiller
+- Tables prod : `biens`, `campagnes`, `dossiers`, `actifs`, `documents`, `campagnes_actifs`, `campagnes_suivi_biens`, `contacts_campagne`, `organisations`
+- `organisations` : référentiel client B2B — enrichi avec `code_naf`, `effectifs`, `nb_sites`, `ca_tranche`, `notes_consultant`
+- `organisations.siren` et `siret` : corrigés de `character` → `text`
+- Liaison clients : `biens.client_id` + `campagnes.client_id` + `dossiers.client_id` + `contacts_campagne.client_id` → `organisations.id`
+- Pas de FK formelle (intentionnel — évite les contraintes sur inserts sans client_id)
+- Index créés : `idx_biens_client_id`, `idx_campagnes_client_id`, `idx_dossiers_client_id`
+- Import supabase dans les pages métier : `../../lib/supabase` (sans "Client")
 
 ### Pattern RLS validé
 ```sql
@@ -102,7 +97,7 @@ OR EXISTS (SELECT 1 FROM profils WHERE profils.id = auth.uid() AND profils.role 
 ```
 
 ### Prochaine priorité
-**P1-02** — Import portefeuille CSV/Excel (M04) — première P1 restante
+**P2-01** — FicheDossierRGA (vue consultant espace métier)
 
 ---
 

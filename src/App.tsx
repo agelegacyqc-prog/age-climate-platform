@@ -41,6 +41,9 @@ import Factures from "./pages/metier/Factures"
 import Administration from "./pages/metier/Administration"
 import FileAttente from "./pages/metier/FileAttente"
 import Clients from "./pages/metier/Clients"
+import FicheClient from "./pages/metier/FicheClient"
+import FicheDossierRGA from "./pages/metier/FicheDossierRGA"
+import DossiersRGA from "./pages/metier/DossiersRGA"
 import MonEquipe from "./pages/metier/MonEquipe"
 import GED from "./pages/metier/GED"
 import AGEadapt from "./pages/metier/AGEadapt"
@@ -113,6 +116,10 @@ export default function App() {
           <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
           <Route path="metier/file-attente" element={<ProtectedRoute><FileAttente /></ProtectedRoute>} />
           <Route path="metier/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+          <Route path="metier/clients/:id" element={<ProtectedRoute><FicheClient /></ProtectedRoute>} />
+          <Route path="metier/dossiers/:id" element={<ProtectedRoute><FicheDossierRGA /></ProtectedRoute>} />
+          <Route path="metier/dossiers-rga" element={<ProtectedRoute><DossiersRGA /></ProtectedRoute>} />
+<Route path="metier/dossiers/:id" element={<ProtectedRoute><FicheDossierRGA /></ProtectedRoute>} />
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
           <Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
 <Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />

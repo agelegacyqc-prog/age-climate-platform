@@ -27,7 +27,8 @@ const PAGE_TITLES: Record<string, string> = {
 "/metier/factures":            "Factures",
 "/metier/ageadapt":            "AGEadapt",
 "/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
-  "/metier/ged":                 "Documents",
+  "/metier/dossiers-rga":        "Dossiers RGA",
+"/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
 
@@ -52,8 +53,9 @@ interface NavItemProps {
 function FinanceMenu({ roleAGE }: { roleAGE: string }) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
-  const isActive = location.pathname.startsWith('/metier/reporting') ||
-                   location.pathname.startsWith('/metier/factures')
+  const isActive = location.pathname.startsWith('/metier/ageadapt') ||
+                 location.pathname.startsWith('/metier/agecarbon') ||
+                 location.pathname.startsWith('/metier/dossiers-rga')
 
   return (
     <div>
@@ -136,6 +138,14 @@ function EnvironnementMenu() {
           >
             <i className="ti ti-calculator nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">AGEcarbon</span>
+          </NavLink>
+          <NavLink
+            to="/metier/dossiers-rga"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-home-search nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Dossiers RGA</span>
           </NavLink>
         </div>
       )}
