@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
 import BrownValueWizard from "../../components/BrownValueWizard"
-
+import PreDiagDrawer from "./PreDiagDrawer"
 const ONGLETS = [
   { id: "synthese",    label: "Synthèse",    icon: "ti-clipboard-list" },
   { id: "climatique",  label: "Climatique",  icon: "ti-leaf" },
@@ -16,7 +16,7 @@ export default function FicheBien() {
   const [actif, setActif]   = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [onglet, setOnglet]   = useState("synthese")
-
+const [prediagOpen, setPrediagOpen] = useState(false)
   useEffect(() => { loadActif() }, [id])
 
   async function loadActif() {
@@ -54,12 +54,18 @@ export default function FicheBien() {
             {actif.type_batiment && <span> · {actif.type_batiment}</span>}
           </div>
         </div>
-        <span style={{ background: scoreBg, color: scoreColor, padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
+       <span style={{ background: scoreBg, color: scoreColor, padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
           {scoreLabel}
         </span>
         <span style={{ background: "#F8FAFC", color: scoreColor, padding: "5px 12px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Mono', monospace", border: "1px solid #E2E8F0" }}>
           {score} / 100
         </span>
+        <button
+          onClick={() => setPrediagOpen(true)}
+          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#7C3AED", border: "none", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#fff", fontSize: "13px", fontFamily: "inherit", fontWeight: 500 }}>
+          <i className="ti ti-sparkles" style={{ fontSize: "15px" }} />
+          Pré-diagnostic IA
+        </button>
       </div>
 
       {/* KPIs */}
@@ -191,6 +197,23 @@ export default function FicheBien() {
           onClose={() => setOnglet("synthese")}
         />
       )}
+<PreDiagDrawer
+        open={prediagOpen}
+        onClose={() => setPrediagOpen(false)}
+        source="bien"
+        bien={{
+          id: actif.id,
+          adresse: actif.adresse,
+          ville: actif.ville,
+          type_bien: actif.type_batiment || actif.type_bien,
+          score_risque: actif.score_climatique || actif.score_risque,
+          niveau_risque: score >= 70 ? "eleve" : score >= 40 ? "moyen" : "faible",
+          zone_rga: actif.zone_rga,
+          zone_ppri: actif.zone_ppri,
+          categorie: actif.categorie,
+          nom_client: actif.nom_client || actif.raison_sociale,
+        }}
+      />
     </div>
   )
 }
