@@ -429,40 +429,37 @@ export default function FicheActif() {
           )}
         </div>
       )}
-
-      {/* Onglet Climatique */}
+{/* Onglet Climatique — réservé missions AGE */}
       {onglet==="climatique" && (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem"}}>
-          <ScoreGeorisques
-            zone_rga={false}
-            zone_ppri={false}
-            score_risque={actif.score_climatique||0}
-            niveau_risque={actif.score_climatique>=70?"eleve":actif.score_climatique>=40?"moyen":"faible"}
-          />
-          <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-            <h3 style={{color:"#111827",marginBottom:"1rem"}}>Détail des risques</h3>
-            {[
-              { label:"Risque physique",   score:65, color:"#d97706", desc:"Exposition aux aléas climatiques" },
-              { label:"Risque transition", score:80, color:"#b91c1c", desc:"Impact de la transition énergétique" },
-              { label:"Résilience",        score:72, color:"#2d6a4f", desc:"Capacité d'adaptation du site" },
-            ].map((s,i) => (
-              <div key={i} style={{marginBottom:"1rem"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:"0.25rem"}}>
-                  <span style={{fontWeight:"600",color:"#111827",fontSize:"0.9rem"}}>{s.label}</span>
-                  <span style={{fontWeight:"800",color:s.color}}>{s.score}/100</span>
-                </div>
-                <div style={{fontSize:"0.75rem",color:"#666",marginBottom:"0.4rem"}}>{s.desc}</div>
-                <div style={{background:"#f0f0f0",borderRadius:"999px",height:"8px",overflow:"hidden"}}>
-                  <div style={{background:s.color,width:s.score+"%",height:"100%",borderRadius:"999px"}}></div>
-                </div>
-              </div>
-            ))}
-            <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",marginTop:"1rem",fontSize:"0.85rem",color:"#0369a1"}}>
-              💡 Analyse complète disponible après traitement des documents uploadés.
-            </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 24px", background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FDF0E8", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <i className="ti ti-lock" style={{ fontSize: 28, color: "#B25C2A" }} />
+          </div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 10 }}>
+            Analyse climatique réservée aux missions AGE
+          </h3>
+          <p style={{ fontSize: 14, color: "#6B7280", maxWidth: 420, lineHeight: 1.7, marginBottom: 24 }}>
+            L'exposition aux aléas climatiques, le score de risque physique et les recommandations d'adaptation de votre bien sont réalisés par nos consultants dans le cadre d'une mission dédiée.
+          </p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => navigate("/client/demandes")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "none", background: "#B25C2A", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-send" style={{ fontSize: 14 }} />
+              Demander une analyse
+            </button>
+            <button
+              onClick={() => navigate("/marketplace")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "1px solid #E2DDD8", background: "white", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-building-store" style={{ fontSize: 14 }} />
+              Voir nos offres
+            </button>
           </div>
         </div>
       )}
+    
 
       {/* Onglet Documents */}
       {onglet==="documents" && (
