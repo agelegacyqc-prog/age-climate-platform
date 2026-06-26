@@ -84,6 +84,70 @@ Rédige un rapport structuré avec les sections suivantes :
 Sois précis, ancré dans la méthodologie ABC et le cadre réglementaire français (BEGES, CSRD, ESRS E1).`
     }
 
+    if (module === "prediag") {
+      const { source, bien, actif } = data
+
+      if (source === "bien") {
+        const b = bien
+        const risques: string[] = []
+        if (b.zone_rga)  risques.push("Retrait-gonflement des argiles (RGA)")
+        if (b.zone_ppri) risques.push("Inondation / PPRI")
+
+        prompt = `Tu es un expert en risque climatique immobilier chez AGE Climate.
+Tu dois rédiger un pré-diagnostic climatique professionnel et structuré en français pour un bien immobilier B2B.
+
+DONNÉES DU BIEN :
+- Adresse : ${b.adresse || "—"}, ${b.ville || "—"}
+- Type de bien : ${b.type_bien || "—"}
+- Catégorie : ${b.categorie || "—"}
+- Score de risque climatique : ${b.score_risque ?? "—"} / 100
+- Niveau de risque : ${b.niveau_risque || "—"}
+- Zones à risque identifiées : ${risques.length > 0 ? risques.join(", ") : "Aucune zone spécifique identifiée"}
+${b.nom_client ? `- Propriétaire / Client : ${b.nom_client}` : ""}
+
+Rédige un pré-diagnostic structuré avec les sections suivantes :
+1. **Synthèse du bien** — présentation et niveau d'exposition global
+2. **Aléas climatiques identifiés** — analyse des risques détectés et leur impact potentiel sur le bien
+3. **Recommandations prioritaires** — 5 actions concrètes classées par urgence (travaux, assurance, mesures préventives)
+4. **Estimation budgétaire** — fourchette indicative des travaux d'adaptation (€)
+5. **Prochaines étapes AGE** — mission de diagnostic complet, mandat, financement (Fonds Barnier, Ma Prime Adapt')
+
+Sois précis, professionnel, ancré dans le contexte réglementaire français (loi Climat et Résilience, PPRN, RGA BRGM).
+Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.`
+      }
+
+      if (source === "actif") {
+        const a = actif
+        const risquesDetail = a.georisques_data?.data?.[0]?.risques_detail ?? []
+        const risquesLabels = risquesDetail
+          .map((r: any) => r.libelle_risque_long)
+          .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i)
+          .join(", ")
+        const commune = a.georisques_data?.data?.[0]?.libelle_commune ?? a.ville ?? "—"
+
+        prompt = `Tu es un expert en risque climatique immobilier chez AGE Climate.
+Tu dois rédiger un pré-diagnostic climatique professionnel et structuré en français pour un particulier.
+
+DONNÉES DU BIEN :
+- Nom du bien : ${a.nom || "—"}
+- Adresse : ${a.adresse || "—"}, ${a.ville || "—"}
+- Commune Géorisques : ${commune}
+- Type de bien : ${a.type_bien || "—"}
+- Score climatique : ${a.score_climatique ?? "—"} / 100
+- Risques Géorisques identifiés : ${risquesLabels || "Aucun risque identifié"}
+
+Rédige un pré-diagnostic structuré avec les sections suivantes :
+1. **Synthèse du bien** — présentation et niveau d'exposition global
+2. **Aléas climatiques identifiés** — analyse détaillée des risques Géorisques et leur impact potentiel sur le bien
+3. **Recommandations prioritaires** — 5 actions concrètes classées par urgence (travaux, assurance, mesures préventives)
+4. **Estimation budgétaire** — fourchette indicative des travaux d'adaptation (€)
+5. **Prochaines étapes AGE** — mission de diagnostic complet, mandat, financement (Ma Prime Adapt', Fonds Barnier, éco-PTZ)
+
+Sois précis, professionnel, ancré dans le contexte réglementaire français (loi Climat et Résilience, PPRN, RGA BRGM, Géorisques).
+Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.`
+      }
+    }
+
     // Appel Claude API
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

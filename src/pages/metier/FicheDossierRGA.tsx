@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
+import PreDiagDrawer from "./PreDiagDrawer";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import {
   ArrowLeft, ChevronRight, Home, MapPin, User, Phone, Mail,
   Calendar, FileText, Download, Upload, AlertTriangle,
   CheckCircle, OctagonX, Clock, Wrench, Layers, Waves,
-  Shield, ExternalLink, Trash2
+  Shield, ExternalLink, Trash2, Sparkles
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ export default function FicheDossierRGA() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [prediagOpen, setPrediagOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [confirmStatut, setConfirmStatut] = useState<Statut | null>(null);
@@ -253,25 +255,39 @@ export default function FicheDossierRGA() {
     const file = e.target.files?.[0];
     if (!file || !dossier) return;
     setUploading(true);
-    const path = `dossiers/${dossier.id}/${Date.now()}_${file.name}`;
+   const safeName = file.name
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `dossiers/${dossier.id}/${Date.now()}_${safeName}`;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const typeFileier = ["pdf","csv","xlsx"].includes(ext) ? ext : "autre";
     const { error: upErr } = await supabase.storage
       .from("documents-rga")
       .upload(path, file);
-    if (upErr) { showToast("Erreur upload.", "error"); setUploading(false); return; }
+    if (upErr) {
+      console.error("UPLOAD ERROR:", JSON.stringify(upErr));
+      showToast(`Erreur upload : ${upErr.message}`, "error");
+      setUploading(false);
+      return;
+    }
 
-    const { data: urlData } = supabase.storage.from("documents-rga").getPublicUrl(path);
+   const { data: signedData } = await supabase.storage
+      .from("documents-rga")
+      .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 an
     const { error: dbErr } = await supabase.from("documents").insert({
       dossier_id: dossier.id,
       nom: file.name,
       nom_fichier: file.name,
-      type_fichier: file.type,
+      type_fichier: typeFileier,
       taille_octets: file.size,
       storage_path: path,
-      url: urlData.publicUrl,
+      url: signedData?.signedUrl ?? null,
       client_id: dossier.client_id,
     });
-    if (dbErr) showToast("Erreur enregistrement document.", "error");
-    else {
+    if (dbErr) {
+      console.error("DATABASE ERROR:", JSON.stringify(dbErr));
+      showToast(`Erreur DB : ${dbErr.message}`, "error");
+    } else {
       showToast("Document ajouté.");
       await load();
     }
@@ -502,15 +518,24 @@ export default function FicheDossierRGA() {
       <div style={{ ...card, marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <p style={{ ...sectionTitle, marginBottom: 0 }}><FileText size={13} /> Documents ({documents.length})</p>
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            style={btnPrimary}
-          >
-            <Upload size={13} />
-            {uploading ? "Envoi…" : "Ajouter un document"}
-          </button>
-          <input ref={fileRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setPrediagOpen(true)}
+              style={{ ...btnPrimary, background: "#7C3AED" }}
+            >
+              <Sparkles size={13} />
+              Pré-diagnostic IA
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              style={btnPrimary}
+            >
+              <Upload size={13} />
+              {uploading ? "Envoi…" : "Ajouter un document"}
+            </button>
+            <input ref={fileRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+          </div>
         </div>
 
         {documents.length === 0 ? (
@@ -537,8 +562,12 @@ export default function FicheDossierRGA() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  {doc.url && (
-                    <a href={doc.url} target="_blank" rel="noreferrer"
+                  {doc.storage_path && (
+                    <a href="#" onClick={async e => {
+                      e.preventDefault();
+                      const { data } = await supabase.storage.from("documents-rga").createSignedUrl(doc.storage_path!, 300);
+                      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                    }}
                       style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 6, border: "1px solid #E5E1DA", background: "#fff", color: "#1F2937", fontSize: 12, textDecoration: "none", fontWeight: 500 }}>
                       <Download size={12} /> Ouvrir
                     </a>
@@ -553,11 +582,17 @@ export default function FicheDossierRGA() {
           </div>
         )}
       </div>
-
-      {/* ── Meta ── */}
+{/* ── Meta ── */}
       <p style={{ fontSize: 12, color: "#78716C", marginTop: 16, textAlign: "right" }}>
         Dossier créé le {fmtDate(dossier.created_at)}
       </p>
+
+      <PreDiagDrawer
+        open={prediagOpen}
+        onClose={() => setPrediagOpen(false)}
+        source="bien"
+        bien={bien ?? undefined}
+      />
     </div>
   );
 }
