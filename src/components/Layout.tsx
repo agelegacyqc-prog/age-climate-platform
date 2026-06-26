@@ -18,6 +18,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier":                     "Dashboard métier",
   "/metier/file-attente":        "File d'attente",
   "/metier/campagnes":           "Campagnes",
+   "/metier/portefeuille":        "Portefeuille",
   "/metier/missions":            "Missions",
   "/metier/clients":             "Clients",
   "/metier/equipe": "Mon équipe",
@@ -540,6 +541,11 @@ supabase
 {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
   <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
 )}
+
+            {/* Portefeuille — admin_national et responsable_regional */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <NavItem to="/metier/portefeuille" icon="ti-building" label="Portefeuille" />
+              )}
 
               {/* Clients — admin_national uniquement */}
               {roleAGE === "admin_national" && (
