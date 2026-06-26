@@ -139,7 +139,10 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
           <span style={{ fontWeight: 500, color: "#0F172A" }}>{actifsFiltres.length}</span> actif{actifsFiltres.length > 1 ? "s" : ""} affiché{actifsFiltres.length > 1 ? "s" : ""}
           {actifsFiltres.length !== actifsOnglet.length && <span> sur {actifsOnglet.length}</span>}
         </div>
-        <button style={{
+        
+        <button
+          onClick={() => navigate("/metier/import-portefeuille")}
+          style={{
           display: "flex", alignItems: "center", gap: "6px",
           background: "#0F6E56", color: "white", border: "none",
           padding: "8px 16px", borderRadius: "7px",

@@ -30,6 +30,9 @@ import DashboardMetier from "./pages/metier/DashboardMetier"
 import Portefeuille from "./pages/metier/Portefeuille"
 import FicheBien from "./pages/metier/FicheBien"
 import Campagnes from "./pages/metier/Campagnes"
+import ImportPortefeuille from "./pages/metier/ImportPortefeuille"
+import CampagnePipeline from "./pages/metier/CampagnePipeline"
+
 import Missions from "./pages/metier/Missions"
 import Messagerie from "./pages/metier/Messagerie"
 import Financement from "./pages/metier/Financement"
@@ -93,8 +96,11 @@ export default function App() {
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
           <Route path="metier/portefeuille/:id" element={<ProtectedRoute><FicheBien /></ProtectedRoute>} />
+          <Route path="metier/import-portefeuille" element={<ProtectedRoute><ImportPortefeuille /></ProtectedRoute>} />
+          <Route path="client/import-actifs" element={<ProtectedRoute><ImportPortefeuille /></ProtectedRoute>} />
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
           <Route path="metier/campagnes/:id" element={<ProtectedRoute><FicheCampagne /></ProtectedRoute>} />
+          <Route path="metier/campagnes/:id/pipeline" element={<ProtectedRoute><CampagnePipeline /></ProtectedRoute>} />
           <Route path="metier/campagnes-age/:id" element={<ProtectedRoute><FicheCampagneAGE /></ProtectedRoute>} />
           <Route path="metier/campagnes/:id/biens/:bienId" element={<ProtectedRoute><FicheBienCampagne /></ProtectedRoute>} />
           <Route path="metier/missions" element={<ProtectedRoute><Missions /></ProtectedRoute>} />

@@ -236,11 +236,11 @@ function showToast(message: string, type: "success" | "error" = "success") {
     if (!campagnesData) { setDemandesClient([]); return }
     const enriched = await Promise.all(
       campagnesData.map(async (c: Campagne) => {
-        const { data: clientData } = await supabase
-          .from("profils")
-          .select("prenom, nom, profil")
-          .eq("id", c.client_id)
-          .single()
+        const clientData = c.client_id ? (await supabase
+  .from("profils")
+  .select("prenom, nom, profil")
+  .eq("id", c.client_id)
+  .maybeSingle()).data : null
         const { data: actifs } = await supabase
           .from("campagnes_actifs")
           .select("actif:actif_id(id, nom, adresse, ville, surface)")
@@ -589,13 +589,23 @@ async function lancerAnalyse(campagne: Campagne) {
                         </div>
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); setSelected(c); setDrawerOpen(true); setShowExportMenu(false) }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                        >
-                          <i className="ti ti-eye" style={{ fontSize: "13px" }} />
-                          Voir
-                        </button>
+                        <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+                          <button
+                            onClick={e => { e.stopPropagation(); setSelected(c); setDrawerOpen(true); setShowExportMenu(false) }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <i className="ti ti-eye" style={{ fontSize: "13px" }} />
+                            Voir
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); navigate("/metier/campagnes/" + c.id + "/pipeline") }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "none", background: "#F9F0EA", color: "#B25C2A", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <i className="ti ti-layout-kanban" style={{ fontSize: "13px" }} />
+                            Pipeline
+                          </button>
+                        </div>
+
                       </td>
                     </tr>
                   )
@@ -909,9 +919,17 @@ async function lancerAnalyse(campagne: Campagne) {
               </div>
             </div>
             <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", flexShrink: 0, position: "relative" }}>
-              <div style={{ display: "flex", gap: "8px" }}>
+               <div style={{ display: "flex", gap: "8px" }}>
                 <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setDrawerOpen(false)}>Fermer</button>
+                <button
+                  onClick={() => { setDrawerOpen(false); navigate("/metier/campagnes/" + selected!.id + "/pipeline") }}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 16px", borderRadius: "8px", border: "none", background: "#F9F0EA", color: "#B25C2A", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-layout-kanban" style={{ fontSize: "14px" }} />
+                  Pipeline
+                </button>
                 <div style={{ position: "relative", flex: 2 }}>
+
                   <button className="btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => setShowExportMenu(!showExportMenu)}>
                     <i className="ti ti-download" style={{ fontSize: "14px" }} />
                     Exporter

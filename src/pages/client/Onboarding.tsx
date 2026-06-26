@@ -99,13 +99,13 @@ export default function Onboarding() {
 })
 
     // Mise à jour colonne profil dans la table profils
-    if (profilValue) {
-      await supabase.from("profils").upsert({
-        id: user?.id,
-        profil: profilValue,
-        updated_at: new Date().toISOString(),
-      })
-    }
+    if (profilValue && typeClient !== "proprietaire") {
+  await supabase.from("profils").upsert({
+    id: user?.id,
+    profil: profilValue,
+    updated_at: new Date().toISOString(),
+  })
+}
 
     setLoading(false)
     navigate("/")
