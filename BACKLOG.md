@@ -2,8 +2,8 @@
 > Source de vérité du suivi de développement · Mis à jour à chaque session Claude
 > Format statut : `[ ]` À faire · `[~]` En cours · `[x]` Terminé
 
-**Dernière mise à jour :** 26/06/2026  
-**Rapport de référence :** Session 26/06/2026 — P2-01 + P2-02 terminés · Portefeuille sidebar + onglet Climatique client verrouillé
+**Dernière mise à jour :** 29/06/2026  
+**Rapport de référence :** Session 29/06/2026 — P2-03 terminé · Publipostage + Modèles comm. + bloc Prospection sidebar
 
 ---
 
@@ -36,7 +36,7 @@
 |----|--------------|--------|-------------|-------------------------------|--------|
 | P2-01 | Particulier | FicheDossierRGA | Vue consultant côté espace métier — liste `DossiersRGA.tsx` + fiche `FicheDossierRGA.tsx` · pipeline 4 statuts · dates clés · financement/travaux · upload documents bucket `documents-rga` · bouton Pré-diagnostic IA · sidebar Environnement | `src/pages/metier/DossiersRGA.tsx` · `FicheDossierRGA.tsx` · `Layout.tsx` · `App.tsx` | `[x]` 26/06/2026 |
 | P2-02 | B2B + Particulier | M06 — Pré-diagnostic IA | Edge Function `generate-rapport` enrichie (case `prediag`) · `PreDiagDrawer.tsx` réutilisable · intégration `FicheDossierRGA` + `FicheBien` · export PDF HTML → nouvelle fenêtre · fix upload `documents-rga` (nom fichier sanitizé, type_fichier CHECK, signed URL) | `PreDiagDrawer.tsx` · `generate-rapport/index.ts` · `FicheDossierRGA.tsx` · `FicheBien.tsx` | `[x]` 26/06/2026 |
-| P2-03 | B2B | M08 — Publipostage | Éditeur modèles email/courrier + variables de fusion + export CSV Brevo | `src/pages/metier/Publipostage.tsx` · `src/pages/metier/ModelesComm.tsx` | `[ ]` |
+| P2-03 | B2B | M08 — Publipostage | Éditeur modèles email/courrier + variables de fusion + export CSV Brevo · tables `modeles_comm` + `publipostage_exports` · RLS corrigé (`admin` + `authenticated`) · bloc Prospection sidebar · `consultant_id` injecté à la création | `Publipostage.tsx` · `ModelesComm.tsx` · `Layout.tsx` · `App.tsx` · Migration SQL | `[x]` 29/06/2026 |
 | P2-04 | B2B | M09 — Qualification contacts | Formulaire qualification (Chaud/Tiède/Froid) + alertes relance 48h + historique | `src/pages/metier/Qualification.tsx` · table `qualifications` | `[ ]` |
 | P2-05 | B2B | M10 — RDV consultant | Agenda consultant + création RDV + statuts + compte rendu + notification email | `src/pages/metier/RDVConsultant.tsx` · table `rendez_vous` | `[ ]` |
 | P2-06 | B2B | M12 — Mandat | Génération mandat depuis modèle Word + lien Yousign externe + cycle de vie statuts | `src/pages/metier/Mandats.tsx` · table `mandats` | `[ ]` |
@@ -66,6 +66,7 @@
 
 | Environnement | Fonctionnalité | Date |
 |--------------|----------------|------|
+| B2B | Publipostage — `Publipostage.tsx` + `ModelesComm.tsx` + tables `modeles_comm` / `publipostage_exports` + bloc Prospection sidebar | 29/06/2026 |
 | B2B + Particulier | Pré-diagnostic IA — `PreDiagDrawer` + Edge Function `generate-rapport` case prediag | 26/06/2026 |
 | Particulier | DossiersRGA liste + FicheDossierRGA — pipeline, documents, upload bucket | 26/06/2026 |
 | B2B | Portefeuille visible dans sidebar métier (admin + responsable_régional) | 26/06/2026 |
@@ -83,28 +84,35 @@
 
 ---
 
-## NOTES TECHNIQUES — Session 26/06/2026
+## NOTES TECHNIQUES — Session 29/06/2026
+
+### Publipostage — points clés
+- Tables `modeles_comm` + `publipostage_exports` créées avec RLS
+- RLS policies : cibler `authenticated` (pas `public`) — pattern validé
+- Policy INSERT : ne pas exiger `consultant_id` dans WITH CHECK — l'injecter côté front via `supabase.auth.getUser()`
+- Rôle `admin` (rétrocompatibilité) doit être inclus dans toutes les policies aux côtés de `admin_national`
+- Export CSV Brevo : UTF-8 BOM (`\uFEFF`) pour compatibilité Excel/Brevo
+- Export PDF courrier : génération HTML multi-pages → `window.open` → `window.print()`
+- Variables de fusion : `.split(token).join(value)` (pas `.replaceAll` — lib cible TS trop ancienne)
 
 ### Architecture BDD réelle (vérifiée en base)
-- Tables prod : `biens`, `campagnes`, `dossiers`, `actifs`, `documents`, `campagnes_actifs`, `campagnes_suivi_biens`, `contacts_campagne`, `organisations`
-- `organisations` : référentiel client B2B — enrichi avec `code_naf`, `effectifs`, `nb_sites`, `ca_tranche`, `notes_consultant`
+- Tables prod : `biens`, `campagnes`, `dossiers`, `actifs`, `documents`, `campagnes_actifs`, `campagnes_suivi_biens`, `contacts_campagne`, `organisations`, `modeles_comm`, `publipostage_exports`
 - `organisations.siren` et `siret` : corrigés de `character` → `text`
 - Liaison clients : `biens.client_id` + `campagnes.client_id` + `dossiers.client_id` + `contacts_campagne.client_id` → `organisations.id`
 - Pas de FK formelle (intentionnel — évite les contraintes sur inserts sans client_id)
-- Index créés : `idx_biens_client_id`, `idx_campagnes_client_id`, `idx_dossiers_client_id`
 - Import supabase dans les pages métier : `../../lib/supabase` (sans "Client")
-- Bucket `documents-rga` : private · policies RLS authenticated INSERT/DELETE/UPDATE ajoutées · noms de fichiers sanitizés (accents + espaces → underscore) · `type_fichier` CHECK : pdf/csv/xlsx/autre · URLs signées (pas publicUrl)
-- Pré-diagnostic IA : réservé espace métier uniquement — pas accessible côté client
-- `actifs.categorie = "biens_finances"` ou `"biens_assures"` → onglet "Biens assurés & financés" dans Portefeuille métier
+- Bucket `documents-rga` : private · policies RLS authenticated · noms de fichiers sanitizés · `type_fichier` CHECK : pdf/csv/xlsx/autre · URLs signées
 
 ### Pattern RLS validé
 ```sql
-auth.uid() = client_id
-OR EXISTS (SELECT 1 FROM profils WHERE profils.id = auth.uid() AND profils.role IN ('admin','admin_national','consultant','responsable_regional'))
+-- Toujours cibler TO authenticated (pas public)
+-- Toujours inclure 'admin' ET 'admin_national' pour rétrocompatibilité
+EXISTS (SELECT 1 FROM profils p WHERE p.id = auth.uid()
+  AND p.role IN ('admin', 'admin_national', ...))
 ```
 
 ### Prochaine priorité
-**P2-03** — Publipostage (M08)
+**P2-04** — Qualification contacts (M09)
 
 ---
 
@@ -120,3 +128,5 @@ OR EXISTS (SELECT 1 FROM profils WHERE profils.id = auth.uid() AND profils.role 
 6. Les bugs BUG-xx sont prioritaires sur tout ticket P1.
 7. Ne pas démarrer P2 avant que toutes les P1 soient terminées.
 8. Toujours vérifier le schéma réel en base (`information_schema`) avant de produire des migrations.
+9. Toujours inclure `'admin'` ET `'admin_national'` dans les policies RLS (rétrocompatibilité).
+10. Ne jamais cibler `public` dans les policies RLS — toujours `authenticated`.

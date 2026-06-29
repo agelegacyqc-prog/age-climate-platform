@@ -367,7 +367,6 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
     .from("campagnes")
     .select("id", { count: "exact", head: true })
     .eq("responsable_id", user.id)
-    .is("consultant_id", null)
   setNbCampagnes(countCampRegion || 0)
 
           // Missions de la région non assignées

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import QualificationDrawer from './QualificationDrawer'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,9 @@ interface Contact {
   statut_updated_at: string
   consultant_id: string | null
   note: string | null
+  qualification_statut?: string | null
+  qualification_relance_due_at?: string | null
+  qualification_relance_traitee?: boolean
   created_at: string
   bien?: Bien
 }
@@ -98,7 +102,8 @@ interface CarteContactProps {
   contact: Contact
   onAvancer: (id: string, statut: Statut) => void
   onDragStart: (e: React.DragEvent<HTMLDivElement>, contact: Contact) => void
-  onOpenNote: (contact: Contact) => void
+onOpenNote: (contact: Contact) => void
+  onOpenQualif: (contact: Contact) => void
 }
 
 function CarteContact({
@@ -106,6 +111,7 @@ function CarteContact({
   onAvancer,
   onDragStart,
   onOpenNote,
+  onOpenQualif,
 }: CarteContactProps) {
   const col = COLONNES.find(c => c.statut === contact.statut)!
   const suivant = statutSuivant(contact.statut)
@@ -182,7 +188,7 @@ function CarteContact({
 
       {/* Actions */}
       <div style={{ display: "flex", gap: "4px" }}>
-        {/* Bouton note */}
+      {/* Bouton note */}
         <button
           onClick={e => { e.stopPropagation(); onOpenNote(contact) }}
           style={{
@@ -195,6 +201,39 @@ function CarteContact({
           title="Ajouter une note"
         >
           <i className="ti ti-note" style={{ fontSize: "12px" }} />
+        </button>
+
+        {/* Bouton qualification */}
+        <button
+          onClick={e => { e.stopPropagation(); onOpenQualif(contact) }}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "26px", height: "26px", borderRadius: "6px",
+            border: `1px solid ${
+              contact.qualification_statut === 'chaud' ? '#FECACA'
+              : contact.qualification_statut === 'tiede' ? '#FDE68A'
+              : '#E2DDD8'
+            }`,
+            background: contact.qualification_statut === 'chaud' ? '#FEF2F2'
+              : contact.qualification_statut === 'tiede' ? '#FFFBEB'
+              : '#F4F3F0',
+            color: contact.qualification_statut === 'chaud' ? '#B91C1C'
+              : contact.qualification_statut === 'tiede' ? '#D97706'
+              : '#9CA3AF',
+            cursor: "pointer", flexShrink: 0, position: 'relative'
+          }}
+          title="Qualifier ce contact"
+        >
+          <i className="ti ti-flame" style={{ fontSize: "12px" }} />
+          {contact.qualification_relance_due_at &&
+           !contact.qualification_relance_traitee &&
+           new Date(contact.qualification_relance_due_at) < new Date() && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              width: 8, height: 8, borderRadius: '50%',
+              background: '#B91C1C', border: '1px solid #fff'
+            }} />
+          )}
         </button>
 
         {/* Bouton avancer */}
@@ -247,6 +286,7 @@ function Colonne({
   onDragOver,
   onAvancer,
   onOpenNote,
+  onOpenQualif,
 }: {
   key?: Statut
   config: typeof COLONNES[0]
@@ -256,6 +296,7 @@ function Colonne({
   onDragOver: (e: React.DragEvent) => void
   onAvancer: (id: string, statut: Statut) => void
   onOpenNote: (contact: Contact) => void
+  onOpenQualif: (contact: Contact) => void
 }) {
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -284,12 +325,32 @@ function Colonne({
             {config.label}
           </span>
         </div>
-        <span style={{
-          background: "rgba(0,0,0,0.06)", color: config.color,
-          fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "10px",
-        }}>
-          {contacts.length}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{
+            background: "rgba(0,0,0,0.06)", color: config.color,
+            fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "10px",
+          }}>
+            {contacts.length}
+          </span>
+          {(() => {
+            const enRetard = contacts.filter(c =>
+              c.qualification_statut === 'chaud' &&
+              c.qualification_relance_due_at &&
+              !c.qualification_relance_traitee &&
+              new Date(c.qualification_relance_due_at) < new Date()
+            ).length
+            return enRetard > 0 ? (
+              <span style={{
+                background: '#B91C1C', color: '#fff',
+                fontSize: '9px', fontWeight: 700,
+                padding: '1px 5px', borderRadius: '8px'
+              }}>
+                {enRetard} ⚠
+              </span>
+            ) : null
+          })()}
+        </div>
+        
       </div>
 
       {/* Cartes */}
@@ -308,13 +369,14 @@ function Colonne({
             {isDragOver ? "Déposer ici" : "Aucun contact"}
           </div>
         )}
-        {contacts.map(c => (
+      {contacts.map(c => (
           <CarteContact
             key={c.id}
             contact={c}
             onAvancer={onAvancer}
             onDragStart={onDragStart}
             onOpenNote={onOpenNote}
+            onOpenQualif={onOpenQualif}
           />
         ))}
       </div>
@@ -335,6 +397,7 @@ export default function CampagnePipeline() {
 
   // Modal note
   const [noteModal, setNoteModal]   = useState<Contact | null>(null)
+  const [qualifContact, setQualifContact] = useState<Contact | null>(null)
   const [noteTexte, setNoteTexte]   = useState("")
   const [noteSaving, setNoteSaving] = useState(false)
 
@@ -384,11 +447,31 @@ export default function CampagnePipeline() {
       .select("id, adresse, ville, type_bien, niveau_risque, score_risque")
       .in("id", bienIds)
 
-    const enriched = cts.map((c: Contact) => ({
-      ...c,
-      bien: biens?.find((b: Bien) => b.id === c.bien_id) || undefined,
-    }))
-    setContacts(enriched)
+    // Récupérer dernières qualifications par contact
+    const contactIds = cts.map((c: Contact) => c.id)
+    const { data: qualifs } = await supabase
+      .from('qualifications')
+      .select('contact_id, statut, relance_due_at, relance_traitee, created_at')
+      .in('contact_id', contactIds)
+      .order('created_at', { ascending: false })
+
+    // Garder uniquement la plus récente par contact
+    const dernieresQualifs = new Map<string, any>()
+    ;(qualifs ?? []).forEach((q: any) => {
+      if (!dernieresQualifs.has(q.contact_id)) dernieresQualifs.set(q.contact_id, q)
+    })
+
+    const enriched = cts.map((c: Contact) => {
+      const q = dernieresQualifs.get(c.id)
+      return {
+        ...c,
+        bien: biens?.find((b: Bien) => b.id === c.bien_id) || undefined,
+        qualification_statut: q?.statut ?? null,
+        qualification_relance_due_at: q?.relance_due_at ?? null,
+        qualification_relance_traitee: q?.relance_traitee ?? false,
+      }
+    })
+  setContacts(enriched)
     setLoading(false)
   }
 
@@ -596,8 +679,9 @@ export default function CampagnePipeline() {
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              onAvancer={changerStatut}
+             onAvancer={changerStatut}
               onOpenNote={openNote}
+              onOpenQualif={c => setQualifContact(c)}
             />
           ))}
         </div>
@@ -664,6 +748,16 @@ export default function CampagnePipeline() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Drawer qualification */}
+      {qualifContact && (
+        <QualificationDrawer
+          contact={qualifContact}
+          campagneId={id!}
+          onClose={() => setQualifContact(null)}
+          onQualifSaved={() => { charger(); setQualifContact(null) }}
+        />
       )}
     </div>
   )
