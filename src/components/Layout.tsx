@@ -14,36 +14,29 @@ const PAGE_TITLES: Record<string, string> = {
   "/client/demandes":            "Mes Demandes",
   "/client/profil":              "Mon profil",
   "/client/messagerie":          "Messagerie",
-"/client/utilisateurs":        "Gestion des utilisateurs",
+  "/client/utilisateurs":        "Gestion des utilisateurs",
   "/metier":                     "Dashboard métier",
   "/metier/file-attente":        "File d'attente",
   "/metier/campagnes":           "Campagnes",
-   "/metier/portefeuille":        "Portefeuille",
+  "/metier/portefeuille":        "Portefeuille",
   "/metier/missions":            "Missions",
   "/metier/clients":             "Clients",
-  "/metier/equipe": "Mon équipe",
+  "/metier/equipe":              "Mon équipe",
   "/metier/utilisateurs":        "Utilisateurs",
   "/metier/messagerie":          "Messagerie",
   "/metier/reporting":           "Reporting",
-"/metier/factures":            "Factures",
-"/metier/ageadapt":            "AGEadapt",
-"/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
+  "/metier/factures":            "Factures",
+  "/metier/ageadapt":            "AGEadapt",
+  "/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
   "/metier/dossiers-rga":        "Dossiers RGA",
   "/metier/publipostage":        "Publipostage",
-"/metier/modeles-comm":        "Modèles de communication",
-"/metier/ged":                 "Documents",
+  "/metier/modeles-comm":        "Modèles de communication",
+  "/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type EspaceType = "metier" | "client" | "public"
-
-/**
- * Sous-rôles AGE — étendent le champ `role` de la table `profils`.
- * `admin`       → mappé sur `admin_national` (rétrocompatibilité)
- * `consultant`  → inchangé
- * Nouveau : `responsable_regional`
- */
 type RoleAGE = "admin_national" | "responsable_regional" | "consultant"
 
 interface NavItemProps {
@@ -53,10 +46,15 @@ interface NavItemProps {
   badge?: number
   end?: boolean
 }
+
+// ─── Menus collapsibles ───────────────────────────────────────────────────────
+
 function ProspectionMenu() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
-  const isActive = location.pathname.startsWith('/metier/publipostage') ||
+  const isActive = location.pathname.startsWith('/metier/campagnes') ||
+                   location.pathname.startsWith('/metier/dossiers-rga') ||
+                   location.pathname.startsWith('/metier/publipostage') ||
                    location.pathname.startsWith('/metier/modeles-comm')
 
   return (
@@ -79,6 +77,22 @@ function ProspectionMenu() {
       {(open || isActive) && (
         <div style={{ paddingLeft: '28px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <NavLink
+            to="/metier/campagnes"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-speakerphone nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Campagnes</span>
+          </NavLink>
+          <NavLink
+            to="/metier/dossiers-rga"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-home-search nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Dossiers RGA</span>
+          </NavLink>
+          <NavLink
             to="/metier/publipostage"
             className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
             style={{ fontSize: '12px', padding: '6px 10px' }}
@@ -99,12 +113,12 @@ function ProspectionMenu() {
     </div>
   )
 }
+
 function FinanceMenu({ roleAGE }: { roleAGE: string }) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
-  const isActive = location.pathname.startsWith('/metier/ageadapt') ||
-                 location.pathname.startsWith('/metier/agecarbon') ||
-                 location.pathname.startsWith('/metier/dossiers-rga')
+  const isActive = location.pathname.startsWith('/metier/reporting') ||
+                   location.pathname.startsWith('/metier/factures')
 
   return (
     <div>
@@ -148,10 +162,11 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
     </div>
   )
 }
+
 function EnvironnementMenu() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
-  const isActive = location.pathname.startsWith('/metier/ageadapt') || 
+  const isActive = location.pathname.startsWith('/metier/ageadapt') ||
                    location.pathname.startsWith('/metier/agecarbon')
 
   return (
@@ -188,35 +203,12 @@ function EnvironnementMenu() {
             <i className="ti ti-calculator nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">AGEcarbon</span>
           </NavLink>
- <NavLink
-            to="/metier/dossiers-rga"
-            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
-            style={{ fontSize: '12px', padding: '6px 10px' }}
-          >
-            <i className="ti ti-home-search nav-item__icon" style={{ fontSize: '14px' }} />
-            <span className="nav-item__label">Dossiers RGA</span>
-          </NavLink>
-          <NavLink
-            to="/metier/publipostage"
-            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
-            style={{ fontSize: '12px', padding: '6px 10px' }}
-          >
-            <i className="ti ti-send nav-item__icon" style={{ fontSize: '14px' }} />
-            <span className="nav-item__label">Publipostage</span>
-          </NavLink>
-          <NavLink
-            to="/metier/modeles-comm"
-            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
-            style={{ fontSize: '12px', padding: '6px 10px' }}
-          >
-            <i className="ti ti-mail nav-item__icon" style={{ fontSize: '14px' }} />
-            <span className="nav-item__label">Modèles comm.</span>
-          </NavLink>
         </div>
       )}
     </div>
   )
 }
+
 // ─── NavItem ─────────────────────────────────────────────────────────────────
 function NavItem({ to, icon, label, badge, end }: NavItemProps) {
   return (
@@ -251,9 +243,8 @@ function NavItem({ to, icon, label, badge, end }: NavItemProps) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-/** Normalise le champ `role` Supabase vers un RoleAGE typé. */
 function resolveRoleAGE(role: string): RoleAGE {
-  if (role === "admin") return "admin_national"          // rétrocompatibilité
+  if (role === "admin") return "admin_national"
   if (role === "responsable_regional") return "responsable_regional"
   return "consultant"
 }
@@ -268,21 +259,19 @@ export default function Layout() {
   const [labelProfil, setLabelProfil]           = useState("")
   const [espace, setEspace]                     = useState<EspaceType>("public")
   const [roleAGE, setRoleAGE]                   = useState<RoleAGE>("consultant")
-  const [monProfilClient, setMonProfilClient] = useState<any>(null)
+  const [monProfilClient, setMonProfilClient]   = useState<any>(null)
   const [authChecked, setAuthChecked]           = useState(false)
 
   // Badges
-  const [nbFileAttente, setNbFileAttente]       = useState(0)  // admin_national : demandes clients
-  const [nbCampagnes, setNbCampagnes]           = useState(0)  // campagnes à traiter
-  const [nbMissions, setNbMissions]             = useState(0)  // missions à traiter
-  const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)  // messages non lus AGE
-  const [nbMessagesClient, setNbMessagesClient] = useState(0)  // messages non lus client
+  const [nbFileAttente, setNbFileAttente]       = useState(0)
+  const [nbCampagnes, setNbCampagnes]           = useState(0)
+  const [nbMissions, setNbMissions]             = useState(0)
+  const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)
+  const [nbMessagesClient, setNbMessagesClient] = useState(0)
 
   useEffect(() => {
     async function chargerProfil() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
         navigate("/login")
@@ -294,7 +283,7 @@ export default function Layout() {
         .from("profils")
         .select("prenom, nom, profil, role, region")
         .eq("id", user.id)
-        .maybeSingle() 
+        .maybeSingle()
 
       if (profilAGE && profilAGE.role !== null && profilAGE.role !== "client") {
         const p = profilAGE.prenom || ""
@@ -318,42 +307,35 @@ export default function Layout() {
 
         // ── Badges selon rôle ────────────────────────────────────────────
         if (role === "admin_national") {
-          // File d'attente : demandes clients non assignées
           const { count: countFile } = await supabase
-  .from("demandes_marketplace")
-  .select("id", { count: "exact", head: true })
-  .eq("statut", "soumise")
+            .from("demandes_marketplace")
+            .select("id", { count: "exact", head: true })
+            .eq("statut", "soumise")
 
-const { count: countCampagnesAttente } = await supabase
-  .from("campagnes")
-  .select("id", { count: "exact", head: true })
-  .eq("origine", "client")
-  .eq("statut", "soumise")
-  .is("responsable_id", null)
+          const { count: countCampagnesAttente } = await supabase
+            .from("campagnes")
+            .select("id", { count: "exact", head: true })
+            .eq("origine", "client")
+            .eq("statut", "soumise")
+            .is("responsable_id", null)
 
-const { count: countRdvAttente } = await supabase
-  .from("demandes_rdv")
-  .select("id", { count: "exact", head: true })
-  .eq("lu_admin", false)
-  .eq("statut", "en_attente")
+          const { count: countRdv } = await supabase
+            .from("demandes_rdv")
+            .select("id", { count: "exact", head: true })
+            .eq("lu_admin", false)
+            .eq("statut", "en_attente")
 
-const { count: countMissionsAttente } = await supabase
-  .from("missions")
-  .select("id", { count: "exact", head: true })
-  .is("consultant_id", null)
-  .in("statut", ["nouvelle", "en_cours"])
+          const { count: countMissionsAttente } = await supabase
+            .from("missions")
+            .select("id", { count: "exact", head: true })
+            .is("consultant_id", null)
+            .in("statut", ["nouvelle", "en_cours"])
 
-setNbFileAttente((countFile || 0) + (countCampagnesAttente || 0) + (countRdvAttente || 0) + (countMissionsAttente || 0))
+          setNbFileAttente(
+            (countFile || 0) + (countCampagnesAttente || 0) +
+            (countRdv || 0) + (countMissionsAttente || 0)
+          )
 
-const { count: countRdv } = await supabase
-  .from("demandes_rdv")
-  .select("id", { count: "exact", head: true })
-  .eq("lu_admin", false)
-  .eq("statut", "en_attente")
-
-setNbFileAttente((countFile || 0) + (countRdv || 0))
-
-          // Campagnes soumises par clients en attente de dispatch
           const { count: countCamp } = await supabase
             .from("campagnes")
             .select("id", { count: "exact", head: true })
@@ -362,14 +344,13 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
           setNbCampagnes(countCamp || 0)
         }
 
-       if (role === "responsable_regional") {
-  const { count: countCampRegion } = await supabase
-    .from("campagnes")
-    .select("id", { count: "exact", head: true })
-    .eq("responsable_id", user.id)
-  setNbCampagnes(countCampRegion || 0)
+        if (role === "responsable_regional") {
+          const { count: countCampRegion } = await supabase
+            .from("campagnes")
+            .select("id", { count: "exact", head: true })
+            .eq("responsable_id", user.id)
+          setNbCampagnes(countCampRegion || 0)
 
-          // Missions de la région non assignées
           const { count: countMissRegion } = await supabase
             .from("missions")
             .select("id", { count: "exact", head: true })
@@ -379,48 +360,50 @@ setNbFileAttente((countFile || 0) + (countRdv || 0))
         }
 
         // Messages non lus (tous rôles AGE)
-       const { count: countMsg } = await supabase
+        const { count: countMsg } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
           .eq("lu", false)
           .neq("expediteur_id", user.id)
           .or(`destinataire_id.eq.${user.id},destinataire_id.is.null`)
         setNbMessagesAGE(countMsg || 0)
-// Realtime — nouveaux messages non lus
-supabase
-  .channel(`messages-non-lus-${Date.now()}`)
-  .on("postgres_changes", {
-    event: "INSERT",
-    schema: "public",
-    table: "messages",
-    filter: `destinataire_id=eq.${user.id}`,
-  }, () => {
-    setNbMessagesAGE(prev => prev + 1)
-  })
-  .subscribe()
+
+        supabase
+          .channel(`messages-non-lus-${Date.now()}`)
+          .on("postgres_changes", {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `destinataire_id=eq.${user.id}`,
+          }, () => {
+            setNbMessagesAGE(prev => prev + 1)
+          })
+          .subscribe()
+
         setAuthChecked(true)
         return
       }
 
       // ── Profil client ────────────────────────────────────────────────────
       const { data: profilClient } = await supabase
-  .from("profils_client")
-  .select("type_client, role_client")
-  .eq("id", user.id)
-  .maybeSingle()
+        .from("profils_client")
+        .select("type_client, role_client")
+        .eq("id", user.id)
+        .maybeSingle()
 
       if (profilClient) {
-      const labels: Record<string, string> = {
-  banque: "Banque",
-  assureur: "Assurance",
-  entreprise: "Entreprise",
-  collectivite: "Collectivité",
-  proprietaire: "Particulier",
-}
+        const labels: Record<string, string> = {
+          banque: "Banque",
+          assureur: "Assurance",
+          entreprise: "Entreprise",
+          collectivite: "Collectivité",
+          proprietaire: "Particulier",
+        }
         setInitiales(user.email![0].toUpperCase())
         setLabelProfil(labels[profilClient.type_client] || "Client")
         setEspace("client")
-setMonProfilClient(profilClient)
+        setMonProfilClient(profilClient)
+
         const { count: countMsgClient } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
@@ -428,17 +411,19 @@ setMonProfilClient(profilClient)
           .eq("client_id", user.id)
           .neq("expediteur_id", user.id)
         setNbMessagesClient(countMsgClient || 0)
-supabase
-   .channel(`messages-client-non-lus-${Date.now()}`)
-  .on("postgres_changes", {
-    event: "INSERT",
-    schema: "public",
-    table: "messages",
-    filter: `destinataire_id=eq.${user.id}`,
-  }, () => {
-    setNbMessagesClient(prev => prev + 1)
-  })
-  .subscribe()
+
+        supabase
+          .channel(`messages-client-non-lus-${Date.now()}`)
+          .on("postgres_changes", {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `destinataire_id=eq.${user.id}`,
+          }, () => {
+            setNbMessagesClient(prev => prev + 1)
+          })
+          .subscribe()
+
         setAuthChecked(true)
         return
       }
@@ -459,16 +444,10 @@ supabase
 
   if (!authChecked)
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          color: "#64748B",
-          fontSize: "14px",
-        }}
-      >
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", color: "#64748B", fontSize: "14px",
+      }}>
         Chargement…
       </div>
     )
@@ -493,26 +472,11 @@ supabase
           {/* ── Section Plateforme (commune) ──────────────────────────── */}
           <div className="nav-section">Plateforme</div>
           <NavItem to="/" icon="ti-home" label="Accueil" end />
-          
-
-          {/*
-            Sensibilisation :
-            - AGE  : accès édition (route gérée côté page)
-            - client : lecture seule (même route, droits différents)
-          */}
           <NavItem to="/sensibilisation" icon="ti-plant-2" label="Sensibilisation" />
 
-          {/*
-            Marketplace :
-            - admin_national : édition
-            - client         : lecture seule
-            - responsable_regional + consultant : masqué
-          */}
           {(espace === "client" || roleAGE === "admin_national") && (
             <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
           )}
-
-     
 
           {/* ── Espace Client ──────────────────────────────────────────── */}
           {espace === "client" && (
@@ -552,19 +516,15 @@ supabase
                 label="Messagerie"
                 badge={nbMessagesClient}
               />
-              {/* Gestion utilisateurs — admin_client uniquement */}
-{monProfilClient?.role_client === "admin_client" && (
-  <NavItem to="/client/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
-)}
+              {monProfilClient?.role_client === "admin_client" && (
+                <NavItem to="/client/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
+              )}
             </>
-            
           )}
 
           {/* ── Espace Métier AGE ──────────────────────────────────────── */}
           {espace === "metier" && (
             <>
-          
-
               {/* File d'attente — admin national uniquement */}
               {roleAGE === "admin_national" && (
                 <NavItem
@@ -575,17 +535,7 @@ supabase
                 />
               )}
 
-              {/* Campagnes — admin_national et responsable_regional */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
-                <NavItem
-                  to="/metier/campagnes"
-                  icon="ti-speakerphone"
-                  label="Campagnes"
-                  badge={roleAGE === "responsable_regional" ? nbCampagnes : 0}
-                />
-              )}
-
-              {/* Missions — admin_national et responsable_regional */}
+              {/* Missions */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem
                   to="/metier/missions"
@@ -594,28 +544,26 @@ supabase
                   badge={roleAGE === "responsable_regional" ? nbMissions : 0}
                 />
               )}
-
-              {/* Mes missions — consultant uniquement */}
               {roleAGE === "consultant" && (
                 <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" />
               )}
 
-              {/* Mon équipe — admin_national et responsable_regional */}
-{(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
-  <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
-)}
+              {/* Mon équipe */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
+              )}
 
-            {/* Portefeuille — admin_national et responsable_regional */}
+              {/* Portefeuille */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem to="/metier/portefeuille" icon="ti-building" label="Portefeuille" />
               )}
 
-              {/* Clients — admin_national uniquement */}
+              {/* Clients */}
               {roleAGE === "admin_national" && (
                 <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
               )}
 
-              {/* Messagerie — tous les rôles AGE */}
+              {/* Messagerie */}
               <NavItem
                 to="/metier/messagerie"
                 icon="ti-message-circle"
@@ -623,25 +571,28 @@ supabase
                 badge={nbMessagesAGE}
               />
 
-            {/* Finance — admin_national et responsable_regional */}
+              {/* Finance */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <FinanceMenu roleAGE={roleAGE} />
               )}
-{/* Environnement — tous les rôles AGE */}
-<EnvironnementMenu />
-{/* Prospection — admin_national et responsable_regional */}
-{(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
-  <ProspectionMenu />
-)}
-              {/* Documents — tous les rôles AGE */}
+
+              {/* Environnement */}
+              <EnvironnementMenu />
+
+              {/* Prospection */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+                <ProspectionMenu />
+              )}
+
+              {/* Documents */}
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
 
-              {/* Utilisateurs — admin_national uniquement */}
+              {/* Utilisateurs */}
               {roleAGE === "admin_national" && (
                 <NavItem to="/metier/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
               )}
 
-              {/* Administration — admin_national uniquement */}
+              {/* Administration */}
               {roleAGE === "admin_national" && (
                 <NavItem to="/metier/admin" icon="ti-adjustments-horizontal" label="Administration" />
               )}
