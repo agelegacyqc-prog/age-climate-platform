@@ -44,6 +44,7 @@ import Clients from "./pages/metier/Clients"
 import FicheClient from "./pages/metier/FicheClient"
 import FicheDossierRGA from "./pages/metier/FicheDossierRGA"
 import DossiersRGA from "./pages/metier/DossiersRGA"
+import Mandats from "./pages/metier/Mandats"
 import Publipostage from "./pages/metier/Publipostage"
 import ModelesComm from "./pages/metier/ModelesComm"
 import MonEquipe from "./pages/metier/MonEquipe"
@@ -55,6 +56,7 @@ import AGEcarbon from "./pages/metier/AGEcarbon"
 import AGEcarbonNouveau from "./pages/metier/AGEcarbonNouveau"
 import AGEcarbonSaisie from "./pages/metier/AGEcarbonSaisie"
 import AGEcarbonResultats from "./pages/metier/AGEcarbonResultats"
+import RDVConsultant from "./pages/metier/RDVConsultant"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
 import PartenaireInscription from "./pages/partenaire/PartenaireInscription"
@@ -131,6 +133,8 @@ export default function App() {
 <Route path="metier/agecarbon/nouveau" element={<ProtectedRoute><AGEcarbonNouveau /></ProtectedRoute>} />
 <Route path="metier/agecarbon/:id" element={<ProtectedRoute><AGEcarbonSaisie /></ProtectedRoute>} />
 <Route path="metier/agecarbon/:bilanId/resultats" element={<ProtectedRoute><AGEcarbonResultats /></ProtectedRoute>} />
+<Route path="metier/rdv" element={<ProtectedRoute><RDVConsultant /></ProtectedRoute>} />
+<Route path="metier/mandats" element={<ProtectedRoute><Mandats /></ProtectedRoute>} />
         </Route>
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 

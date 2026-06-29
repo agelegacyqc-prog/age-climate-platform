@@ -31,6 +31,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/dossiers-rga":        "Dossiers RGA",
   "/metier/publipostage":        "Publipostage",
   "/metier/modeles-comm":        "Modèles de communication",
+  "/metier/rdv":                 "Agenda RDV",
+  "/metier/mandats":             "Mandats",
   "/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
@@ -55,7 +57,9 @@ function ProspectionMenu() {
   const isActive = location.pathname.startsWith('/metier/campagnes') ||
                    location.pathname.startsWith('/metier/dossiers-rga') ||
                    location.pathname.startsWith('/metier/publipostage') ||
-                   location.pathname.startsWith('/metier/modeles-comm')
+                   location.pathname.startsWith('/metier/modeles-comm') ||
+                   location.pathname.startsWith('/metier/rdv') ||
+                   location.pathname.startsWith('/metier/mandats')
 
   return (
     <div>
@@ -85,12 +89,28 @@ function ProspectionMenu() {
             <span className="nav-item__label">Campagnes</span>
           </NavLink>
           <NavLink
+            to="/metier/rdv"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-calendar nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Agenda RDV</span>
+          </NavLink>
+          <NavLink
             to="/metier/dossiers-rga"
             className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
             style={{ fontSize: '12px', padding: '6px 10px' }}
           >
             <i className="ti ti-home-search nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">Dossiers RGA</span>
+          </NavLink>
+          <NavLink
+            to="/metier/mandats"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-writing nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Mandats</span>
           </NavLink>
           <NavLink
             to="/metier/publipostage"
