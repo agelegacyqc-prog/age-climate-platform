@@ -44,6 +44,8 @@ import Clients from "./pages/metier/Clients"
 import FicheClient from "./pages/metier/FicheClient"
 import FicheDossierRGA from "./pages/metier/FicheDossierRGA"
 import DossiersRGA from "./pages/metier/DossiersRGA"
+import Publipostage from "./pages/metier/Publipostage"
+import ModelesComm from "./pages/metier/ModelesComm"
 import MonEquipe from "./pages/metier/MonEquipe"
 import GED from "./pages/metier/GED"
 import AGEadapt from "./pages/metier/AGEadapt"
@@ -104,6 +106,8 @@ export default function App() {
           <Route path="metier/campagnes" element={<ProtectedRoute><Campagnes /></ProtectedRoute>} />
           <Route path="metier/campagnes/:id" element={<ProtectedRoute><FicheCampagne /></ProtectedRoute>} />
           <Route path="metier/campagnes/:id/pipeline" element={<ProtectedRoute><CampagnePipeline /></ProtectedRoute>} />
+          <Route path="metier/publipostage" element={<ProtectedRoute><Publipostage /></ProtectedRoute>} />
+<Route path="metier/modeles-comm" element={<ProtectedRoute><ModelesComm /></ProtectedRoute>} />
           <Route path="metier/campagnes-age/:id" element={<ProtectedRoute><FicheCampagneAGE /></ProtectedRoute>} />
           <Route path="metier/campagnes/:id/biens/:bienId" element={<ProtectedRoute><FicheBienCampagne /></ProtectedRoute>} />
           <Route path="metier/missions" element={<ProtectedRoute><Missions /></ProtectedRoute>} />
@@ -119,7 +123,6 @@ export default function App() {
           <Route path="metier/clients/:id" element={<ProtectedRoute><FicheClient /></ProtectedRoute>} />
           <Route path="metier/dossiers/:id" element={<ProtectedRoute><FicheDossierRGA /></ProtectedRoute>} />
           <Route path="metier/dossiers-rga" element={<ProtectedRoute><DossiersRGA /></ProtectedRoute>} />
-<Route path="metier/dossiers/:id" element={<ProtectedRoute><FicheDossierRGA /></ProtectedRoute>} />
           <Route path="metier/equipe" element={<ProtectedRoute><MonEquipe /></ProtectedRoute>} />
           <Route path="metier/ageadapt" element={<ProtectedRoute><AGEadapt /></ProtectedRoute>} />
 <Route path="metier/ageadapt/nouvelle-mission" element={<ProtectedRoute><AGEadaptMission /></ProtectedRoute>} />

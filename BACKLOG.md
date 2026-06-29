@@ -3,7 +3,7 @@
 > Format statut : `[ ]` À faire · `[~]` En cours · `[x]` Terminé
 
 **Dernière mise à jour :** 26/06/2026  
-**Rapport de référence :** Session 26/06/2026 — P1-04 terminé · Toutes P1 complètes
+**Rapport de référence :** Session 26/06/2026 — P2-01 + P2-02 terminés · Portefeuille sidebar + onglet Climatique client verrouillé
 
 ---
 
@@ -34,8 +34,8 @@
 
 | ID | Environnement | Module | Description | Fichier(s) à créer / modifier | Statut |
 |----|--------------|--------|-------------|-------------------------------|--------|
-| P2-01 | Particulier | FicheDossierRGA | Vue consultant côté espace métier pour consulter/piloter les dossiers RGA particuliers | `src/pages/metier/FicheDossierRGA.tsx` | `[ ]` |
-| P2-02 | B2B | M06 — Pré-diagnostic IA | Génération pré-diagnostic (règles déterministes LOT 1) + export PDF charte Workplace Brown Value | `src/pages/metier/PreDiagnostic.tsx` · `src/lib/exportPreDiagPDF.ts` | `[ ]` |
+| P2-01 | Particulier | FicheDossierRGA | Vue consultant côté espace métier — liste `DossiersRGA.tsx` + fiche `FicheDossierRGA.tsx` · pipeline 4 statuts · dates clés · financement/travaux · upload documents bucket `documents-rga` · bouton Pré-diagnostic IA · sidebar Environnement | `src/pages/metier/DossiersRGA.tsx` · `FicheDossierRGA.tsx` · `Layout.tsx` · `App.tsx` | `[x]` 26/06/2026 |
+| P2-02 | B2B + Particulier | M06 — Pré-diagnostic IA | Edge Function `generate-rapport` enrichie (case `prediag`) · `PreDiagDrawer.tsx` réutilisable · intégration `FicheDossierRGA` + `FicheBien` · export PDF HTML → nouvelle fenêtre · fix upload `documents-rga` (nom fichier sanitizé, type_fichier CHECK, signed URL) | `PreDiagDrawer.tsx` · `generate-rapport/index.ts` · `FicheDossierRGA.tsx` · `FicheBien.tsx` | `[x]` 26/06/2026 |
 | P2-03 | B2B | M08 — Publipostage | Éditeur modèles email/courrier + variables de fusion + export CSV Brevo | `src/pages/metier/Publipostage.tsx` · `src/pages/metier/ModelesComm.tsx` | `[ ]` |
 | P2-04 | B2B | M09 — Qualification contacts | Formulaire qualification (Chaud/Tiède/Froid) + alertes relance 48h + historique | `src/pages/metier/Qualification.tsx` · table `qualifications` | `[ ]` |
 | P2-05 | B2B | M10 — RDV consultant | Agenda consultant + création RDV + statuts + compte rendu + notification email | `src/pages/metier/RDVConsultant.tsx` · table `rendez_vous` | `[ ]` |
@@ -66,6 +66,10 @@
 
 | Environnement | Fonctionnalité | Date |
 |--------------|----------------|------|
+| B2B + Particulier | Pré-diagnostic IA — `PreDiagDrawer` + Edge Function `generate-rapport` case prediag | 26/06/2026 |
+| Particulier | DossiersRGA liste + FicheDossierRGA — pipeline, documents, upload bucket | 26/06/2026 |
+| B2B | Portefeuille visible dans sidebar métier (admin + responsable_régional) | 26/06/2026 |
+| Client | Onglet Climatique verrouillé côté client — CTA mission AGE | 26/06/2026 |
 | B2B | Fiche client structurée — `organisations` enrichie + `FicheClient.tsx` + vue consolidée | 26/06/2026 |
 | B2B | Import portefeuille CSV — wizard 4 étapes, déduplication, bilan résultat | 26/06/2026 |
 | B2B / Tous | RLS multi-tenant — `client_id` dans `biens` + `dossiers` · 5 tables sécurisées | 26/06/2026 |
@@ -89,6 +93,9 @@
 - Pas de FK formelle (intentionnel — évite les contraintes sur inserts sans client_id)
 - Index créés : `idx_biens_client_id`, `idx_campagnes_client_id`, `idx_dossiers_client_id`
 - Import supabase dans les pages métier : `../../lib/supabase` (sans "Client")
+- Bucket `documents-rga` : private · policies RLS authenticated INSERT/DELETE/UPDATE ajoutées · noms de fichiers sanitizés (accents + espaces → underscore) · `type_fichier` CHECK : pdf/csv/xlsx/autre · URLs signées (pas publicUrl)
+- Pré-diagnostic IA : réservé espace métier uniquement — pas accessible côté client
+- `actifs.categorie = "biens_finances"` ou `"biens_assures"` → onglet "Biens assurés & financés" dans Portefeuille métier
 
 ### Pattern RLS validé
 ```sql
@@ -97,7 +104,7 @@ OR EXISTS (SELECT 1 FROM profils WHERE profils.id = auth.uid() AND profils.role 
 ```
 
 ### Prochaine priorité
-**P2-01** — FicheDossierRGA (vue consultant espace métier)
+**P2-03** — Publipostage (M08)
 
 ---
 

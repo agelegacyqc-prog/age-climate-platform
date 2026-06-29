@@ -29,6 +29,8 @@ const PAGE_TITLES: Record<string, string> = {
 "/metier/ageadapt":            "AGEadapt",
 "/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
   "/metier/dossiers-rga":        "Dossiers RGA",
+  "/metier/publipostage":        "Publipostage",
+"/metier/modeles-comm":        "Modèles de communication",
 "/metier/ged":                 "Documents",
   "/metier/admin":               "Administration",
 }
@@ -50,6 +52,52 @@ interface NavItemProps {
   label: string
   badge?: number
   end?: boolean
+}
+function ProspectionMenu() {
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const isActive = location.pathname.startsWith('/metier/publipostage') ||
+                   location.pathname.startsWith('/metier/modeles-comm')
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          width: '100%', padding: '8px 12px', border: 'none',
+          background: isActive ? 'rgba(178,92,42,0.10)' : 'transparent',
+          borderRadius: '8px', cursor: 'pointer',
+          color: isActive ? '#B25C2A' : '#78716C',
+          fontSize: '13px', fontWeight: isActive ? 600 : 400,
+        }}
+      >
+        <i className="ti ti-speakerphone" style={{ fontSize: '16px' }} />
+        <span style={{ flex: 1, textAlign: 'left' }}>Prospection</span>
+        <i className={`ti ${open || isActive ? 'ti-chevron-down' : 'ti-chevron-right'}`} style={{ fontSize: '12px' }} />
+      </button>
+      {(open || isActive) && (
+        <div style={{ paddingLeft: '28px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <NavLink
+            to="/metier/publipostage"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-send nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Publipostage</span>
+          </NavLink>
+          <NavLink
+            to="/metier/modeles-comm"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-mail nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Modèles comm.</span>
+          </NavLink>
+        </div>
+      )}
+    </div>
+  )
 }
 function FinanceMenu({ roleAGE }: { roleAGE: string }) {
   const [open, setOpen] = useState(false)
@@ -140,13 +188,29 @@ function EnvironnementMenu() {
             <i className="ti ti-calculator nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">AGEcarbon</span>
           </NavLink>
-          <NavLink
+ <NavLink
             to="/metier/dossiers-rga"
             className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
             style={{ fontSize: '12px', padding: '6px 10px' }}
           >
             <i className="ti ti-home-search nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">Dossiers RGA</span>
+          </NavLink>
+          <NavLink
+            to="/metier/publipostage"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-send nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Publipostage</span>
+          </NavLink>
+          <NavLink
+            to="/metier/modeles-comm"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-mail nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Modèles comm.</span>
           </NavLink>
         </div>
       )}
@@ -566,6 +630,10 @@ supabase
               )}
 {/* Environnement — tous les rôles AGE */}
 <EnvironnementMenu />
+{/* Prospection — admin_national et responsable_regional */}
+{(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+  <ProspectionMenu />
+)}
               {/* Documents — tous les rôles AGE */}
               <NavItem to="/metier/ged" icon="ti-folders" label="Documents" />
 
