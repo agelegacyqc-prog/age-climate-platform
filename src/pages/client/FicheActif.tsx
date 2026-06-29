@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
+import ScoreHistorique from "../metier/ScoreHistorique"
 
 const statutReglColor:any = {
   eligible:    { bg:"#F0FDF4", color:"#2F7D5C", label:"Obligatoire",  icone:"ti-circle-check" },
@@ -372,20 +373,14 @@ export default function FicheActif() {
             </div>
             <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
               <h3 style={{color:"#111827",marginBottom:"1rem"}}>Score climatique</h3>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontSize:"3.5rem",fontWeight:"800",color:scoreColor}}>{actif.score_climatique||"—"}</div>
-                {actif.score_climatique && (
-                  <div style={{background:"#f0f0f0",borderRadius:"999px",height:"10px",overflow:"hidden",margin:"0.75rem 0"}}>
-                    <div style={{background:scoreColor,width:actif.score_climatique+"%",height:"100%",borderRadius:"999px"}}></div>
-                  </div>
-                )}
-                <div style={{fontSize:"0.85rem",color:"#666"}}>Analyse préliminaire</div>
-              </div>
-            </div>
+              <ScoreHistorique
+                actifId={actif.id}
+                modeClient={true}
+              />
+        </div>
           </div>
         </div>
       )}
-
       {/* Onglet Réglementaire */}
       {onglet==="reglementaire" && (
         <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>

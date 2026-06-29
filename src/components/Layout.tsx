@@ -362,6 +362,12 @@ export default function Layout() {
             .eq("origine", "client")
             .eq("statut", "soumise")
           setNbCampagnes(countCamp || 0)
+          // Alertes scores non lues toutes régions
+          const { count: countAlertesAdmin } = await supabase
+            .from('alertes_scores')
+            .select('id', { count: 'exact', head: true })
+            .eq('lu', false)
+          setNbFileAttente(prev => prev + (countAlertesAdmin || 0))
         }
 
         if (role === "responsable_regional") {
@@ -370,7 +376,15 @@ export default function Layout() {
             .select("id", { count: "exact", head: true })
             .eq("responsable_id", user.id)
           setNbCampagnes(countCampRegion || 0)
+// Alertes scores non lues
+          const { count: countAlertes } = await supabase
+            .from('alertes_scores')
+            .select('id', { count: 'exact', head: true })
+            .eq('lu', false)
+            .eq('region_code', profilAGE.region)
+          setNbFileAttente(prev => prev + (countAlertes || 0))
 
+          // Missions de la région non assignées
           const { count: countMissRegion } = await supabase
             .from("missions")
             .select("id", { count: "exact", head: true })

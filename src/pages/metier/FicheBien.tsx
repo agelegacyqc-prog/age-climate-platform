@@ -4,10 +4,12 @@ import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
 import BrownValueWizard from "../../components/BrownValueWizard"
 import PreDiagDrawer from "./PreDiagDrawer"
+import ScoreHistorique from "./ScoreHistorique"
 const ONGLETS = [
   { id: "synthese",    label: "Synthèse",    icon: "ti-clipboard-list" },
   { id: "climatique",  label: "Climatique",  icon: "ti-leaf" },
   { id: "brown_value", label: "Brown Value", icon: "ti-home" },
+  { id: "historique",  label: "Historique scores", icon: "ti-chart-line" },
 ]
 
 export default function FicheBien() {
@@ -195,6 +197,16 @@ const [prediagOpen, setPrediagOpen] = useState(false)
           actifId={id}
           valeurMarcheInitiale={actif.valeur_marche ? Number(actif.valeur_marche) : undefined}
           onClose={() => setOnglet("synthese")}
+        />
+      )}
+      {/* Historique scores */}
+      {onglet === "historique" && (
+        <ScoreHistorique
+          bienId={actif.id}
+          scoreActuel={score}
+          classeActuelle={score >= 75 ? 'critique' : score >= 50 ? 'eleve' : score >= 25 ? 'modere' : 'faible'}
+          aleaPrincipal={actif.alea_principal ?? undefined}
+          scoresAleas={actif.scores_aleas ?? {}}
         />
       )}
 <PreDiagDrawer
