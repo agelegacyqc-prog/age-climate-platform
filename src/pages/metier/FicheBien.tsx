@@ -202,7 +202,7 @@ const [prediagOpen, setPrediagOpen] = useState(false)
       {/* Historique scores */}
       {onglet === "historique" && (
         <ScoreHistorique
-          bienId={actif.id}
+           actifId={actif.id}
           scoreActuel={score}
           classeActuelle={score >= 75 ? 'critique' : score >= 50 ? 'eleve' : score >= 25 ? 'modere' : 'faible'}
           aleaPrincipal={actif.alea_principal ?? undefined}
