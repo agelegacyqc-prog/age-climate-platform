@@ -68,6 +68,12 @@ const [prediagOpen, setPrediagOpen] = useState(false)
           <i className="ti ti-sparkles" style={{ fontSize: "15px" }} />
           Pré-diagnostic IA
         </button>
+        <button
+          onClick={() => navigate("/metier/mandats", { state: { actifPourMandat: actif } })}
+          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", border: "none", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#fff", fontSize: "13px", fontFamily: "inherit", fontWeight: 500 }}>
+          <i className="ti ti-file-text" style={{ fontSize: "15px" }} />
+          Créer un mandat
+        </button>
       </div>
 
       {/* KPIs */}

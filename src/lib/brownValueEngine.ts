@@ -103,7 +103,11 @@ export function calculerEAL(
   return (probAjustee / 100) * dommageMoyen * (partNonAssuree / 100) * facteurVulnerabilite
 }
 
-export function calculerHazard(hazard: HazardInput, facteurPV: number): HazardResult {
+export function calculerHazard(
+  hazard: HazardInput,
+  facteurPV: number,
+  ignorerCoutsAdaptation: boolean = false
+): HazardResult {
   const probAjustee = calculerProbAjustee(
     hazard.probAnnuelle,
     hazard.reductionRisque,
@@ -116,7 +120,7 @@ export function calculerHazard(hazard: HazardInput, facteurPV: number): HazardRe
     hazard.facteurVulnerabilite
   )
   const npvPertes = eal * facteurPV
-  const npvAdaptation = hazard.adaptationRealisee ? hazard.coutAdaptation : 0
+  const npvAdaptation = (hazard.adaptationRealisee && !ignorerCoutsAdaptation) ? hazard.coutAdaptation : 0
   return {
     aleas: hazard.aleas,
     probAjustee,
@@ -127,7 +131,10 @@ export function calculerHazard(hazard: HazardInput, facteurPV: number): HazardRe
   }
 }
 
-export function calculerBrownValue(inputs: BrownValueInputs): BrownValueResult {
+export function calculerBrownValue(
+  inputs: BrownValueInputs,
+  ignorerCoutsAdaptation: boolean = false
+): BrownValueResult {
   const {
     valeurMarche: V,
     horizonAnnees: n,
@@ -147,7 +154,7 @@ export function calculerBrownValue(inputs: BrownValueInputs): BrownValueResult {
 
   const facteurPV = calculerFacteurPV(r, g, n)
 
-  const hazardResults: HazardResult[] = hazards.map((h) => calculerHazard(h, facteurPV))
+  const hazardResults: HazardResult[] = hazards.map((h) => calculerHazard(h, facteurPV, ignorerCoutsAdaptation))
 
   const npvPertesTotal = hazardResults.reduce((acc, h) => acc + h.npvPertes, 0)
   const npvAdaptationsTotal = hazardResults.reduce((acc, h) => acc + h.npvAdaptation, 0)

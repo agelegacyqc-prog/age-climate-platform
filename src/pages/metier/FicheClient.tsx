@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import FormBienFinance from "../../components/FormBienFinance"
+import Analytics from "./Analytics"
 
 interface FicheClient {
   id: string
@@ -46,6 +47,7 @@ const ONGLETS = [
   { id: "demandes",    label: "Demandes",     icon: "ti-clipboard-list" },
   { id: "rapports",    label: "Documents",    icon: "ti-file-analytics" },
   { id: "financement", label: "Financement",  icon: "ti-cash" },
+  { id: "analytics_roi", label: "Analytics ROI", icon: "ti-chart-line" },
 ]
 
 const actionBtnStyle: React.CSSProperties = {
@@ -102,7 +104,7 @@ export default function FicheClient() {
       const [{ data: actifs }, { data: campagnes }, { data: demandes }, { data: rapports }, { data: resps }] = await Promise.all([
         supabase.from("actifs").select("id, nom, score_climatique, categorie, ville").eq("user_id", id).eq("categorie", "patrimoine_propre").order("created_at", { ascending: false }),
         supabase.from("campagnes").select("id, nom, statut, created_at").eq("client_id", id).order("created_at", { ascending: false }),
-        supabase.from("demandes_marketplace").select("id, titre, statut, created_at").eq("client_id", id).order("created_at", { ascending: false }),
+        supabase.from("demandes_marketplace").select("id, type_prestation, statut, created_at").eq("client_id", id).order("created_at", { ascending: false }),
         supabase.from("rapports_client").select("id, type_rapport, statut, created_at, fichier_url").eq("client_id", id).order("created_at", { ascending: false }),
         supabase.from("profils").select("id, prenom, nom, role, region").in("role", ["admin", "admin_national", "responsable_regional"]),
       ])
@@ -340,7 +342,7 @@ export default function FicheClient() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <i className="ti ti-clipboard-list" style={{ fontSize: 15, color: "#78716C" }} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#1F2937" }}>{d.titre || "Demande"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#1F2937" }}>{d.type_prestation || "Demande"}</div>
                     <div style={{ fontSize: 11, color: "#78716C" }}>{formatDate(d.created_at)}</div>
                   </div>
                 </div>
@@ -412,7 +414,7 @@ export default function FicheClient() {
               </div>
             )}
 
-            {actifSelectionne && (
+          {actifSelectionne && (
               <div style={{ marginTop: 4, paddingTop: 20, borderTop: "1px solid #E5E1DA" }}>
                 <FormBienFinance
                   organisationId={fiche.id}
@@ -426,6 +428,17 @@ export default function FicheClient() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "analytics_roi" && (
+          fiche.type_client === "banque" ? (
+            <Analytics clientId={fiche.id} />
+          ) : (
+            <div style={{ padding: 32, textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
+              <i className="ti ti-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 8 }} />
+              Analytics ROI disponible uniquement pour les clients banque.
+            </div>
+          )
         )}
       </div>
     </div>

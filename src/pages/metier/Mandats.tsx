@@ -2,6 +2,7 @@
 // Module P2-06 · M12
 
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import {
   Plus, FileText, CheckCircle, AlertTriangle, Clock,
@@ -347,8 +348,31 @@ export default function Mandats() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [yousignInput, setYousignInput] = useState('')
   const [filtreStatut, setFiltreStatut] = useState<StatutMandat | 'tous'>('tous')
+  const location = useLocation()
 
   useEffect(() => { charger() }, [])
+
+  useEffect(() => {
+    const actif = (location.state as any)?.actifPourMandat
+    if (!actif) return
+    const nomMandant = (actif.nom_proprietaire?.trim() || actif.nom_client?.trim() || '')
+    const prenomMandant = actif.nom_proprietaire?.trim() ? '' : (actif.prenom_client?.trim() || '')
+    setEditId(null)
+    setForm({
+      ...FORM_VIDE,
+      mandant_nom: nomMandant,
+      mandant_prenom: prenomMandant,
+      mandant_adresse: actif.adresse || '',
+      mandant_code_postal: actif.code_postal || '',
+      mandant_commune: actif.ville || '',
+      mandant_email: actif.email_client || '',
+      mandant_telephone: actif.telephone_client || '',
+      bien_id: actif.id || '',
+    })
+    setEtape(1)
+    setDrawerOpen(true)
+    window.history.replaceState({}, '')
+  }, [location.state])
 
   async function charger() {
     setLoading(true)
@@ -387,12 +411,13 @@ export default function Mandats() {
       .from('profils').select('region').eq('id', user?.id ?? '').maybeSingle()
 
     // Annuler mandat précédent si même bien
-    if (form.bien_id && statut === 'envoye') {
-      await supabase.from('mandats')
+   if (form.bien_id && statut === 'envoye') {
+      let query = supabase.from('mandats')
         .update({ statut: 'annule' })
         .eq('bien_id', form.bien_id)
         .neq('statut', 'annule')
-        .neq('id', editId ?? '')
+      if (editId) query = query.neq('id', editId)
+      await query
     }
 
     const payload = {

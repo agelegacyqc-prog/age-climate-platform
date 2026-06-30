@@ -22,7 +22,7 @@ interface BienFinanceROI {
   valeur_marche: number;
   impact_net_avant: number | null;
   impact_net_apres: number | null;
-  statut_calcul: 'calcule' | 'en_attente_post_travaux' | 'pas_de_mandat';
+  statut_calcul: 'calcule' | 'en_attente_post_travaux' | 'pas_de_score_initial';
 }
 
 interface PortefeuilleROI {
@@ -66,26 +66,18 @@ async function chargerPortefeuilleROI(clientId: string): Promise<PortefeuilleROI
   // 2. Récupérer les actifs (nom, valeur marché)
   const { data: actifs, error: errActifs } = await supabase
     .from('actifs')
-    .select('id, nom_site, valeur_marche')
+    .select('id, nom, valeur_marche')
     .in('id', actifIds);
 
   if (errActifs) throw errActifs;
 
-  // 3. Pour chaque actif, dernier case 'initial' et premier case 'post_travaux'
-  //    après la date_fin_travaux du mandat lié à cet actif.
-  //    NB : bug FK découvert et corrigé le 30/06/2026 — brown_value_cases.bien_id
-  //    référence la table biens (espace particulier), pas actifs. Le wizard B2B
-  //    écrit désormais dans brown_value_cases.actif_id.
+  // 3. Pour chaque actif, premier case 'initial' finalisé et dernier case
+  //    'post_travaux' finalisé. Les mandats CERFA RGA ne concernent que les
+  //    clients particuliers (table biens) et n'ont aucun lien avec les actifs
+  //    B2B — la dépendance précédente à mandats.date_fin_travaux était une
+  //    erreur de conception, retirée le 30/06/2026.
   //    Seuls les cases finalise=true (étape 5 "Terminer") sont des points de référence ;
   //    les brouillons (étapes 1-4) sont ignorés.
-  const { data: mandats, error: errMandats } = await supabase
-    .from('mandats')
-    .select('bien_id, date_fin_travaux')
-    .in('bien_id', actifIds)
-    .not('date_fin_travaux', 'is', null);
-
-  if (errMandats) throw errMandats;
-
   const { data: scores, error: errScores } = await supabase
     .from('brown_value_cases')
     .select('actif_id, impact_net, contexte, finalise, created_at')
@@ -96,15 +88,22 @@ async function chargerPortefeuilleROI(clientId: string): Promise<PortefeuilleROI
 
   if (errScores) throw errScores;
 
-  const biens: BienFinanceROI[] = biensFinances.map((bf) => {
+const biens: BienFinanceROI[] = biensFinances.map((bf) => {
     const actif = actifs?.find((a) => a.id === bf.actif_id);
-    const mandat = mandats?.find((m) => m.bien_id === bf.actif_id);
     const scoresActif = scores?.filter((s) => s.actif_id === bf.actif_id) ?? [];
 
-    if (!mandat) {
+    const scoreInitial = [...scoresActif]
+      .filter((s) => s.contexte === 'initial')
+      .shift(); // le plus ancien finalisé
+
+    const scorePostTravaux = [...scoresActif]
+      .filter((s) => s.contexte === 'post_travaux')
+      .pop(); // le plus récent finalisé
+
+    if (!scoreInitial) {
       return {
         actif_id: bf.actif_id,
-        nom_site: actif?.nom_site ?? 'Actif inconnu',
+        nom_site: actif?.nom ?? 'Actif inconnu',
         encours_credit: bf.encours_credit,
         lgd_avant: bf.lgd_avant,
         lgd_apres: null,
@@ -113,31 +112,21 @@ async function chargerPortefeuilleROI(clientId: string): Promise<PortefeuilleROI
         valeur_marche: actif?.valeur_marche ?? 0,
         impact_net_avant: null,
         impact_net_apres: null,
-        statut_calcul: 'pas_de_mandat',
+        statut_calcul: 'pas_de_score_initial',
       };
     }
 
-    const dateFinTravaux = new Date(mandat.date_fin_travaux as string);
-
-    const scoreInitial = [...scoresActif]
-      .filter((s) => s.contexte === 'initial' && new Date(s.created_at) < dateFinTravaux)
-      .pop(); // le plus récent avant travaux
-
-    const scorePostTravaux = scoresActif.find(
-      (s) => s.contexte === 'post_travaux' && new Date(s.created_at) > dateFinTravaux
-    ); // le premier après travaux
-
-    if (!scoreInitial || !scorePostTravaux) {
+    if (!scorePostTravaux) {
       return {
         actif_id: bf.actif_id,
-        nom_site: actif?.nom_site ?? 'Actif inconnu',
+        nom_site: actif?.nom ?? 'Actif inconnu',
         encours_credit: bf.encours_credit,
         lgd_avant: bf.lgd_avant,
         lgd_apres: null,
         lgd_reduite: null,
         valeur_protegee: null,
         valeur_marche: actif?.valeur_marche ?? 0,
-        impact_net_avant: scoreInitial?.impact_net ?? null,
+        impact_net_avant: scoreInitial.impact_net,
         impact_net_apres: null,
         statut_calcul: 'en_attente_post_travaux',
       };
@@ -149,9 +138,9 @@ async function chargerPortefeuilleROI(clientId: string): Promise<PortefeuilleROI
     const lgdReduite = Math.min(bf.lgd_avant, (valeurProtegee / bf.encours_credit) * 100);
     const lgdApres = bf.lgd_avant - lgdReduite;
 
-    return {
+   return {
       actif_id: bf.actif_id,
-      nom_site: actif?.nom_site ?? 'Actif inconnu',
+      nom_site: actif?.nom ?? 'Actif inconnu',
       encours_credit: bf.encours_credit,
       lgd_avant: bf.lgd_avant,
       lgd_apres: lgdApres,
@@ -322,10 +311,10 @@ function KpiCard({
 }
 
 function StatutBadge({ statut }: { statut: BienFinanceROI['statut_calcul'] }) {
-  const config = {
+ const config = {
     calcule: { label: 'Calculé', bg: '#E1F5EE', fg: '#0F6E56' },
     en_attente_post_travaux: { label: 'Attente recalcul post-travaux', bg: '#FEF3E2', fg: '#D97706' },
-    pas_de_mandat: { label: 'Pas de mandat lié', bg: '#F1F5F9', fg: '#78716C' },
+    pas_de_score_initial: { label: 'Pas de score initial', bg: '#F1F5F9', fg: '#78716C' },
   }[statut];
 
   return (

@@ -475,19 +475,23 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
   const [primeAversion, setPrimeAversion] = useState(String(INPUTS_DEFAUT.primeAversion))
   const [greenPremium, setGreenPremium] = useState(String(INPUTS_DEFAUT.greenPremium))
   const [hazards, setHazards] = useState<HazardInput[]>(HAZARDS_DEFAUT.map(h => ({ ...h })))
-  const [contexteFinalisation, setContexteFinalisation] = useState<"initial" | "suivi" | "post_travaux">("suivi")
-const [mandatTravauxDisponible, setMandatTravauxDisponible] = useState(false)
+const [contexteFinalisation, setContexteFinalisation] = useState<"initial" | "suivi" | "post_travaux">("suivi")
+  const [caseInitial, setCaseInitial] = useState<any>(null)
 
-useEffect(() => {
-  if (!actifId) return
-  supabase
-    .from("mandats")
-    .select("id")
-    .eq("bien_id", actifId)
-    .not("date_fin_travaux", "is", null)
-    .limit(1)
-    .then(({ data }) => setMandatTravauxDisponible(!!data && data.length > 0))
-}, [actifId])
+  useEffect(() => {
+    if (!actifId) return
+    supabase
+      .from("brown_value_cases")
+      .select("impact_net, valeur_ajustee, created_at")
+      .eq("actif_id", actifId)
+      .eq("contexte", "initial")
+      .eq("finalise", true)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setCaseInitial(data || null))
+  }, [actifId])
 
   // ── Chargement au montage ─────────────────────────────────────────────────
   useEffect(() => {
@@ -585,7 +589,10 @@ setEtape(5)
       primeAssurance, surprime, coutPortage, surcroitDelai, capDecote, poidsDCF,
       methode, decoteMarcheCible, primeAversion, greenPremium, hazards])
 
-  const result = useMemo(() => calculerBrownValue(inputs), [inputs])
+  const result = useMemo(
+    () => calculerBrownValue(inputs, contexteFinalisation === "post_travaux"),
+    [inputs, contexteFinalisation]
+  )
   const impactStyle = getImpactNetStyle(result.impactNet)
 
   async function handleSuivant() {
@@ -927,34 +934,58 @@ async function handleTerminer() {
               {[
                 { value: "initial", label: "Score initial" },
                 { value: "suivi", label: "Suivi de routine" },
-                { value: "post_travaux", label: "Post-travaux", disabled: !mandatTravauxDisponible },
+                { value: "post_travaux", label: "Post-travaux" },
               ].map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  disabled={opt.disabled}
                   onClick={() => setContexteFinalisation(opt.value as any)}
-                  title={opt.disabled ? "Aucun mandat avec date de fin de travaux pour cet actif" : undefined}
                   style={{
                     flex: 1, padding: "10px 12px", borderRadius: 8,
                     border: contexteFinalisation === opt.value ? `2px solid ${T.brown}` : `1px solid ${T.stone}`,
                     background: contexteFinalisation === opt.value ? T.brownLight : T.white,
-                    color: opt.disabled ? "#A8A29E" : T.slate,
+                    color: T.slate,
                     fontSize: 12, fontWeight: contexteFinalisation === opt.value ? 700 : 400,
-                    cursor: opt.disabled ? "not-allowed" : "pointer", opacity: opt.disabled ? 0.5 : 1,
+                    cursor: "pointer",
                   }}
                 >
                   {opt.label}
                 </button>
+                
               ))}
             </div>
-            {contexteFinalisation === "post_travaux" && !mandatTravauxDisponible && (
-              <p style={{ fontSize: 11, color: T.amber, marginTop: 6 }}>
-                Renseignez la date de fin de travaux sur le mandat avant de marquer ce calcul comme post-travaux.
-              </p>
-            )}
+      
           </div>
-
+{contexteFinalisation === "post_travaux" && (
+            <p style={{ fontSize: 11, color: T.stone500, marginTop: 6, marginBottom: 12 }}>
+              <Icon.info /> Les coûts d'adaptation déjà engagés ne sont pas comptabilisés dans la décote post-travaux.
+            </p>
+          )}
+          
+          {contexteFinalisation === "post_travaux" && caseInitial && (
+            <div style={{ background: T.white, border: `1px solid ${T.stone}`, borderRadius: "12px", padding: "16px 20px", marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "12px", color: T.brown }}>Comparatif Avant / Après travaux</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "16px", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: T.stone500, textTransform: "uppercase", fontWeight: 600 }}>Avant (initial)</div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: T.crimson }}>{formatPct(Number(caseInitial.impact_net))}</div>
+                  <div style={{ fontSize: "12px", color: T.stone500 }}>{formatEuros(Number(caseInitial.valeur_ajustee))}</div>
+                </div>
+                <Icon.chevronRight />
+                <div>
+                  <div style={{ fontSize: "11px", color: T.stone500, textTransform: "uppercase", fontWeight: 600 }}>Après (post-travaux)</div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: impactStyle.color }}>{formatPct(result.impactNet)}</div>
+                  <div style={{ fontSize: "12px", color: T.stone500 }}>{formatEuros(result.valeurAjustee)}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${T.offWhite}`, display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "12px", color: T.stone500 }}>Amélioration de l'impact net</span>
+                <span style={{ fontSize: "13px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: T.forest }}>
+                  {formatPct(result.impactNet - Number(caseInitial.impact_net))}
+                </span>
+              </div>
+            </div>
+          )}
           <BandeauImpact result={result} />
           {caseIdRef.current && (
             <div style={{ background: "#dcfce7", border: "1px solid #2F7D5C", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#2F7D5C", fontWeight: 600 }}>
