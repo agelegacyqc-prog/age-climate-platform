@@ -6,6 +6,7 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { supabase } from "../lib/supabase"
+import jsPDF from "jspdf"
 import {
   calculerBrownValue,
   getImpactNetStyle,
@@ -175,14 +176,19 @@ async function sauvegarderCase(
   caseId: string | null,
   bienId: string | undefined,
   inputs: BrownValueInputs,
-  result: BrownValueResult
+  result: BrownValueResult,
+  contexte: "initial" | "suivi" | "post_travaux" = "suivi",
+  forcerNouveau: boolean = false
 ): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     const casePayload = {
-      bien_id: bienId || null,
+      actif_id: bienId || null,
       moteur_version: "1.0",
       created_by: user?.id || null,
+      contexte,
+      finalise: forcerNouveau,
+      finalise_at: forcerNouveau ? new Date().toISOString() : null,
       valeur_marche: inputs.valeurMarche,
       surface: inputs.surface,
       type_bien: inputs.typeBien,
@@ -223,7 +229,8 @@ async function sauvegarderCase(
     }
 
     let savedCaseId = caseId
-    if (caseId) {
+    // forcerNouveau = true → toujours un INSERT (historisation), jamais d'UPDATE
+    if (caseId && !forcerNouveau) {
       await supabase.from("brown_value_cases").update(casePayload).eq("id", caseId)
     } else {
       const { data, error } = await supabase.from("brown_value_cases").insert(casePayload).select("id").single()
@@ -262,21 +269,21 @@ async function sauvegarderCase(
 
 // ─── Chargement Supabase ──────────────────────────────────────────────────────
 
-async function chargerDernierCase(bienId: string): Promise<{ caseId: string; caseData: any; hazards: any[] } | null> {
+async function chargerDernierCase(actifId: string): Promise<{ caseId: string; caseData: any; hazards: any[] } | null> {
   try {
-    // Dernier case pour ce bien
+    // Dernier case pour cet actif
     const { data: caseData, error } = await supabase
       .from("brown_value_cases")
       .select("*")
-      .eq("bien_id", bienId)
+      .eq("actif_id", actifId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (error || !caseData) return null
 
-    // Aléas associés
+   // Aléas associés
     const { data: hazardData } = await supabase
       .from("brown_value_hazards")
       .select("*")
@@ -288,6 +295,146 @@ async function chargerDernierCase(bienId: string): Promise<{ caseId: string; cas
     return null
   }
 }
+
+// ─── Export PDF ───────────────────────────────────────────────────────────────
+
+function formatEurosPDF(n: number): string {
+  return n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " €"
+}
+
+function formatPctPDF(n: number): string {
+  return (n * 100).toFixed(2).replace(".", ",") + " %"
+}
+
+function sanitizePDF(text: string): string {
+  return text.replace(/[\u{1F300}-\u{1FAFF}]|[\u2600-\u27BF]/gu, "").trim()
+}
+
+function exporterBrownValuePDF(
+  inputs: BrownValueInputs,
+  result: BrownValueResult,
+  caseId: string,
+  contexte: string,
+  nomActif?: string
+) {
+  const doc = new jsPDF()
+  const marginX = 18
+  let y = 20
+
+  doc.setFontSize(16)
+  doc.setTextColor(178, 92, 42)
+  doc.text("Brown Value — Rapport de décote climatique", marginX, y)
+  y += 8
+
+  doc.setFontSize(9)
+  doc.setTextColor(120, 113, 99)
+  doc.text(sanitizePDF(`Dossier #${caseId.slice(0, 8)} — Contexte : ${contexte}`), marginX, y)
+  y += 5
+  doc.text(`Généré le ${new Date().toLocaleDateString("fr-FR")}`, marginX, y)
+  y += 10
+
+  if (nomActif) {
+    doc.setFontSize(12)
+    doc.setTextColor(31, 41, 55)
+    doc.text(sanitizePDF(nomActif), marginX, y)
+    y += 10
+  }
+
+  const impactStyle = getImpactNetStyle(result.impactNet)
+  doc.setFillColor(impactStyle.color === "#B91C1C" ? 254 : impactStyle.color === "#D97706" ? 255 : 220, 242, 239)
+  doc.rect(marginX, y, 174, 18, "F")
+  doc.setFontSize(11)
+  doc.setTextColor(31, 41, 55)
+  doc.text(`Impact net : ${formatPctPDF(result.impactNet)}`, marginX + 4, y + 7)
+  doc.text(`Valeur ajustée climat : ${formatEurosPDF(result.valeurAjustee)}`, marginX + 4, y + 14)
+  y += 26
+
+  doc.setFontSize(11)
+  doc.setTextColor(178, 92, 42)
+  doc.text("1. Caractéristiques du bien", marginX, y)
+  y += 7
+  doc.setFontSize(9)
+  doc.setTextColor(31, 41, 55)
+  const carac: [string, string][] = [
+    ["Valeur de marché (V)", formatEurosPDF(inputs.valeurMarche)],
+    ["Surface", `${inputs.surface} m²`],
+    ["Type de bien", inputs.typeBien],
+    ["Année de construction", String(inputs.anneeConstruction)],
+    ["Fondations", inputs.fondations],
+    ["RDC vulnérable", inputs.rdcVulnerable ? "Oui" : "Non"],
+  ]
+  carac.forEach(([k, v]) => {
+    doc.text(k, marginX, y)
+    doc.text(v, marginX + 90, y)
+    y += 5.5
+  })
+  y += 4
+
+  doc.setFontSize(11)
+  doc.setTextColor(178, 92, 42)
+  doc.text("2. Hypothèses financières", marginX, y)
+  y += 7
+  doc.setFontSize(9)
+  doc.setTextColor(31, 41, 55)
+  const hyp: [string, string][] = [
+    ["Horizon d'analyse (n)", `${inputs.horizonAnnees} ans`],
+    ["Taux d'actualisation (r)", `${(inputs.tauxActualisation * 100).toFixed(2).replace(".", ",")} %`],
+    ["Croissance du risque (g)", `${(inputs.croissanceRisque * 100).toFixed(2).replace(".", ",")} %`],
+    ["Méthode finale", inputs.methodeFinale],
+    ["Cap décote", `${inputs.capDecote} %`],
+  ]
+  hyp.forEach(([k, v]) => {
+    doc.text(k, marginX, y)
+    doc.text(v, marginX + 90, y)
+    y += 5.5
+  })
+  y += 4
+
+  doc.setFontSize(11)
+  doc.setTextColor(178, 92, 42)
+  doc.text("3. Contribution par aléa (NPV)", marginX, y)
+  y += 7
+  doc.setFontSize(9)
+  doc.setTextColor(31, 41, 55)
+  result.hazardResults.forEach((h, i) => {
+    if (y > 270) { doc.addPage(); y = 20 }
+    doc.text(sanitizePDF(inputs.hazards[i].aleas), marginX, y)
+    doc.text(formatEurosPDF(h.coutTotalAlea), marginX + 130, y)
+    y += 5.5
+  })
+  y += 6
+
+  if (y > 250) { doc.addPage(); y = 20 }
+  doc.setFontSize(11)
+  doc.setTextColor(178, 92, 42)
+  doc.text("4. Synthèse", marginX, y)
+  y += 7
+  doc.setFontSize(9)
+  doc.setTextColor(31, 41, 55)
+  const synth: [string, string][] = [
+    ["Décote DCF capée", formatEurosPDF(result.decoteDCFCapee)],
+    ["Décote Marché", formatEurosPDF(result.decoteMarche)],
+    [`Décote finale (${inputs.methodeFinale})`, formatEurosPDF(result.decoteFinale)],
+    ["Bonus green premium", formatEurosPDF(result.bonusGreenPremium)],
+    ["Valeur ajustée climat", formatEurosPDF(result.valeurAjustee)],
+    ["Impact net", formatPctPDF(result.impactNet)],
+  ]
+  synth.forEach(([k, v]) => {
+    doc.text(k, marginX, y)
+    doc.text(v, marginX + 90, y)
+    y += 5.5
+  })
+
+  y += 8
+  doc.setFontSize(7)
+  doc.setTextColor(120, 113, 99)
+  doc.text("Sources : ERRIAL/Géorisques, RGA v2026, CCR CatNat, CGDD Études & documents n°134.", marginX, y)
+  doc.text("AGE Climate Platform — Module Brown Value v1.0", marginX, 287)
+
+  doc.save(`brown-value-${caseId.slice(0, 8)}.pdf`)
+}
+
+// ─── Wizard principal ─────────────────────────────────────────────────────────
 
 // ─── Wizard principal ─────────────────────────────────────────────────────────
 
@@ -328,6 +475,19 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
   const [primeAversion, setPrimeAversion] = useState(String(INPUTS_DEFAUT.primeAversion))
   const [greenPremium, setGreenPremium] = useState(String(INPUTS_DEFAUT.greenPremium))
   const [hazards, setHazards] = useState<HazardInput[]>(HAZARDS_DEFAUT.map(h => ({ ...h })))
+  const [contexteFinalisation, setContexteFinalisation] = useState<"initial" | "suivi" | "post_travaux">("suivi")
+const [mandatTravauxDisponible, setMandatTravauxDisponible] = useState(false)
+
+useEffect(() => {
+  if (!actifId) return
+  supabase
+    .from("mandats")
+    .select("id")
+    .eq("bien_id", actifId)
+    .not("date_fin_travaux", "is", null)
+    .limit(1)
+    .then(({ data }) => setMandatTravauxDisponible(!!data && data.length > 0))
+}, [actifId])
 
   // ── Chargement au montage ─────────────────────────────────────────────────
   useEffect(() => {
@@ -340,7 +500,7 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
       const { caseId, caseData: c, hazards: h } = res
       caseIdRef.current = caseId
       setDossierExistant(true)
-
+setEtape(5)
       // Pré-remplir étape 1
       setValeurMarche(String(c.valeur_marche || valeurMarcheInitiale || INPUTS_DEFAUT.valeurMarche))
       setSurface(String(c.surface || INPUTS_DEFAUT.surface))
@@ -443,12 +603,13 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
     setEtape(e => e + 1)
   }
 
-  async function handleTerminer() {
-    setSaveStatus("saving")
-    await sauvegarderCase(caseIdRef.current, actifId, inputs, result)
-    setSaveStatus("saved")
-    setTimeout(() => { setSaveStatus("idle"); onClose?.() }, 1000)
-  }
+async function handleTerminer() {
+  setSaveStatus("saving")
+  const savedId = await sauvegarderCase(caseIdRef.current, actifId, inputs, result, contexteFinalisation, true)
+  if (savedId) caseIdRef.current = savedId
+  setSaveStatus("saved")
+  setTimeout(() => { setSaveStatus("idle"); onClose?.() }, 1000)
+}
 
   function handleNouveauCalcul() {
     caseIdRef.current = null
@@ -589,26 +750,33 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
         </div>
       )}
 
-      {/* ── ÉTAPE 2 ── */}
-      {etape === 2 && (
+     {etape === 2 && (
         <div>
           <h3 style={{ fontWeight: 700, fontSize: "15px", marginBottom: "20px", color: T.brown }}>Étape 2 — Hypothèses financières et de marché</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <Field label="Horizon d'analyse (années, nb n)" value={horizon} onChange={setHorizon} unit="ans" min={1} max={50} />
-              <Field label="Taux d'actualisation r (%)" value={tauxActu} onChange={setTauxActu} unit="%" step={0.1} />
+              <Field label="Horizon d'analyse (années, nb n)" value={horizon} onChange={setHorizon} unit="ans" min={1} max={50}
+                hint="Nombre d'années sur lesquelles les pertes futures liées aux aléas sont actualisées. 20 ans par défaut, cohérent avec un horizon de détention long terme." />
+              <Field label="Taux d'actualisation r (%)" value={tauxActu} onChange={setTauxActu} unit="%" step={0.1}
+                hint="Taux utilisé pour ramener les pertes futures à leur valeur actuelle. Plus il est élevé, moins les pertes lointaines pèsent dans le calcul." />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <Field label="Croissance annuelle du risque g (%)" value={croissanceRisque} onChange={setCroissanceRisque} unit="%" step={0.1} />
-              <Field label="Prime d'assurance actuelle (€/an)" value={primeAssurance} onChange={setPrimeAssurance} unit="€/an" />
+              <Field label="Croissance annuelle du risque g (%)" value={croissanceRisque} onChange={setCroissanceRisque} unit="%" step={0.1}
+                hint="Taux d'aggravation annuelle du risque climatique (fréquence/intensité croissante des aléas dans le temps, ex. RGA, sécheresse)." />
+              <Field label="Prime d'assurance actuelle (€/an)" value={primeAssurance} onChange={setPrimeAssurance} unit="€/an"
+                hint="Montant annuel actuellement payé par le propriétaire pour assurer le bien contre les risques climatiques (information déclarative)." />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <Field label="Surprime annuelle liée au risque (€/an)" value={surprime} onChange={setSurprime} unit="€/an" />
-              <Field label="Coût de portage (charges+intérêts) (€/mois)" value={coutPortage} onChange={setCoutPortage} unit="€/mois" />
+              <Field label="Surprime annuelle liée au risque (€/an)" value={surprime} onChange={setSurprime} unit="€/an"
+                hint="Surcoût d'assurance anticipé lié spécifiquement à l'exposition climatique du bien (au-delà de la prime standard)." />
+              <Field label="Coût de portage (charges+intérêts) (€/mois)" value={coutPortage} onChange={setCoutPortage} unit="€/mois"
+                hint="Charges mensuelles fixes du bien (taxe foncière, copropriété, intérêts d'emprunt) supportées pendant un éventuel allongement du délai de vente." />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <Field label="Surcroît délai de vente dû au risque (jours)" value={surcroitDelai} onChange={setSurcroitDelai} unit="jours" min={0} />
-              <Field label="Décote marché max (cap) (%)" value={capDecote} onChange={setCapDecote} unit="%" min={0} max={100} />
+              <Field label="Surcroît délai de vente dû au risque (jours)" value={surcroitDelai} onChange={setSurcroitDelai} unit="jours" min={0}
+                hint="Nombre de jours supplémentaires estimés pour vendre le bien, par rapport au délai moyen du marché local, du fait de son exposition climatique." />
+              <Field label="Décote marché max (cap) (%)" value={capDecote} onChange={setCapDecote} unit="%" min={0} max={100}
+                hint="Plafond appliqué à la décote DCF calculée, pour éviter une décote disproportionnée par rapport à la réalité observée du marché local." />
             </div>
             <div style={{ borderTop: `1px solid ${T.stone}`, paddingTop: "16px" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: T.stone500, textTransform: "uppercase", marginBottom: "12px" }}>Méthode et calibration</div>
@@ -616,15 +784,20 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
                 <Select label="Méthode finale" value={methode} onChange={v => setMethode(v as MethodeFinale)} options={[
                   { value: "DCF", label: "DCF" }, { value: "Marché", label: "Marché" },
                   { value: "MAX", label: "MAX (DCF, Marché)" }, { value: "Pondérée", label: "Pondérée" },
-                ]} />
-                <Field label="Poids méthode DCF vs Marché (w, 0-100)" value={poidsDCF} onChange={setPoidsDCF} unit="%" min={0} max={100} step={5} />
+                ]}
+                  hint="DCF : décote calculée à partir des flux de pertes actualisés. Marché : décote observée empiriquement. MAX : la plus élevée des deux. Pondérée : moyenne pondérée des deux." />
+                <Field label="Poids méthode DCF vs Marché (w, 0-100)" value={poidsDCF} onChange={setPoidsDCF} unit="%" min={0} max={100} step={5}
+                  hint="Utilisé uniquement si méthode = Pondérée. 100 = uniquement DCF, 0 = uniquement Marché." />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-                <Field label="Décote marché cible (%) (si vous avez une calibration locale)" value={decoteMarcheCible} onChange={setDecoteMarcheCible} unit="%" step={0.5} />
-                <Field label="Prime d'aversion / réputation (%) [optionnel]" value={primeAversion} onChange={setPrimeAversion} unit="%" step={0.5} />
+                <Field label="Décote marché cible (%) (si vous avez une calibration locale)" value={decoteMarcheCible} onChange={setDecoteMarcheCible} unit="%" step={0.5}
+                  hint="Décote en % observée sur des transactions comparables dans le secteur, si vous disposez d'une donnée de marché fiable. Sinon, laisser la valeur par défaut." />
+                <Field label="Prime d'aversion / réputation (%) [optionnel]" value={primeAversion} onChange={setPrimeAversion} unit="%" step={0.5}
+                  hint="Décote additionnelle reflétant une réticence acheteur au-delà du risque financier strict (ex. zone médiatisée à la suite d'un sinistre récent). Laisser à 0 par défaut." />
               </div>
               <div style={{ marginTop: "16px" }}>
-                <Field label="Bonus de valeur (Green premium) (%) [optionnel]" value={greenPremium} onChange={setGreenPremium} unit="%" step={0.5} />
+                <Field label="Bonus de valeur (Green premium) (%) [optionnel]" value={greenPremium} onChange={setGreenPremium} unit="%" step={0.5}
+                  hint="Survaleur si le bien dispose de mesures d'adaptation reconnues sur le marché local (ex. label, certification résilience). Laisser à 0 si non applicable." />
               </div>
             </div>
           </div>
@@ -747,6 +920,41 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
       {etape === 5 && (
         <div>
           <h3 style={{ fontWeight: 700, fontSize: "15px", marginBottom: "16px", color: T.brown }}>Étape 5 — Export</h3>
+
+          <div style={{ marginBottom: "20px" }}>
+            <label style={labelStyle()}>Contexte de ce calcul</label>
+            <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+              {[
+                { value: "initial", label: "Score initial" },
+                { value: "suivi", label: "Suivi de routine" },
+                { value: "post_travaux", label: "Post-travaux", disabled: !mandatTravauxDisponible },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={opt.disabled}
+                  onClick={() => setContexteFinalisation(opt.value as any)}
+                  title={opt.disabled ? "Aucun mandat avec date de fin de travaux pour cet actif" : undefined}
+                  style={{
+                    flex: 1, padding: "10px 12px", borderRadius: 8,
+                    border: contexteFinalisation === opt.value ? `2px solid ${T.brown}` : `1px solid ${T.stone}`,
+                    background: contexteFinalisation === opt.value ? T.brownLight : T.white,
+                    color: opt.disabled ? "#A8A29E" : T.slate,
+                    fontSize: 12, fontWeight: contexteFinalisation === opt.value ? 700 : 400,
+                    cursor: opt.disabled ? "not-allowed" : "pointer", opacity: opt.disabled ? 0.5 : 1,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {contexteFinalisation === "post_travaux" && !mandatTravauxDisponible && (
+              <p style={{ fontSize: 11, color: T.amber, marginTop: 6 }}>
+                Renseignez la date de fin de travaux sur le mandat avant de marquer ce calcul comme post-travaux.
+              </p>
+            )}
+          </div>
+
           <BandeauImpact result={result} />
           {caseIdRef.current && (
             <div style={{ background: "#dcfce7", border: "1px solid #2F7D5C", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#2F7D5C", fontWeight: 600 }}>
@@ -763,10 +971,17 @@ export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClos
                 <div style={{ fontWeight: 700, fontSize: "15px" }}>{e.label}</div>
                 <div style={{ fontSize: "13px", color: T.stone500 }}>{e.desc}</div>
                 <button
-                  style={{ background: caseIdRef.current ? T.brown : T.stone, color: T.white, border: "none", padding: "10px 20px", borderRadius: "8px", cursor: caseIdRef.current ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}
-                  onClick={() => caseIdRef.current && alert(`Export ${e.label} — implémentation serveur à venir`)}>
-                  {e.label}
-                </button>
+  style={{ background: caseIdRef.current ? T.brown : T.stone, color: T.white, border: "none", padding: "10px 20px", borderRadius: "8px", cursor: caseIdRef.current ? "pointer" : "not-allowed", fontWeight: 700, fontSize: "14px" }}
+  onClick={() => {
+    if (!caseIdRef.current) return
+    if (e.label === "Export PDF") {
+      exporterBrownValuePDF(inputs, result, caseIdRef.current, contexteFinalisation)
+    } else {
+      alert(`Export ${e.label} — implémentation serveur à venir`)
+    }
+  }}>
+  {e.label}
+</button>
               </div>
             ))}
           </div>

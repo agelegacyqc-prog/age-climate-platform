@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 interface Client {
@@ -18,13 +19,6 @@ interface Client {
   derniere_activite: string | null
 }
 
-interface FicheClient extends Client {
-  actifs: any[]
-  campagnes: any[]
-  demandes: any[]
-  rapports: any[]
-}
-
 const TYPE_LABELS: Record<string, string> = {
   banque: "Banque", banque_assurance: "Banque / Assurance",
   assurance: "Assurance", assureur: "Assurance",
@@ -42,14 +36,6 @@ const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
   proprietaire:     { bg: "#FFFBEB", color: "#D97706" },
   particulier:      { bg: "#FFFBEB", color: "#D97706" },
 }
-
-const ONGLETS_FICHE = [
-  { id: "infos",     label: "Informations", icon: "ti-user" },
-  { id: "actifs",    label: "Actifs",       icon: "ti-building" },
-  { id: "campagnes", label: "Campagnes",    icon: "ti-speakerphone" },
-  { id: "demandes",  label: "Demandes",     icon: "ti-clipboard-list" },
-  { id: "rapports",  label: "Documents",    icon: "ti-file-analytics" },
-]
 
 const thStyle: React.CSSProperties = {
   padding: "10px 16px", fontSize: "11px", fontWeight: 500,
@@ -74,20 +60,15 @@ const labelStyle: React.CSSProperties = {
 }
 
 export default function Clients() {
+  const navigate = useNavigate()
+
   const [clients, setClients]           = useState<Client[]>([])
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState("")
   const [filtreType, setFiltreType]     = useState("tous")
   const [filtreStatut, setFiltreStatut] = useState("tous")
 
-  const [drawerOpen, setDrawerOpen]     = useState(false)
-  const [fiche, setFiche]               = useState<FicheClient | null>(null)
-  const [ficheLoading, setFicheLoading] = useState(false)
-  const [ongletFiche, setOngletFiche]   = useState("infos")
-
   const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string }[]>([])
-  const [assignLoading, setAssignLoading] = useState(false)
-  const [assignSuccess, setAssignSuccess] = useState(false)
 
   const [newClientOpen, setNewClientOpen]     = useState(false)
   const [newClientForm, setNewClientForm]     = useState({
@@ -152,44 +133,10 @@ export default function Clients() {
     }
   }
 
-  async function ouvrirFiche(client: Client) {
-    setFiche({ ...client, actifs: [], campagnes: [], demandes: [], rapports: [] })
-    setOngletFiche("infos")
-    setAssignSuccess(false)
-    setDrawerOpen(true)
-    setFicheLoading(true)
-    try {
-      const [{ data: actifs }, { data: campagnes }, { data: demandes }, { data: rapports }] = await Promise.all([
-        supabase.from("actifs").select("id, nom, score_climatique, categorie, ville").eq("user_id", client.id).eq("categorie", "patrimoine_propre").order("created_at", { ascending: false }),
-        supabase.from("campagnes").select("id, nom, statut, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
-        supabase.from("demandes_marketplace").select("id, titre, statut, created_at").eq("client_id", client.id).order("created_at", { ascending: false }),
-        supabase.from("rapports_client").select("id, type_rapport, statut, created_at, fichier_url").eq("client_id", client.id).order("created_at", { ascending: false }),
-      ])
-      setFiche(prev => prev ? { ...prev, actifs: actifs || [], campagnes: campagnes || [], demandes: demandes || [], rapports: rapports || [] } : null)
-    } finally {
-      setFicheLoading(false)
-    }
-  }
-
   async function toggleActif(client: Client) {
     const nouvelle_valeur = !client.actif
     setClients(prev => prev.map(c => c.id === client.id ? { ...c, actif: nouvelle_valeur } : c))
     await supabase.from("profils_client").update({ actif: nouvelle_valeur }).eq("id", client.id)
-    if (fiche?.id === client.id) setFiche(prev => prev ? { ...prev, actif: nouvelle_valeur } : null)
-  }
-
-  async function assignerResponsable(responsable_id: string) {
-    if (!fiche) return
-    setAssignLoading(true)
-    try {
-      await supabase.from("profils_client").update({ responsable_commercial_id: responsable_id }).eq("id", fiche.id)
-      setFiche(prev => prev ? { ...prev, responsable_commercial_id: responsable_id } : null)
-      setClients(prev => prev.map(c => c.id === fiche.id ? { ...c, responsable_commercial_id: responsable_id } : c))
-      setAssignSuccess(true)
-      setTimeout(() => setAssignSuccess(false), 2000)
-    } finally {
-      setAssignLoading(false)
-    }
   }
 
   async function handleCreerClient() {
@@ -238,10 +185,6 @@ export default function Clients() {
       (filtreStatut === "inactif" && !c.actif)
     return matchSearch && matchType && matchStatut
   })
-
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-  }
 
   function typeLabel(type: string) { return TYPE_LABELS[type] || type }
   function typeBadge(type: string) { return TYPE_BADGE[type] || { bg: "#F4F3F0", color: "#6B7280" } }
@@ -372,7 +315,7 @@ export default function Clients() {
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "flex-end" }}>
-                        <button onClick={() => ouvrirFiche(c)} style={actionBtnStyle} title="Voir la fiche">
+                        <button onClick={() => navigate(`/metier/clients/${c.id}`)} style={actionBtnStyle} title="Voir la fiche">
                           <i className="ti ti-eye" style={{ fontSize: "14px" }} />
                         </button>
                         <button onClick={() => toggleActif(c)}
@@ -397,217 +340,6 @@ export default function Clients() {
           </div>
         )}
       </div>
-
-      {/* ── Drawer fiche client ── */}
-      {drawerOpen && fiche && (
-        <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerOpen(false)} />
-          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "480px", maxWidth: "100vw", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: typeBadge(fiche.type_client).bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: typeBadge(fiche.type_client).color }}>
-                  {(fiche.prenom?.[0] || fiche.email[0] || "?").toUpperCase()}
-                </div>
-                <div>
-                  <h2 style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>
-                    {fiche.prenom && fiche.nom ? `${fiche.prenom} ${fiche.nom}` : fiche.email}
-                  </h2>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-                    <span style={{ background: typeBadge(fiche.type_client).bg, color: typeBadge(fiche.type_client).color, fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500 }}>
-                      {typeLabel(fiche.type_client)}
-                    </span>
-                    <span className={fiche.actif ? "badge badge--success" : "badge badge--neutral"} style={{ fontSize: "10px", padding: "2px 6px" }}>
-                      {fiche.actif ? "Actif" : "Inactif"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
-                <i className="ti ti-x" style={{ fontSize: "14px" }} />
-              </button>
-            </div>
-            <div style={{ display: "flex", borderBottom: "1px solid #E2DDD8", flexShrink: 0, overflowX: "auto" }}>
-              {ONGLETS_FICHE.map(o => (
-                <button key={o.id} onClick={() => setOngletFiche(o.id)} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "10px 14px", border: "none", background: "transparent", fontSize: "12px", fontWeight: ongletFiche === o.id ? 600 : 400, color: ongletFiche === o.id ? "#B25C2A" : "#6B7280", cursor: "pointer", fontFamily: "inherit", borderBottom: `2px solid ${ongletFiche === o.id ? "#B25C2A" : "transparent"}`, marginBottom: "-1px", whiteSpace: "nowrap" }}>
-                  <i className={`ti ${o.icon}`} style={{ fontSize: "13px" }} />
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-              {ficheLoading ? (
-                <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>Chargement…</div>
-              ) : (
-                <>
-                  {ongletFiche === "infos" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {[
-                          { label: "Email", value: fiche.email },
-                          { label: "Prénom", value: fiche.prenom || "—" },
-                          { label: "Nom", value: fiche.nom || "—" },
-                          { label: "Type", value: typeLabel(fiche.type_client) },
-                          { label: "Onboarding", value: fiche.onboarding_complete ? "Complété" : "En cours" },
-                          { label: "Client depuis", value: formatDate(fiche.created_at) },
-                        ].map((item, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "10px", borderBottom: "1px solid #F4F3F0" }}>
-                            <span style={{ fontSize: "12px", color: "#6B7280" }}>{item.label}</span>
-                            <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{item.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>Responsable commercial</p>
-                        {/* Proposition automatique selon région */}
-                        {fiche.region && !fiche.responsable_commercial_id && (() => {
-                          const suggeres = (responsables as any[]).filter(r => r.region === fiche.region && r.role === "responsable_regional")
-                          if (suggeres.length === 0) return null
-                          return (
-                            <div style={{ padding: "10px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", marginBottom: "10px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 600, color: "#1E40AF", marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
-                                <i className="ti ti-map-pin" style={{ fontSize: "12px" }} />
-                                Suggestion — région {fiche.region}
-                              </div>
-                              {suggeres.map((r: any) => (
-                                <button key={r.id} onClick={() => assignerResponsable(r.id)} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 10px", background: "#FFFFFF", border: "1px solid #BFDBFE", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", marginBottom: "4px" }}>
-                                  <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#F9F0EA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", fontWeight: 600, color: "#B25C2A" }}>
-                                    {r.prenom[0]}{r.nom[0]}
-                                  </div>
-                                  <span style={{ fontSize: "12px", fontWeight: 500, color: "#0F172A" }}>{r.prenom} {r.nom}</span>
-                                  <span style={{ marginLeft: "auto", fontSize: "10px", color: "#1E40AF", background: "#EFF6FF", padding: "1px 6px", borderRadius: "4px" }}>Assigner</span>
-                                </button>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                        {assignSuccess && (
-                          <div style={{ padding: "8px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", fontSize: "12px", color: "#2F7D5C", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                            <i className="ti ti-circle-check" style={{ fontSize: "13px" }} /> Responsable assigné
-                          </div>
-                        )}
-                        <select className="input" value={fiche.responsable_commercial_id || ""} onChange={e => assignerResponsable(e.target.value)} disabled={assignLoading}>
-                          <option value="">Sélectionner un responsable…</option>
-                          {(responsables as any[]).map(r => (
-                            <option key={r.id} value={r.id}>
-                              {r.prenom} {r.nom}{r.region ? ` — ${r.region}` : r.role === "admin" || r.role === "admin_national" ? " — National" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{ paddingTop: "8px", borderTop: "1px solid #E2DDD8" }}>
-                        <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>Actions</p>
-                        <button onClick={() => toggleActif(fiche)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${fiche.actif ? "#FECACA" : "#BBF7D0"}`, background: fiche.actif ? "#FEF2F2" : "#F0FDF4", color: fiche.actif ? "#B91C1C" : "#2F7D5C" }}>
-                          <i className={`ti ${fiche.actif ? "ti-user-off" : "ti-user-check"}`} style={{ fontSize: "13px" }} />
-                          {fiche.actif ? "Désactiver le compte" : "Activer le compte"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {ongletFiche === "actifs" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {fiche.actifs.length === 0 ? (
-                        <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
-                          <i className="ti ti-building-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
-                          Aucun actif enregistré
-                        </div>
-                      ) : fiche.actifs.map((a: any) => (
-                        <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F9F0EA", borderRadius: "8px", border: "1px solid #F0DDD0" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <i className="ti ti-building" style={{ fontSize: "16px", color: "#B25C2A" }} />
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{a.nom}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280" }}>{a.ville || "—"}</div>
-                            </div>
-                          </div>
-                          {a.score_climatique != null && (
-                            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "12px", fontWeight: 600, color: a.score_climatique >= 70 ? "#B91C1C" : a.score_climatique >= 40 ? "#D97706" : "#2F7D5C" }}>
-                              {a.score_climatique}/100
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {ongletFiche === "campagnes" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {fiche.campagnes.length === 0 ? (
-                        <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
-                          <i className="ti ti-speakerphone-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
-                          Aucune campagne
-                        </div>
-                      ) : fiche.campagnes.map((c: any) => (
-                        <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <i className="ti ti-speakerphone" style={{ fontSize: "15px", color: "#6B7280" }} />
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{c.nom}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280" }}>{formatDate(c.created_at)}</div>
-                            </div>
-                          </div>
-                          <span className={c.statut === "en_cours" ? "badge badge--success" : c.statut === "soumise" ? "badge badge--warning" : "badge badge--neutral"} style={{ fontSize: "10px" }}>
-                            {c.statut}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {ongletFiche === "demandes" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {fiche.demandes.length === 0 ? (
-                        <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
-                          <i className="ti ti-clipboard-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
-                          Aucune demande
-                        </div>
-                      ) : fiche.demandes.map((d: any) => (
-                        <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <i className="ti ti-clipboard-list" style={{ fontSize: "15px", color: "#6B7280" }} />
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{d.titre || "Demande"}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280" }}>{formatDate(d.created_at)}</div>
-                            </div>
-                          </div>
-                          <span className="badge badge--neutral" style={{ fontSize: "10px" }}>{d.statut}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {ongletFiche === "rapports" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {fiche.rapports.length === 0 ? (
-                        <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
-                          <i className="ti ti-file-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
-                          Aucun document
-                        </div>
-                      ) : fiche.rapports.map((r: any) => (
-                        <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <i className="ti ti-file-analytics" style={{ fontSize: "15px", color: "#B25C2A" }} />
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{r.type_rapport}</div>
-                              <div style={{ fontSize: "11px", color: "#6B7280" }}>{formatDate(r.created_at)}</div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span className={r.statut === "disponible" ? "badge badge--success" : "badge badge--warning"} style={{ fontSize: "10px" }}>
-                              {r.statut}
-                            </span>
-                            {r.statut === "disponible" && r.fichier_url && (
-                              <a href={r.fichier_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", padding: "4px 8px", borderRadius: "5px", background: "#B25C2A", color: "white", fontSize: "11px", textDecoration: "none" }}>
-                                <i className="ti ti-download" style={{ fontSize: "12px" }} />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* ── Drawer nouveau client ── */}
       {newClientOpen && (
