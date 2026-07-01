@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { Home } from "lucide-react"
 import "../styles/Layout.css"
 
 // ─── Page titles ────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/messagerie":          "Messagerie",
   "/metier/reporting":           "Reporting",
   "/metier/factures":            "Factures",
+  "/metier/brown-value":         "Simulation Brown Value",
   "/metier/ageadapt":            "AGEadapt",
   "/metier/ageadapt/nouvelle-mission": "Nouvelle mission — AGEadapt",
   "/metier/dossiers-rga":        "Dossiers RGA",
@@ -139,6 +141,7 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
   const location = useLocation()
   const isActive = location.pathname.startsWith('/metier/reporting') ||
                    location.pathname.startsWith('/metier/factures')
+                   location.pathname.startsWith('/metier/brown-value')
 
   return (
     <div>
@@ -167,7 +170,7 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
             <i className="ti ti-file-analytics nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">Reporting</span>
           </NavLink>
-          {roleAGE === 'admin_national' && (
+    {(roleAGE === 'admin_national' || roleAGE === 'consultant') && (
             <NavLink
               to="/metier/factures"
               className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
@@ -177,6 +180,14 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
               <span className="nav-item__label">Facturation</span>
             </NavLink>
           )}
+          <NavLink
+            to="/metier/brown-value"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px', color: '#B25C2A' }}
+          >
+            <Home className="nav-item__icon" style={{ width: '14px', height: '14px' }} />
+            <span className="nav-item__label">Brown Value</span>
+          </NavLink>
         </div>
       )}
     </div>
@@ -606,7 +617,7 @@ export default function Layout() {
               />
 
               {/* Finance */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <FinanceMenu roleAGE={roleAGE} />
               )}
 
@@ -614,7 +625,7 @@ export default function Layout() {
               <EnvironnementMenu />
 
               {/* Prospection */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <ProspectionMenu />
               )}
 

@@ -26,13 +26,23 @@ export default function ClientDemandes() {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase
+     const { data } = await supabase
       .from("demandes_marketplace")
       .select("*, actif:actif_id(nom, adresse)")
       .eq("client_id", user.id)
+      .eq("archivee", false)
       .order("created_at", { ascending: false })
     setDemandes(data || [])
     setLoading(false)
+  }
+
+  async function archiverDemande(id: string) {
+    if (!confirm("Archiver cette demande ? Elle ne sera plus visible dans votre liste.")) return
+    await supabase
+      .from("demandes_marketplace")
+      .update({ archivee: true, archivee_at: new Date().toISOString() })
+      .eq("id", id)
+    setDemandes(prev => prev.filter(d => d.id !== id))
   }
 
   function formatDate(iso: string) {
@@ -113,8 +123,16 @@ export default function ClientDemandes() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span style={{ background: statut.bg, color: statut.color, padding: "3px 10px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>{statut.label}</span>
+                    {d.statut !== "en_cours" && d.statut !== "terminee" && (
+                      <button
+                        onClick={e => { e.stopPropagation(); archiverDemande(d.id) }}
+                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "white", border: "1px solid #E2E8F0", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", color: "#64748B", cursor: "pointer", fontFamily: "inherit" }}>
+                        <i className="ti ti-archive" style={{ fontSize: "13px" }} aria-hidden="true" />
+                        Archiver
+                      </button>
+                    )}
                     <i className={`ti ${isSelected ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
                   </div>
                 </div>

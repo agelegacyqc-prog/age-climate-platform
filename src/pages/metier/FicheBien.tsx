@@ -2,13 +2,11 @@ import React, { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
-import BrownValueWizard from "../../components/BrownValueWizard"
 import PreDiagDrawer from "./PreDiagDrawer"
 import ScoreHistorique from "./ScoreHistorique"
 const ONGLETS = [
   { id: "synthese",    label: "Synthèse",    icon: "ti-clipboard-list" },
   { id: "climatique",  label: "Climatique",  icon: "ti-leaf" },
-  { id: "brown_value", label: "Brown Value", icon: "ti-home" },
   { id: "historique",  label: "Historique scores", icon: "ti-chart-line" },
 ]
 
@@ -158,10 +156,7 @@ const [prediagOpen, setPrediagOpen] = useState(false)
                 <div style={{ fontSize: "13px", fontWeight: 500, color: "#0369A1", fontFamily: "'DM Mono', monospace" }}>{actif.score_reglementaire} / 100</div>
               </div>
             )}
-            <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "12px 14px", fontSize: "13px", color: "#1E40AF", display: "flex", alignItems: "center", gap: "8px", marginTop: "16px" }}>
-              <i className="ti ti-info-circle" style={{ fontSize: "16px", flexShrink: 0 }} aria-hidden="true" />
-              Calculez la décote précise via l'onglet <strong>Brown Value</strong>.
-            </div>
+            
           </div>
         </div>
       )}
@@ -197,14 +192,6 @@ const [prediagOpen, setPrediagOpen] = useState(false)
         </div>
       )}
 
-      {/* Brown Value */}
-      {onglet === "brown_value" && (
-        <BrownValueWizard
-          actifId={id}
-          valeurMarcheInitiale={actif.valeur_marche ? Number(actif.valeur_marche) : undefined}
-          onClose={() => setOnglet("synthese")}
-        />
-      )}
       {/* Historique scores */}
       {onglet === "historique" && (
         <ScoreHistorique

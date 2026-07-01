@@ -178,12 +178,17 @@ async function sauvegarderCase(
   inputs: BrownValueInputs,
   result: BrownValueResult,
   contexte: "initial" | "suivi" | "post_travaux" = "suivi",
-  forcerNouveau: boolean = false
+  forcerNouveau: boolean = false,
+  champsLibres?: { nomBien?: string; adresse?: string; codePostal?: string; ville?: string }
 ): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     const casePayload = {
       actif_id: bienId || null,
+      nom_bien: champsLibres?.nomBien || null,
+      adresse: champsLibres?.adresse || null,
+      code_postal: champsLibres?.codePostal || null,
+      ville: champsLibres?.ville || null,
       moteur_version: "1.0",
       created_by: user?.id || null,
       contexte,
@@ -441,10 +446,14 @@ function exporterBrownValuePDF(
 interface BrownValueWizardProps {
   actifId?: string
   valeurMarcheInitiale?: number
-  onClose?: () => void
+  nomBien?: string
+  adresse?: string
+  codePostal?: string
+  ville?: string
+  onClose?: (completed: boolean) => void
 }
 
-export default function BrownValueWizard({ actifId, valeurMarcheInitiale, onClose }: BrownValueWizardProps) {
+export default function BrownValueWizard({ actifId, valeurMarcheInitiale, nomBien, adresse, codePostal, ville, onClose }: BrownValueWizardProps) {
   const [etape, setEtape] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
@@ -597,7 +606,7 @@ setEtape(5)
 
   async function handleSuivant() {
     setSaveStatus("saving")
-    const savedId = await sauvegarderCase(caseIdRef.current, actifId, inputs, result)
+    const savedId = await sauvegarderCase(caseIdRef.current, actifId, inputs, result, "suivi", false, { nomBien, adresse, codePostal, ville })
     if (savedId) {
       caseIdRef.current = savedId
       setDossierExistant(true)
@@ -612,10 +621,10 @@ setEtape(5)
 
 async function handleTerminer() {
   setSaveStatus("saving")
-  const savedId = await sauvegarderCase(caseIdRef.current, actifId, inputs, result, contexteFinalisation, true)
+  const savedId = await sauvegarderCase(caseIdRef.current, actifId, inputs, result, contexteFinalisation, true, { nomBien, adresse, codePostal, ville })
   if (savedId) caseIdRef.current = savedId
   setSaveStatus("saved")
-  setTimeout(() => { setSaveStatus("idle"); onClose?.() }, 1000)
+  setTimeout(() => { setSaveStatus("idle"); onClose?.(true) }, 1000)
 }
 
   function handleNouveauCalcul() {
@@ -723,9 +732,15 @@ async function handleTerminer() {
       )}
 
       {/* ── ÉTAPE 1 ── */}
-      {etape === 1 && (
+        {etape === 1 && (
         <div>
           <h3 style={{ fontWeight: 700, fontSize: "15px", marginBottom: "20px", color: T.brown }}>Étape 1 — Caractéristiques du bien</h3>
+          {!actifId && (nomBien || adresse) && (
+            <div style={{ background: T.brownLight, border: `1px solid ${T.brownBorder}`, borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: T.slate }}>
+              <strong>{nomBien || "Bien sans actif rattaché"}</strong>
+              {adresse && <div style={{ color: T.stone500, marginTop: 2 }}>{adresse}{codePostal ? `, ${codePostal}` : ""} {ville || ""}</div>}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <Field label="Valeur de marché actuelle (€) soit V" value={valeurMarche} onChange={setValeurMarche} unit="€" />
@@ -1022,7 +1037,7 @@ async function handleTerminer() {
       {/* Navigation */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: `1px solid ${T.stone}` }}>
         <button
-          onClick={() => etape > 1 ? setEtape(e => e - 1) : onClose?.()}
+          onClick={() => etape > 1 ? setEtape(e => e - 1) : onClose?.(false)}
           style={{ display: "flex", alignItems: "center", gap: "6px", background: T.white, color: T.slate, border: `1px solid ${T.stone}`, padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
           <Icon.chevronLeft /> {etape === 1 ? "Fermer" : "Précédent"}
         </button>

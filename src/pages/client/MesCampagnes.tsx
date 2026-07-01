@@ -72,13 +72,14 @@ export default function MesCampagnes() {
 
   useEffect(() => { load() }, [])
 
-  async function load() {
+async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data } = await supabase
       .from("campagnes")
       .select("*")
       .eq("client_id", user.id)
+      .eq("archivee", false)
       .order("created_at", { ascending: false })
     setCampagnes(data || [])
     setLoading(false)
@@ -227,12 +228,14 @@ export default function MesCampagnes() {
     setLoadingForm(false)
   }
 
-  async function supprimerCampagne(id: string) {
-    if (!confirm("Supprimer cette campagne ? Cette action est irréversible.")) return
-    await supabase.from("campagnes").delete().eq("id", id)
+async function archiverCampagne(id: string) {
+    if (!confirm("Archiver cette campagne ? Elle ne sera plus visible dans votre liste.")) return
+    await supabase
+      .from("campagnes")
+      .update({ archivee: true, archivee_at: new Date().toISOString() })
+      .eq("id", id)
     setCampagnes(campagnes.filter(c => c.id !== id))
   }
-
   function resetForm() {
     setForm({ nom: "", type_campagne: "", zone_geo: "", date_debut: "", date_fin: "", description: "" })
     setEtape(1)
@@ -546,14 +549,12 @@ export default function MesCampagnes() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span style={{ background: statut.bg, color: statut.color, padding: "3px 10px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>{statut.label}</span>
-                    {c.statut === "soumise" && (
-                      <button
-                        onClick={e => { e.stopPropagation(); supprimerCampagne(c.id) }}
-                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
-                        <i className="ti ti-trash" style={{ fontSize: "13px" }} aria-hidden="true" />
-                        Supprimer
-                      </button>
-                    )}
+            <button
+                      onClick={e => { e.stopPropagation(); archiverCampagne(c.id) }}
+                      style={{ display: "flex", alignItems: "center", gap: "4px", background: "white", border: "1px solid #E2E8F0", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", color: "#64748B", cursor: "pointer", fontFamily: "inherit" }}>
+                      <i className="ti ti-archive" style={{ fontSize: "13px" }} aria-hidden="true" />
+                      Archiver
+                    </button>
                     <i className={`ti ${isOpen ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
                   </div>
                 </div>
