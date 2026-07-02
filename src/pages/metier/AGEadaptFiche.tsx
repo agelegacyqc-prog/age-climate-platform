@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Leaf, Calendar, Users, MapPin, Target, Download } from 'lucide-react'
+import { ArrowLeft, Leaf, Calendar, Users, MapPin, Target, Download, Sparkles } from 'lucide-react'
 import jsPDF from 'jspdf'
+import { REGIONS_FRANCE, regionCodeFromNom } from '../../lib/ageadaptRegions'
 
 interface Mission {
   id: string
@@ -18,7 +19,6 @@ interface Mission {
   statut: string
   created_at: string
   aleas: string[]
-  rapport_ia?: string | null
 }
 
 interface Simulation {
@@ -105,19 +105,24 @@ export default function AGEadaptFiche() {
         }
       )
       const result = await response.json()
-const texte = result.rapport ?? null
-setRapport(texte)
-if (texte && mission.id) {
-  const { error: saveError } = await supabase
-    .from('ageadapt_missions')
-    .update({ rapport_ia: texte })
-    .eq('id', mission.id)
-  if (saveError) {
-    alert('Erreur sauvegarde : ' + saveError.message)
-  } else {
-    console.log('Rapport sauvegardé pour mission:', mission.id)
-  }
-}
+      const texte = result.rapport ?? null
+      setRapport(texte)
+
+      // Décision 3 : rapport_ia stocké dans une table versionnée dédiée,
+      // sur le modèle de risk_scores (Brown Value), plutôt qu'un champ écrasé
+      // sur ageadapt_missions.
+      if (texte && mission.id && session?.user?.id) {
+        const { error: saveError } = await supabase
+          .from('ageadapt_rapports_ia')
+          .insert({
+            mission_id: mission.id,
+            created_by: session.user.id,
+            contenu: texte,
+          })
+        if (saveError) {
+          alert('Erreur sauvegarde : ' + saveError.message)
+        }
+      }
     } catch (e) {
       console.error('Erreur génération rapport:', e)
       alert('Erreur : ' + String(e))
@@ -135,6 +140,11 @@ if (texte && mission.id) {
       const vert = [29, 158, 117] as [number, number, number]
       const gris = [120, 113, 108] as [number, number, number]
 
+      // TODO : jsPDF/Helvetica ne rend pas les caractères accentués — les libellés
+      // ci-dessous sont désaccentués en contournement, ce qui contrevient à la règle
+      // socle "libellés repris mot pour mot, jamais reformulés". Correctif propre :
+      // embarquer une police Unicode (ex. DejaVuSans) via doc.addFont(). Non fait
+      // par choix explicite du 02/07/2026, à traiter en correctif séparé.
       doc.setFillColor(...bleu)
       doc.rect(0, 0, 210, 32, 'F')
       doc.setTextColor(255, 255, 255)
@@ -279,7 +289,8 @@ if (texte && mission.id) {
       setExportEnCours(false)
     }
   }
-async function exporterRapportPDF() {
+
+  async function exporterRapportPDF() {
     if (!mission || !rapport) return
     const nettoyerTexte = (t: string) => t
       .replace(/✅/g, '[OK]')
@@ -312,7 +323,7 @@ async function exporterRapportPDF() {
     doc.text(`${mission.raison_sociale} · ${new Date().toLocaleDateString('fr-FR')}`, 15, 22)
 
     let y = 38
-    
+
     for (const ligne of lignes) {
       if (y > 275) { doc.addPage(); y = 20 }
       if (!ligne.trim()) { y += 4; continue }
@@ -363,6 +374,7 @@ async function exporterRapportPDF() {
 
     doc.save(`RapportIA_AGEadapt_${mission.raison_sociale}_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`)
   }
+
   async function sauvegarder() {
     setSaving(true)
     const { error } = await supabase
@@ -371,6 +383,7 @@ async function exporterRapportPDF() {
         type_structure: editForm.type_structure || null,
         effectif_tranche: parseInt(editForm.effectif_tranche) || null,
         region: editForm.region || null,
+        region_code: regionCodeFromNom(editForm.region),
         methode: editForm.methode || null,
         nb_sites_tranche: parseInt(editForm.nb_sites_tranche) || null,
         bilan_existant: editForm.bilan_existant,
@@ -408,8 +421,18 @@ async function exporterRapportPDF() {
       .limit(1)
       .maybeSingle()
     setSimulation(s)
-if (m?.rapport_ia) setRapport(m.rapport_ia)
-setLoading(false)
+
+    // Rapport IA : dernière version dans la table dédiée ageadapt_rapports_ia
+    const { data: r } = await supabase
+      .from('ageadapt_rapports_ia')
+      .select('contenu')
+      .eq('mission_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (r?.contenu) setRapport(r.contenu)
+
+    setLoading(false)
   }
 
   if (loading) return (
@@ -461,14 +484,14 @@ setLoading(false)
             disabled={rapportEnCours}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              background: '#1A3A5F', color: 'white',
+              background: '#0369A1', color: 'white',
               border: 'none', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600,
               cursor: rapportEnCours ? 'not-allowed' : 'pointer',
               opacity: rapportEnCours ? 0.7 : 1,
             }}
           >
-            <i className="ti ti-sparkles" style={{ fontSize: 15 }} />
+            <Sparkles size={15} />
             {rapportEnCours ? 'Génération...' : 'Rapport IA'}
           </button>
           <button
@@ -530,9 +553,9 @@ setLoading(false)
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Structure</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.type_structure} onChange={e => setEditForm(f => ({ ...f, type_structure: e.target.value }))}>
+<label htmlFor="fiche-structure" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Structure</label>
+<select id="fiche-structure" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.type_structure} onChange={e => setEditForm(f => ({ ...f, type_structure: e.target.value }))}>
                 <option value="">—</option>
                 <option value="entreprise">Entreprise / Groupe</option>
                 <option value="collectivite">Collectivité / EPCI</option>
@@ -540,9 +563,9 @@ setLoading(false)
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Effectif</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.effectif_tranche} onChange={e => setEditForm(f => ({ ...f, effectif_tranche: e.target.value }))}>
+<label htmlFor="fiche-effectif" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Effectif</label>
+<select id="fiche-effectif" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.effectif_tranche} onChange={e => setEditForm(f => ({ ...f, effectif_tranche: e.target.value }))}>
                 <option value="">—</option>
                 <option value="1">1 – 10</option>
                 <option value="2">11 – 49</option>
@@ -553,21 +576,17 @@ setLoading(false)
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Région</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.region} onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))}>
+              <label htmlFor="fiche-region" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Région</label>
+<select id="fiche-region" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.region} onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))}>
                 <option value="">—</option>
-                <option>Nouvelle-Aquitaine</option>
-                <option>Île-de-France</option>
-                <option>Occitanie</option>
-                <option>Auvergne-Rhône-Alpes</option>
-                <option>Autre</option>
+                {REGIONS_FRANCE.map(r => <option key={r.code} value={r.nom}>{r.nom}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Méthode</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.methode} onChange={e => setEditForm(f => ({ ...f, methode: e.target.value }))}>
+  <label htmlFor="fiche-methode" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Méthode</label>
+<select id="fiche-methode" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.methode} onChange={e => setEditForm(f => ({ ...f, methode: e.target.value }))}>
                 <option value="">—</option>
                 <option value="abc">Bilan Carbone® ABC</option>
                 <option value="act">ACT Adaptation</option>
@@ -576,9 +595,9 @@ setLoading(false)
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Sites</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.nb_sites_tranche} onChange={e => setEditForm(f => ({ ...f, nb_sites_tranche: e.target.value }))}>
+<label htmlFor="fiche-sites" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Sites</label>
+<select id="fiche-sites" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.nb_sites_tranche} onChange={e => setEditForm(f => ({ ...f, nb_sites_tranche: e.target.value }))}>
                 <option value="">—</option>
                 <option value="1">1 site</option>
                 <option value="2">2 – 3 sites</option>
@@ -587,9 +606,9 @@ setLoading(false)
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Bilan existant</label>
-              <select style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
-                value={editForm.bilan_existant ? 'oui' : 'non'} onChange={e => setEditForm(f => ({ ...f, bilan_existant: e.target.value === 'oui' }))}>
+<label htmlFor="fiche-bilan" style={{ fontSize: 10, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Bilan existant</label>
+<select id="fiche-bilan" style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E1DA', borderRadius: 8, fontSize: 13, background: 'white' }}
+  value={editForm.bilan_existant ? 'oui' : 'non'} onChange={e => setEditForm(f => ({ ...f, bilan_existant: e.target.value === 'oui' }))}>
                 <option value="non">Non</option>
                 <option value="oui">Oui</option>
               </select>
@@ -661,13 +680,13 @@ setLoading(false)
         <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="ti ti-sparkles" style={{ color: '#1A3A5F', fontSize: 18 }} />
+              <Sparkles size={18} color="#0369A1" />
               <h2 style={{ fontSize: 13, fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Rapport IA — AGEadapt</h2>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => exporterRapportPDF()}
-                style={{ fontSize: 12, color: 'white', background: '#1A3A5F', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ fontSize: 12, color: 'white', background: '#0369A1', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Download size={13} /> Exporter PDF
               </button>
@@ -679,7 +698,7 @@ setLoading(false)
           <div style={{ fontSize: 13, color: '#1F2937', lineHeight: 1.8 }}>
             {rapport.split('\n').map((line, i) => {
               if (line.startsWith('**') && line.endsWith('**')) {
-                return <p key={i} style={{ fontWeight: 700, color: '#1A3A5F', marginTop: 16, marginBottom: 4 }}>{line.replace(/\*\*/g, '')}</p>
+                return <p key={i} style={{ fontWeight: 700, color: '#0369A1', marginTop: 16, marginBottom: 4 }}>{line.replace(/\*\*/g, '')}</p>
               }
               if (line.startsWith('- ')) {
                 return <p key={i} style={{ paddingLeft: 16, marginBottom: 4 }}>• {line.slice(2)}</p>

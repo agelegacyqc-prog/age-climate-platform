@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Leaf, BarChart2, Building2, Building, Cloud, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { clickableCardProps, focusRing, AGEADAPT_PRIMARY } from '../../lib/a11y'
 
 interface Mission {
   id: string
@@ -30,6 +31,7 @@ const METHODE_COLORS: Record<string, { bg: string; text: string }> = {
 export default function AGEadapt() {
   const navigate = useNavigate()
   const [missions, setMissions] = useState<Mission[]>([])
+  const [tco2eEvitees, setTco2eEvitees] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   const kpis = {
@@ -50,7 +52,23 @@ export default function AGEadapt() {
       if (!error && data) setMissions(data)
       setLoading(false)
     }
+
+    // KPI tCO₂e évitées — agrégation réelle depuis ageadapt_actions (§7 fiche v1.1).
+    // Retourne 0 tant qu'aucune action n'est saisie : aucun écran de saisie
+    // n'existe encore pour cette table (Niveau 3, non traité).
+    async function fetchTco2eEvitees() {
+      const { data, error } = await supabase
+        .from('ageadapt_actions')
+        .select('gain_ges_tco2e')
+
+      if (!error && data) {
+        const total = data.reduce((sum, a) => sum + (a.gain_ges_tco2e ?? 0), 0)
+        setTco2eEvitees(total)
+      }
+    }
+
     fetchMissions()
+    fetchTco2eEvitees()
   }, [])
 
   return (
@@ -86,7 +104,7 @@ export default function AGEadapt() {
           { label: 'Missions actives', value: kpis.actives, icon: <Leaf size={18} color="#1D9E75" />, color: '#1D9E75' },
           { label: 'Collectivités', value: kpis.collectivites, icon: <Building size={18} color="#D97706" />, color: '#D97706' },
           { label: 'Entreprises', value: kpis.entreprises, icon: <Building2 size={18} color="#0369A1" />, color: '#0369A1' },
-          { label: 'tCO₂e évitées', value: '3 240', icon: <Cloud size={18} color="#1F2937" />, color: '#1F2937' },
+ { label: 'tCO₂e évitées', value: tco2eEvitees !== null ? tco2eEvitees.toLocaleString('fr-FR') : '—', icon: <Cloud size={18} color="#1F2937" />, color: '#1F2937' },
         ].map((kpi, i) => (
           <div key={i} style={{
             background: 'white', borderRadius: '12px',
@@ -122,14 +140,21 @@ export default function AGEadapt() {
             const pct = Math.round((m.etape_courante / 5) * 100)
             const mc = METHODE_COLORS[m.methode] || { bg: '#F3F4F6', text: '#6B7280' }
             return (
-              <div key={m.id} onClick={() => navigate(`/metier/ageadapt/${m.id}`)} style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '10px 0', borderBottom: '1px solid #E5E1DA',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#F8F7F4')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
+              <div
+  key={m.id}
+  onClick={() => navigate(`/metier/ageadapt/${m.id}`)}
+  aria-label={`Ouvrir la mission ${m.raison_sociale}`}
+  {...clickableCardProps(() => navigate(`/metier/ageadapt/${m.id}`))}
+  {...focusRing(AGEADAPT_PRIMARY)}
+  style={{
+    display: 'flex', alignItems: 'center', gap: '12px',
+    padding: '10px 0', borderBottom: '1px solid #E5E1DA',
+    cursor: 'pointer',
+  }}
+  onMouseEnter={e => (e.currentTarget.style.background = '#F8F7F4')}
+  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+>
+            
                 <div style={{
                   width: '34px', height: '34px', borderRadius: '8px',
                   background: m.type_structure === 'collectivite' ? '#FEF3C7' : '#DBEAFE',

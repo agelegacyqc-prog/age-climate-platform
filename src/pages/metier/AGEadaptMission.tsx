@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
-import { Leaf, ChevronRight, ChevronLeft } from 'lucide-react'
+import {
+  Leaf, ChevronRight, ChevronLeft, Check,
+  Info, Calculator, BadgeCheck, Settings, Shield, TrendingDown,
+} from 'lucide-react'
+import { REGIONS_FRANCE, regionCodeFromNom } from '../../lib/ageadaptRegions'
+import { clickableCardProps, focusRing, AGEADAPT_PRIMARY } from '../../lib/a11y'
 
 const ETAPES = [
   'Qualification client',
@@ -18,40 +23,120 @@ const METHODES = [
   { id: 'full', label: 'Mission complète', desc: 'ABC + ACT + Vulnérabilité, livrables CSRD-compatibles', tags: ['Entreprise', 'Collectivité'] },
 ]
 
+// Libellés complets §4.7 fiche v1.1 — repris mot pour mot, ne pas reformuler
 const ALEAS = [
-  'Inondation', 'Vagues de chaleur', 'Sécheresse',
-  'Feux de forêt', 'Tempêtes / vents', 'RGA',
-  'Submersion', 'Épisodes froids',
+  'Inondation (pluviale, fluviale, nappe, coulée de boue)',
+  'Vagues de chaleur / stress thermique / îlot de chaleur',
+  'Sécheresse / stress hydrique / intrusion saline',
+  'Feux de forêt',
+  'Tempêtes / grêle / vents violents / tornades',
+  'RGA — Retrait-gonflement des argiles / gel-dégel',
+  'Submersion / recul du trait de côte',
+  'Épisodes froids / gel tardif / neige et verglas',
 ]
+
+type CategorieRisque = {
+  titre: string
+  couleur: string
+  bg: string
+  icone: typeof Settings
+  champs: { key: string; label: string }[]
+}
+
+const CATEGORIES_RISQUES: CategorieRisque[] = [
+  {
+    titre: 'Risques opérationnels', couleur: '#0369A1', bg: '#EFF6FF',
+    icone: Settings,
+    champs: [
+      { key: 'risque_territoire', label: 'Exposition du/des sites aux aléas climatiques' },
+      { key: 'risque_installations', label: 'Vulnérabilité des bâtiments et conditions de travail' },
+      { key: 'risque_chaine', label: 'Dépendances eau / énergie / transport / télécom' },
+    ],
+  },
+  {
+    titre: 'Risques assurantiels', couleur: '#D97706', bg: '#FFFBEB',
+    icone: Shield,
+    champs: [
+      { key: 'difficulte_assurance', label: 'Difficulté à assurer les actifs ou activités' },
+      { key: 'sinistres_passes', label: 'Sinistres climatiques sur les 5 dernières années' },
+    ],
+  },
+  {
+    titre: 'Risques financiers', couleur: '#B91C1C', bg: '#FEF2F2',
+    icone: TrendingDown,
+    champs: [
+      { key: 'impact_couts', label: 'Répercussion sur les coûts d\'exploitation' },
+      { key: 'impact_competitivite', label: 'Impact sur la compétitivité / clients / marchés' },
+    ],
+  },
+]
+
+const TJM = 950
+const BASE_J: Record<string, number[]> = {
+  abc:  [3, 5, 7, 10, 14, 18],
+  act:  [4, 6, 9, 13, 17, 22],
+  vuln: [5, 8, 12, 17, 22, 28],
+  full: [10, 15, 22, 30, 40, 50],
+}
+const PHASES: Record<string, [number, number, number]> = {
+  abc:  [35, 35, 30],
+  act:  [30, 40, 30],
+  vuln: [40, 35, 25],
+  full: [30, 40, 30],
+}
+const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
+
+function calculerSimulation(form: {
+  methode: string
+  effectif_tranche: string
+  nb_sites_tranche: string
+  bilan_existant: boolean
+  maturite_donnees: string
+}) {
+  const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
+  const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
+  const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
+  const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
+  const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
+  const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
+  const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
+  const tL = Math.round(j * TJM * 0.90 / 100) * 100
+  const tH = Math.round(j * TJM * 1.15 / 100) * 100
+  const phases = PHASES[form.methode] ?? [33, 34, 33]
+  const ph1j = Math.round(j * phases[0] / 100)
+  const ph2j = Math.round(j * phases[1] / 100)
+  const ph3j = j - ph1j - ph2j
+  return { j, duree, tL, tH, phases, ph1j, ph2j, ph3j }
+}
 
 export default function AGEadaptMission() {
   const navigate = useNavigate()
   const [etape, setEtape] = useState(0)
   const [saving, setSaving] = useState(false)
   const [suggestions, setSuggestions] = useState<any[]>([])
-const [loadingSiren, setLoadingSiren] = useState(false)
+  const [loadingSiren, setLoadingSiren] = useState(false)
 
-const searchEntreprise = async (nom: string) => {
-  set('raison_sociale', nom)
-  if (nom.length < 3) { setSuggestions([]); return }
-  setLoadingSiren(true)
-  try {
-    const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(nom)}&limit=5`)
-    const data = await res.json()
-    setSuggestions(data.results || [])
-  } catch { setSuggestions([]) }
-  setLoadingSiren(false)
-}
+  const searchEntreprise = async (nom: string) => {
+    set('raison_sociale', nom)
+    if (nom.length < 3) { setSuggestions([]); return }
+    setLoadingSiren(true)
+    try {
+      const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(nom)}&limit=5`)
+      const data = await res.json()
+      setSuggestions(data.results || [])
+    } catch { setSuggestions([]) }
+    setLoadingSiren(false)
+  }
 
-const selectEntreprise = (e: any) => {
-  setForm(f => ({
-    ...f,
-    raison_sociale: e.nom_complet || e.nom_raison_sociale || '',
-    siren: e.siren || '',
-    secteur_naf: e.activite_principale || '',
-  }))
-  setSuggestions([])
-}
+  const selectEntreprise = (e: any) => {
+    setForm(f => ({
+      ...f,
+      raison_sociale: e.nom_complet || e.nom_raison_sociale || '',
+      siren: e.siren || '',
+      secteur_naf: e.activite_principale || '',
+    }))
+    setSuggestions([])
+  }
 
   const [form, setForm] = useState({
     raison_sociale: '',
@@ -72,7 +157,8 @@ const selectEntreprise = (e: any) => {
     scope3_achats: true,
     scope3_produits: false,
     scope3_autres: false,
-    aleas: [] as string[],
+    aleas: [] as string[],              // couverture de mission (étape 2)
+    aleas_identifies: [] as string[],   // exposition déjà documentée (étape 4, collectivité)
     maturite_donnees: '1',
     total_tco2e: '',
     annee_reporting: '',
@@ -101,106 +187,120 @@ const selectEntreprise = (e: any) => {
     }))
   }
 
+  const toggleAleaIdentifie = (a: string) => {
+    setForm(f => ({
+      ...f,
+      aleas_identifies: f.aleas_identifies.includes(a)
+        ? f.aleas_identifies.filter(x => x !== a)
+        : [...f.aleas_identifies, a]
+    }))
+  }
+
   const handleSave = async () => {
     setSaving(true)
-    const { error } = await supabase.from('ageadapt_missions').insert({
-      raison_sociale: form.raison_sociale,
-      siren: form.siren,
-      type_structure: form.type_structure || null,
-      secteur_naf: form.secteur_naf,
-      effectif_tranche: parseInt(form.effectif_tranche) || null,
-      nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
-      region: form.region,
-      bilan_existant: form.bilan_existant,
-      diagnostic_existant: form.diagnostic_existant,
-      plan_transition_init: form.plan_transition_init,
-      pcaet_adopte: form.pcaet_adopte,
-      methode: form.methode || null,
-      scope1: form.scope1,
-      scope2: form.scope2,
-      scope3_transport: form.scope3_transport,
-      scope3_achats: form.scope3_achats,
-      scope3_produits: form.scope3_produits,
-      scope3_autres: form.scope3_autres,
-      aleas: form.aleas,
-      maturite_donnees: parseInt(form.maturite_donnees),
-      etape_courante: 1,
-      statut: 'brouillon',
-    })
-    setSaving(false)
-    if (error) {
-      alert('Erreur : ' + error.message)
+
+    // Transformation des champs étape 4 (Cadrage mission) vers le schéma §7 fiche v1.1
+    const risqueOperationnel = {
+      territoire: form.risques.risque_territoire || null,
+      installations: form.risques.risque_installations || null,
+      chaine_logistique: form.risques.risque_chaine || null,
+    }
+    const risqueAssuranciel = {
+      difficulte: form.risques.difficulte_assurance || null,
+      sinistres_passes: form.risques.sinistres_passes || null,
+    }
+    const risqueFinancier = {
+      impact_couts: form.risques.impact_couts || null,
+      impact_competitivite: form.risques.impact_competitivite || null,
+    }
+    const horizons = [
+      form.horizon_2030 ? '2030' : null,
+      form.horizon_2040 ? '2040' : null,
+      form.horizon_2050 ? '2050' : null,
+    ].filter((h): h is string => h !== null)
+    const mesuresPnacc = [
+      form.mesure_33 ? '33' : null,
+      form.mesure_40 ? '40' : null,
+      form.mesure_41 ? '41' : null,
+    ].filter((m): m is string => m !== null)
+
+    const { data: missionCreee, error } = await supabase
+      .from('ageadapt_missions')
+      .insert({
+        raison_sociale: form.raison_sociale,
+        siren: form.siren,
+        type_structure: form.type_structure || null,
+        secteur_naf: form.secteur_naf,
+        effectif_tranche: parseInt(form.effectif_tranche) || null,
+        nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
+        region: form.region,
+        region_code: regionCodeFromNom(form.region),
+        bilan_existant: form.bilan_existant,
+        diagnostic_existant: form.diagnostic_existant,
+        plan_transition_init: form.plan_transition_init,
+        pcaet_adopte: form.pcaet_adopte,
+        methode: form.methode || null,
+        scope1: form.scope1,
+        scope2: form.scope2,
+        scope3_transport: form.scope3_transport,
+        scope3_achats: form.scope3_achats,
+        scope3_produits: form.scope3_produits,
+        scope3_autres: form.scope3_autres,
+        aleas: form.aleas,
+        aleas_identifies: form.aleas_identifies,
+        maturite_donnees: parseInt(form.maturite_donnees),
+        risque_operationnel: risqueOperationnel,
+        risque_assuranciel: risqueAssuranciel,
+        risque_financier: risqueFinancier,
+        horizons,
+        mesures_pnacc: mesuresPnacc,
+        tracc_utilisee: form.tracc_utilisee,
+        etape_courante: 1,
+        statut: 'brouillon',
+      })
+      .select()
+      .single()
+
+    if (error || !missionCreee) {
+      alert('Erreur : ' + (error?.message ?? 'création de la mission impossible'))
       setSaving(false)
       return
     }
 
-    // Récupérer l'id de la mission créée
-    const { data: missionCreee } = await supabase
-      .from('ageadapt_missions')
-      .select('id')
-      .eq('raison_sociale', form.raison_sociale)
-      .eq('siren', form.siren)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const { j, duree, tL, tH, phases, ph1j, ph2j, ph3j } = calculerSimulation(form)
 
-    if (missionCreee) {
-      const TJM = 950
-      const BASE_J: Record<string, number[]> = {
-        abc:  [3, 5, 7, 10, 14, 18],
-        act:  [4, 6, 9, 13, 17, 22],
-        vuln: [5, 8, 12, 17, 22, 28],
-        full: [10, 15, 22, 30, 40, 50],
-      }
-      const PHASES: Record<string, [number, number, number]> = {
-        abc:  [35, 35, 30],
-        act:  [30, 40, 30],
-        vuln: [40, 35, 25],
-        full: [30, 40, 30],
-      }
-      const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
-      const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
-      const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
-      const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
-      const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
-      const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
-      const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
-      const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
-      const tL = Math.round(j * TJM * 0.90 / 100) * 100
-      const tH = Math.round(j * TJM * 1.15 / 100) * 100
-      const phases = PHASES[form.methode] ?? [33, 34, 33]
-      const ph1j = Math.round(j * phases[0] / 100)
-      const ph2j = Math.round(j * phases[1] / 100)
-      const ph3j = j - ph1j - ph2j
+    // Formule de référence §4.1 : montant_phase_i = round(jours_phase_i × TJM / 100) × 100
+    const { error: simError } = await supabase.from('ageadapt_simulations').insert({
+      mission_id: missionCreee.id,
+      type_structure: form.type_structure,
+      effectif_tranche: parseInt(form.effectif_tranche) || null,
+      nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
+      methode: form.methode,
+      bilan_existant: form.bilan_existant,
+      maturite_donnees: parseInt(form.maturite_donnees),
+      jours_consultant: j,
+      duree_mois: duree,
+      tarif_bas_ht: tL,
+      tarif_haut_ht: tH,
+      tjm_reference: TJM,
+      phase1_jours: ph1j,
+      phase1_pct: phases[0],
+      phase1_montant: Math.round(ph1j * TJM / 100) * 100,
+      phase2_jours: ph2j,
+      phase2_pct: phases[1],
+      phase2_montant: Math.round(ph2j * TJM / 100) * 100,
+      phase3_jours: ph3j,
+      phase3_pct: phases[2],
+      phase3_montant: Math.round(ph3j * TJM / 100) * 100,
+    })
 
-      await supabase.from('ageadapt_simulations').insert({
-        mission_id: missionCreee.id,
-        type_structure: form.type_structure,
-        effectif_tranche: parseInt(form.effectif_tranche) || null,
-        nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
-        methode: form.methode,
-        bilan_existant: form.bilan_existant,
-        maturite_donnees: parseInt(form.maturite_donnees),
-        jours_consultant: j,
-        duree_mois: duree,
-        tarif_bas_ht: tL,
-        tarif_haut_ht: tH,
-        tjm_reference: TJM,
-        phase1_jours: ph1j,
-        phase1_pct: phases[0],
-        phase1_montant: Math.round(ph1j * TJM),
-        phase2_jours: ph2j,
-        phase2_pct: phases[1],
-        phase2_montant: Math.round(ph2j * TJM),
-        phase3_jours: ph3j,
-        phase3_pct: phases[2],
-        phase3_montant: Math.round(ph3j * TJM),
-      })
+    setSaving(false)
 
-      navigate(`/metier/ageadapt/${missionCreee.id}`)
-    } else {
-      navigate('/metier/ageadapt')
+    if (simError) {
+      alert('Mission enregistrée, mais la simulation tarifaire n\'a pas pu être sauvegardée : ' + simError.message)
     }
+
+    navigate(`/metier/ageadapt/${missionCreee.id}`)
   }
 
   const inputStyle = {
@@ -242,7 +342,7 @@ const selectEntreprise = (e: any) => {
                 border: i === etape ? '2px solid #1D9E75' : '1px solid #E5E1DA',
                 color: i < etape ? 'white' : i === etape ? '#1D9E75' : '#78716C',
               }}>
-                {i < etape ? '✓' : i + 1}
+                {i < etape ? <Check size={14} /> : i + 1}
               </div>
               <span style={{ fontSize: '9px', color: i === etape ? '#1D9E75' : '#78716C', marginTop: '4px', whiteSpace: 'nowrap' }}>
                 {e}
@@ -260,60 +360,61 @@ const selectEntreprise = (e: any) => {
         <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
           <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '16px' }}>Qualification client</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div><label style={labelStyle}>Raison sociale *</label>
-<div style={{ position: 'relative' }}>
-  <input
-    style={inputStyle}
-    value={form.raison_sociale}
-    onChange={e => searchEntreprise(e.target.value)}
-    placeholder="Tapez le nom de l'entreprise..."
-    autoComplete="off"
-  />
-  {loadingSiren && (
-    <div style={{ position: 'absolute', right: '10px', top: '8px', fontSize: '11px', color: '#78716C' }}>
-      Recherche...
-    </div>
-  )}
-  {suggestions.length > 0 && (
-    <div style={{
-      position: 'absolute', top: '100%', left: 0, right: 0,
-      background: 'white', border: '1px solid #E5E1DA',
-      borderRadius: '8px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-      maxHeight: '200px', overflowY: 'auto'
-    }}>
-      {suggestions.map((e, i) => (
-        <div
-          key={i}
-          onClick={() => selectEntreprise(e)}
-          style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F8F7F4' }}
-          onMouseEnter={ev => (ev.currentTarget.style.background = '#F8F7F4')}
-          onMouseLeave={ev => (ev.currentTarget.style.background = 'white')}
-        >
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1F2937' }}>
-            {e.nom_complet || e.nom_raison_sociale}
-          </div>
-          <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>
-            SIREN : {e.siren} — {e.activite_principale} — {e.siege?.commune}
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div></div>
-            <div><label style={labelStyle}>SIREN</label><input style={inputStyle} value={form.siren} onChange={e => set('siren', e.target.value)} placeholder="9 chiffres" /></div>
+            <div><label style={labelStyle} htmlFor="ageadapt-raison-sociale">Raison sociale *</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  style={inputStyle}
+                  value={form.raison_sociale}
+                  onChange={e => searchEntreprise(e.target.value)}
+                  placeholder="Tapez le nom de l'entreprise..."
+                  autoComplete="off"
+                />
+                {loadingSiren && (
+                  <div style={{ position: 'absolute', right: '10px', top: '8px', fontSize: '11px', color: '#78716C' }}>
+                    Recherche...
+                  </div>
+                )}
+                {suggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0,
+                    background: 'white', border: '1px solid #E5E1DA',
+                    borderRadius: '8px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    maxHeight: '200px', overflowY: 'auto'
+                  }}>
+                    {suggestions.map((e, i) => (
+                      <div
+                        key={i}
+                        onClick={() => selectEntreprise(e)}
+                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #F8F7F4' }}
+                        onMouseEnter={ev => (ev.currentTarget.style.background = '#F8F7F4')}
+                        onMouseLeave={ev => (ev.currentTarget.style.background = 'white')}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#1F2937' }}>
+                          {e.nom_complet || e.nom_raison_sociale}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>
+                          SIREN : {e.siren} — {e.activite_principale} — {e.siege?.commune}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div><label style={labelStyle} htmlFor="ageadapt-siren">SIREN</label><input id="ageadapt-siren" style={inputStyle} value={form.siren} onChange={e => set('siren', e.target.value)} placeholder="9 chiffres" /></div>
             <div>
-              <label style={labelStyle}>Type de structure *</label>
-              <select style={inputStyle} value={form.type_structure} onChange={e => set('type_structure', e.target.value)}>
+              <label style={labelStyle} htmlFor="ageadapt-type-structure">Type de structure *</label>
+<select id="ageadapt-type-structure" style={inputStyle} value={form.type_structure} onChange={e => set('type_structure', e.target.value)}>
                 <option value="">— sélectionner —</option>
                 <option value="entreprise">Entreprise / Groupe</option>
                 <option value="collectivite">Collectivité / EPCI</option>
                 <option value="asso">Association</option>
               </select>
             </div>
-            <div><label style={labelStyle}>Secteur (NAF)</label><input style={inputStyle} value={form.secteur_naf} onChange={e => set('secteur_naf', e.target.value)} placeholder="Ex. : 4941A" /></div>
+            <div><label style={labelStyle} htmlFor="ageadapt-secteur-naf">Secteur (NAF)</label><input id="ageadapt-secteur-naf" style={inputStyle} value={form.secteur_naf} onChange={e => set('secteur_naf', e.target.value)} placeholder="Ex. : 4941A" /></div>
             <div>
-              <label style={labelStyle}>Effectif (ETP)</label>
-              <select style={inputStyle} value={form.effectif_tranche} onChange={e => set('effectif_tranche', e.target.value)}>
+              <label style={labelStyle} htmlFor="ageadapt-effectif">Effectif (ETP)</label>
+<select id="ageadapt-effectif" style={inputStyle} value={form.effectif_tranche} onChange={e => set('effectif_tranche', e.target.value)}>
                 <option value="">— sélectionner —</option>
                 <option value="1">1 à 10</option>
                 <option value="2">11 à 49</option>
@@ -324,8 +425,8 @@ const selectEntreprise = (e: any) => {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Nombre de sites</label>
-              <select style={inputStyle} value={form.nb_sites_tranche} onChange={e => set('nb_sites_tranche', e.target.value)}>
+              <label style={labelStyle} htmlFor="ageadapt-sites">Nombre de sites</label>
+<select id="ageadapt-sites" style={inputStyle} value={form.nb_sites_tranche} onChange={e => set('nb_sites_tranche', e.target.value)}>
                 <option value="">— sélectionner —</option>
                 <option value="1">1 site</option>
                 <option value="2">2 à 3 sites</option>
@@ -334,34 +435,30 @@ const selectEntreprise = (e: any) => {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Région</label>
-              <select style={inputStyle} value={form.region} onChange={e => set('region', e.target.value)}>
+              <label style={labelStyle} htmlFor="ageadapt-region">Région</label>
+<select id="ageadapt-region" style={inputStyle} value={form.region} onChange={e => set('region', e.target.value)}>
                 <option value="">— sélectionner —</option>
-                <option>Nouvelle-Aquitaine</option>
-                <option>Île-de-France</option>
-                <option>Occitanie</option>
-                <option>Auvergne-Rhône-Alpes</option>
-                <option>Autre</option>
+                {REGIONS_FRANCE.map(r => <option key={r.code} value={r.nom}>{r.nom}</option>)}
               </select>
             </div>
           </div>
 
           <div style={{ marginTop: '20px', background: '#F8F7F4', borderRadius: '10px', padding: '16px' }}>
             <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Situation existante</p>
-            {[
-              { key: 'bilan_existant', label: 'Bilan carbone existant', sub: 'Le client dispose déjà d\'un bilan GES' },
-              { key: 'diagnostic_existant', label: 'Diagnostic de vulnérabilité existant', sub: 'Étude territoire ou entreprise conduite' },
-              { key: 'plan_transition_init', label: 'Plan de transition initié', sub: 'Feuille de route bas-carbone commencée' },
-              { key: 'pcaet_adopte', label: 'PCAET adopté (collectivités)', sub: 'Plan Climat Air Énergie Territorial validé' },
-            ].map(item => (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E1DA' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#1F2937' }}>{item.label}</div>
-                  <div style={{ fontSize: '11px', color: '#78716C' }}>{item.sub}</div>
-                </div>
-                <input type="checkbox" checked={form[item.key as keyof typeof form] as boolean} onChange={e => set(item.key, e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#1D9E75' }} />
-              </div>
-            ))}
+           {[
+  { key: 'bilan_existant', label: 'Bilan carbone existant', sub: 'Le client dispose déjà d\'un bilan GES' },
+  { key: 'diagnostic_existant', label: 'Diagnostic de vulnérabilité existant', sub: 'Étude territoire ou entreprise conduite' },
+  { key: 'plan_transition_init', label: 'Plan de transition initié', sub: 'Feuille de route bas-carbone commencée' },
+  { key: 'pcaet_adopte', label: 'PCAET adopté (collectivités)', sub: 'Plan Climat Air Énergie Territorial validé' },
+].map(item => (
+  <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E1DA' }}>
+    <label htmlFor={`ageadapt-${item.key}`}>
+      <div style={{ fontSize: '12px', fontWeight: 500, color: '#1F2937' }}>{item.label}</div>
+      <div style={{ fontSize: '11px', color: '#78716C' }}>{item.sub}</div>
+    </label>
+    <input id={`ageadapt-${item.key}`} type="checkbox" checked={form[item.key as keyof typeof form] as boolean} onChange={e => set(item.key, e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#1D9E75' }} />
+  </div>
+))}
           </div>
         </div>
       )}
@@ -372,11 +469,17 @@ const selectEntreprise = (e: any) => {
           <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '16px' }}>Méthodes & périmètre</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
             {METHODES.map(m => (
-              <div key={m.id} onClick={() => set('methode', m.id)} style={{
-                border: form.methode === m.id ? '2px solid #1D9E75' : '1px solid #E5E1DA',
-                background: form.methode === m.id ? '#E1F5EE' : 'white',
-                borderRadius: '12px', padding: '14px', cursor: 'pointer',
-              }}>
+  <div
+    key={m.id}
+    onClick={() => set('methode', m.id)}
+    aria-pressed={form.methode === m.id}
+    {...clickableCardProps(() => set('methode', m.id))}
+    {...focusRing(AGEADAPT_PRIMARY)}
+    style={{
+      border: form.methode === m.id ? '2px solid #1D9E75' : '1px solid #E5E1DA',
+      background: form.methode === m.id ? '#E1F5EE' : 'white',
+      borderRadius: '12px', padding: '14px', cursor: 'pointer',
+    }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#1F2937', marginBottom: '4px' }}>{m.label}</div>
                 <div style={{ fontSize: '11px', color: '#78716C', marginBottom: '8px', lineHeight: 1.5 }}>{m.desc}</div>
                 <div style={{ display: 'flex', gap: '4px' }}>
@@ -388,15 +491,21 @@ const selectEntreprise = (e: any) => {
             ))}
           </div>
 
-          <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Aléas climatiques</p>
+          <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Aléas climatiques — couverts par la mission</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-            {ALEAS.map(a => (
-              <div key={a} onClick={() => toggleAlea(a)} style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
-                border: form.aleas.includes(a) ? '1px solid #D97706' : '1px solid #E5E1DA',
-                background: form.aleas.includes(a) ? '#FEF3C7' : 'white',
-              }}>
+           {ALEAS.map(a => (
+  <div
+    key={a}
+    onClick={() => toggleAlea(a)}
+    aria-pressed={form.aleas.includes(a)}
+    {...clickableCardProps(() => toggleAlea(a))}
+    {...focusRing(AGEADAPT_PRIMARY)}
+    style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+      border: form.aleas.includes(a) ? '1px solid #D97706' : '1px solid #E5E1DA',
+      background: form.aleas.includes(a) ? '#FEF3C7' : 'white',
+    }}>
                 <span style={{ fontSize: '11px', color: form.aleas.includes(a) ? '#D97706' : '#78716C', fontWeight: form.aleas.includes(a) ? 600 : 400 }}>{a}</span>
               </div>
             ))}
@@ -404,7 +513,7 @@ const selectEntreprise = (e: any) => {
         </div>
       )}
 
-     {/* Etape 3 — Données & bilan */}
+      {/* Etape 3 — Données & bilan */}
       {etape === 2 && (
         <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
           <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '4px' }}>Données & bilan existant</h2>
@@ -457,19 +566,24 @@ const selectEntreprise = (e: any) => {
             </div>
           )}
 
-          {/* Maturité des données */}
           <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Maturité des données disponibles</p>
           <div style={{ display: 'flex', gap: '10px' }}>
-            {[
-              { val: '1', label: 'Faible', sub: 'Données partielles, estimations' },
-              { val: '2', label: 'Moyen', sub: 'Données disponibles, quelques lacunes' },
-              { val: '3', label: 'Élevé', sub: 'Données complètes et structurées' },
-            ].map(m => (
-              <div key={m.val} onClick={() => set('maturite_donnees', m.val)} style={{
-                flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
-                border: form.maturite_donnees === m.val ? '2px solid #1D9E75' : '1px solid #E5E1DA',
-                background: form.maturite_donnees === m.val ? '#E1F5EE' : 'white',
-              }}>
+           {[
+  { val: '1', label: 'Faible', sub: 'Données partielles, estimations' },
+  { val: '2', label: 'Moyen', sub: 'Données disponibles, quelques lacunes' },
+  { val: '3', label: 'Élevé', sub: 'Données complètes et structurées' },
+].map(m => (
+  <div
+    key={m.val}
+    onClick={() => set('maturite_donnees', m.val)}
+    aria-pressed={form.maturite_donnees === m.val}
+    {...clickableCardProps(() => set('maturite_donnees', m.val))}
+    {...focusRing(AGEADAPT_PRIMARY)}
+    style={{
+      flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
+      border: form.maturite_donnees === m.val ? '2px solid #1D9E75' : '1px solid #E5E1DA',
+      background: form.maturite_donnees === m.val ? '#E1F5EE' : 'white',
+    }}>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '2px' }}>{m.label}</div>
                 <div style={{ fontSize: '11px', color: '#78716C' }}>{m.sub}</div>
               </div>
@@ -478,7 +592,7 @@ const selectEntreprise = (e: any) => {
 
           {form.bilan_existant && (
             <div style={{ marginTop: '16px', background: '#E1F5EE', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <i className="ti ti-info-circle" style={{ color: '#1D9E75', fontSize: '16px' }} />
+              <Info size={16} color="#1D9E75" />
               <p style={{ fontSize: '12px', color: '#0F6E56', margin: 0 }}>
                 Bilan existant détecté — <strong>−35 % de jours estimés</strong> appliqués sur la simulation tarifaire.
               </p>
@@ -500,37 +614,10 @@ const selectEntreprise = (e: any) => {
           {/* Parcours Entreprise */}
           {form.type_structure !== 'collectivite' && (
             <>
-              {/* 3 catégories de risques */}
-              {[
-                {
-                  titre: 'Risques opérationnels', couleur: '#0369A1', bg: '#EFF6FF',
-                  icone: 'ti-settings',
-                  champs: [
-                    { key: 'risque_territoire', label: 'Exposition du/des sites aux aléas climatiques' },
-                    { key: 'risque_installations', label: 'Vulnérabilité des bâtiments et conditions de travail' },
-                    { key: 'risque_chaine', label: 'Dépendances eau / énergie / transport / télécom' },
-                  ]
-                },
-                {
-                  titre: 'Risques assurantiels', couleur: '#D97706', bg: '#FFFBEB',
-                  icone: 'ti-shield',
-                  champs: [
-                    { key: 'difficulte_assurance', label: 'Difficulté à assurer les actifs ou activités' },
-                    { key: 'sinistres_passes', label: 'Sinistres climatiques sur les 5 dernières années' },
-                  ]
-                },
-                {
-                  titre: 'Risques financiers', couleur: '#B91C1C', bg: '#FEF2F2',
-                  icone: 'ti-trending-down',
-                  champs: [
-                    { key: 'impact_couts', label: 'Répercussion sur les coûts d\'exploitation' },
-                    { key: 'impact_competitivite', label: 'Impact sur la compétitivité / clients / marchés' },
-                  ]
-                },
-              ].map(cat => (
+              {CATEGORIES_RISQUES.map(cat => (
                 <div key={cat.titre} style={{ marginBottom: '16px', background: cat.bg, borderRadius: '10px', padding: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <i className={`ti ${cat.icone}`} style={{ color: cat.couleur, fontSize: '16px' }} />
+                    <cat.icone size={16} color={cat.couleur} />
                     <span style={{ fontSize: '12px', fontWeight: 600, color: cat.couleur }}>{cat.titre}</span>
                   </div>
                   {cat.champs.map(champ => (
@@ -538,8 +625,8 @@ const selectEntreprise = (e: any) => {
                       <span style={{ fontSize: '12px', color: '#1F2937' }}>{champ.label}</span>
                       <select
                         style={{ ...inputStyle, width: '140px', fontSize: '12px' }}
-                        value={(form.risques as Record<string, string>)[champ.key] || ''}
-                        onChange={e => setForm(f => ({ ...f, risques: { ...(f.risques as Record<string, string>), [champ.key]: e.target.value } }))}
+                        value={form.risques[champ.key] || ''}
+                        onChange={e => setForm(f => ({ ...f, risques: { ...f.risques, [champ.key]: e.target.value } }))}
                       >
                         <option value="">—</option>
                         <option value="oui">Oui</option>
@@ -552,7 +639,6 @@ const selectEntreprise = (e: any) => {
                 </div>
               ))}
 
-              {/* Horizons temporels */}
               <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', margin: '16px 0 10px' }}>Horizons temporels analysés</p>
               <div style={{ display: 'flex', gap: '10px' }}>
                 {[
@@ -560,11 +646,17 @@ const selectEntreprise = (e: any) => {
                   { key: 'horizon_2040', label: '2040', sub: '+2,7°C · Moyen terme' },
                   { key: 'horizon_2050', label: '2050', sub: '+3,5°C · Long terme' },
                 ].map(h => (
-                  <div key={h.key} onClick={() => set(h.key, !(form as any)[h.key])} style={{
-                    flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
-                    border: (form as any)[h.key] ? '2px solid #1D9E75' : '1px solid #E5E1DA',
-                    background: (form as any)[h.key] ? '#E1F5EE' : 'white',
-                  }}>
+                  <div
+  key={h.key}
+  onClick={() => set(h.key, !(form as any)[h.key])}
+  aria-pressed={!!(form as any)[h.key]}
+  {...clickableCardProps(() => set(h.key, !(form as any)[h.key]))}
+  {...focusRing(AGEADAPT_PRIMARY)}
+  style={{
+    flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
+    border: (form as any)[h.key] ? '2px solid #1D9E75' : '1px solid #E5E1DA',
+    background: (form as any)[h.key] ? '#E1F5EE' : 'white',
+  }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#1F2937', fontFamily: 'JetBrains Mono, monospace' }}>{h.label}</div>
                     <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>{h.sub}</div>
                   </div>
@@ -578,33 +670,39 @@ const selectEntreprise = (e: any) => {
             <>
               <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Aléas déjà documentés</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px' }}>
-                {ALEAS.map(a => (
-                  <div key={a} onClick={() => toggleAlea(a)} style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
-                    border: form.aleas.includes(a) ? '1px solid #1D9E75' : '1px solid #E5E1DA',
-                    background: form.aleas.includes(a) ? '#E1F5EE' : 'white',
-                  }}>
-                    <span style={{ fontSize: '11px', color: form.aleas.includes(a) ? '#1D9E75' : '#78716C', fontWeight: form.aleas.includes(a) ? 600 : 400 }}>{a}</span>
+              {ALEAS.map(a => (
+  <div
+    key={a}
+    onClick={() => toggleAleaIdentifie(a)}
+    aria-pressed={form.aleas_identifies.includes(a)}
+    {...clickableCardProps(() => toggleAleaIdentifie(a))}
+    {...focusRing(AGEADAPT_PRIMARY)}
+    style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+      border: form.aleas_identifies.includes(a) ? '1px solid #1D9E75' : '1px solid #E5E1DA',
+      background: form.aleas_identifies.includes(a) ? '#E1F5EE' : 'white',
+    }}>
+                    <span style={{ fontSize: '11px', color: form.aleas_identifies.includes(a) ? '#1D9E75' : '#78716C', fontWeight: form.aleas_identifies.includes(a) ? 600 : 400 }}>{a}</span>
                   </div>
                 ))}
               </div>
 
               <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Ancrage PNACC3</p>
               {[
-                { key: 'mesure_33', label: 'Mesure 33', sub: 'Plan d\'adaptation entreprises du territoire' },
-                { key: 'mesure_40', label: 'Mesure 40', sub: 'Évaluation des actions d\'adaptation' },
-                { key: 'mesure_41', label: 'Mesure 41', sub: 'Outils ADEME déployés (Climadiag, DRIAS)' },
-                { key: 'tracc_utilisee', label: 'TRACC', sub: 'Utilisée comme référence de planification' },
-              ].map(item => (
-                <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E1DA' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 500, color: '#1F2937' }}>{item.label}</div>
-                    <div style={{ fontSize: '11px', color: '#78716C' }}>{item.sub}</div>
-                  </div>
-                  <input type="checkbox" checked={!!(form as any)[item.key]} onChange={e => set(item.key, e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#1D9E75' }} />
-                </div>
-              ))}
+  { key: 'mesure_33', label: 'Mesure 33', sub: 'Plan d\'adaptation entreprises du territoire' },
+  { key: 'mesure_40', label: 'Mesure 40', sub: 'Évaluation des actions d\'adaptation' },
+  { key: 'mesure_41', label: 'Mesure 41', sub: 'Outils ADEME déployés (Climadiag, DRIAS)' },
+  { key: 'tracc_utilisee', label: 'TRACC', sub: 'Utilisée comme référence de planification' },
+].map(item => (
+  <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E1DA' }}>
+    <label htmlFor={`ageadapt-${item.key}`}>
+      <div style={{ fontSize: '12px', fontWeight: 500, color: '#1F2937' }}>{item.label}</div>
+      <div style={{ fontSize: '11px', color: '#78716C' }}>{item.sub}</div>
+    </label>
+    <input id={`ageadapt-${item.key}`} type="checkbox" checked={!!(form as any)[item.key]} onChange={e => set(item.key, e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#1D9E75' }} />
+  </div>
+))}
             </>
           )}
         </div>
@@ -612,36 +710,7 @@ const selectEntreprise = (e: any) => {
 
       {/* Etape 5 — Validation & tarif */}
       {etape === 4 && (() => {
-        const TJM = 950
-        const BASE_J: Record<string, number[]> = {
-          abc:  [3, 5, 7, 10, 14, 18],
-          act:  [4, 6, 9, 13, 17, 22],
-          vuln: [5, 8, 12, 17, 22, 28],
-          full: [10, 15, 22, 30, 40, 50],
-        }
-        const PHASES: Record<string, [number, number, number]> = {
-          abc:  [35, 35, 30],
-          act:  [30, 40, 30],
-          vuln: [40, 35, 25],
-          full: [30, 40, 30],
-        }
-        const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
-        const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
-        const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
-
-        const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
-        const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
-        const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
-        const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
-
-        const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
-        const tL = Math.round(j * TJM * 0.90 / 100) * 100
-        const tH = Math.round(j * TJM * 1.15 / 100) * 100
-
-        const phases = PHASES[form.methode] ?? [33, 34, 33]
-        const ph1j = Math.round(j * phases[0] / 100)
-        const ph2j = Math.round(j * phases[1] / 100)
-        const ph3j = j - ph1j - ph2j
+        const { j, duree, tL, tH, phases, ph1j, ph2j, ph3j } = calculerSimulation(form)
 
         const LIBELLES_METHODE: Record<string, string> = {
           abc: 'Bilan Carbone® ABC', act: 'ACT Adaptation',
@@ -651,7 +720,6 @@ const selectEntreprise = (e: any) => {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {/* Récap client */}
             <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
               <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', marginBottom: '14px' }}>Récapitulatif mission</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -671,14 +739,12 @@ const selectEntreprise = (e: any) => {
               </div>
             </div>
 
-            {/* Simulateur tarifaire */}
             <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #E5E1DA', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <i className="ti ti-calculator" style={{ color: '#1D9E75', fontSize: '18px' }} />
+                <Calculator size={18} color="#1D9E75" />
                 <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937', margin: 0 }}>Simulation tarifaire</h2>
               </div>
 
-              {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
                 <div style={{ background: '#1F2937', borderRadius: '10px', padding: '16px', color: 'white' }}>
                   <div style={{ fontSize: '10px', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Jours consultant</div>
@@ -699,7 +765,6 @@ const selectEntreprise = (e: any) => {
                 </div>
               </div>
 
-              {/* Répartition par phase */}
               <p style={{ fontSize: '12px', fontWeight: 600, color: '#1F2937', marginBottom: '10px' }}>Répartition par phase</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[
@@ -721,7 +786,7 @@ const selectEntreprise = (e: any) => {
 
               {form.bilan_existant && (
                 <div style={{ marginTop: '14px', background: '#E1F5EE', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ti ti-discount-check" style={{ color: '#1D9E75', fontSize: '16px' }} />
+                  <BadgeCheck size={16} color="#1D9E75" />
                   <span style={{ fontSize: '12px', color: '#0F6E56' }}>Bilan existant — <strong>−35 % appliqués</strong> sur les jours estimés</span>
                 </div>
               )}
