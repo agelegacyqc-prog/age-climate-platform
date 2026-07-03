@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { REGIONS_FRANCE, regionCodeFromNom } from '../../lib/ageadaptRegions'
 import { clickableCardProps, focusRing, AGEADAPT_PRIMARY } from '../../lib/a11y'
+import { simulerTarif, type MethodeAgeadapt } from '../../lib/ageadaptTarif'
 
 const ETAPES = [
   'Qualification client',
@@ -72,19 +73,6 @@ const CATEGORIES_RISQUES: CategorieRisque[] = [
 ]
 
 const TJM = 950
-const BASE_J: Record<string, number[]> = {
-  abc:  [3, 5, 7, 10, 14, 18],
-  act:  [4, 6, 9, 13, 17, 22],
-  vuln: [5, 8, 12, 17, 22, 28],
-  full: [10, 15, 22, 30, 40, 50],
-}
-const PHASES: Record<string, [number, number, number]> = {
-  abc:  [35, 35, 30],
-  act:  [30, 40, 30],
-  vuln: [40, 35, 25],
-  full: [30, 40, 30],
-}
-const MULT_SITES = [1.0, 1.15, 1.35, 1.6]
 
 function calculerSimulation(form: {
   methode: string
@@ -93,20 +81,29 @@ function calculerSimulation(form: {
   bilan_existant: boolean
   maturite_donnees: string
 }) {
-  const REDUC_EXISTANT = form.bilan_existant ? 0.65 : 1.0
-  const REDUC_MATURITE = [1.0, 0.9, 0.8][parseInt(form.maturite_donnees) - 1] ?? 1.0
-  const effIdx = (parseInt(form.effectif_tranche) || 1) - 1
-  const sitesIdx = (parseInt(form.nb_sites_tranche) || 1) - 1
-  const baseJ = BASE_J[form.methode]?.[effIdx] ?? 5
-  const j = Math.round(baseJ * MULT_SITES[sitesIdx] * REDUC_EXISTANT * REDUC_MATURITE)
-  const duree = j <= 6 ? 1 : j <= 12 ? 2 : j <= 20 ? 3 : j <= 30 ? 4 : 6
-  const tL = Math.round(j * TJM * 0.90 / 100) * 100
-  const tH = Math.round(j * TJM * 1.15 / 100) * 100
-  const phases = PHASES[form.methode] ?? [33, 34, 33]
-  const ph1j = Math.round(j * phases[0] / 100)
-  const ph2j = Math.round(j * phases[1] / 100)
-  const ph3j = j - ph1j - ph2j
-  return { j, duree, tL, tH, phases, ph1j, ph2j, ph3j }
+  // Source unique de vérité : simulerTarif (src/lib/ageadaptTarif.ts), formule §4.1 / §4.2.
+  // Fallback « vide → tranche 1 » préservé (comportement historique) : l'étape 5 est
+  // atteignable sans effectif/sites renseignés, et simulerTarif lève sur tranche hors bornes.
+  const t = simulerTarif({
+    methode: form.methode as MethodeAgeadapt,
+    effectifTranche: parseInt(form.effectif_tranche) || 1,
+    nbSitesTranche: parseInt(form.nb_sites_tranche) || 1,
+    bilanExistant: form.bilan_existant,
+    maturiteDonnees: parseInt(form.maturite_donnees) || 1,
+  })
+  return {
+    j: t.joursConsultant,
+    duree: t.dureeMois,
+    tL: t.tarifBasHt,
+    tH: t.tarifHautHt,
+    phases: [t.phases[0].pct, t.phases[1].pct, t.phases[2].pct] as [number, number, number],
+    ph1j: t.phases[0].jours,
+    ph2j: t.phases[1].jours,
+    ph3j: t.phases[2].jours,
+    m1: t.phases[0].montant,
+    m2: t.phases[1].montant,
+    m3: t.phases[2].montant,
+  }
 }
 
 export default function AGEadaptMission() {
@@ -267,9 +264,10 @@ export default function AGEadaptMission() {
       return
     }
 
-    const { j, duree, tL, tH, phases, ph1j, ph2j, ph3j } = calculerSimulation(form)
+    const { j, duree, tL, tH, phases, ph1j, ph2j, ph3j, m1, m2, m3 } = calculerSimulation(form)
 
-    // Formule de référence §4.1 : montant_phase_i = round(jours_phase_i × TJM / 100) × 100
+    // Montants par phase issus de simulerTarif (§4.1) — base milieu de fourchette (tL+tH)/2,
+    // résidu sur la dernière phase (Σ = milieu). Décision PO 03/07/2026.
     const { error: simError } = await supabase.from('ageadapt_simulations').insert({
       mission_id: missionCreee.id,
       type_structure: form.type_structure,
@@ -285,13 +283,13 @@ export default function AGEadaptMission() {
       tjm_reference: TJM,
       phase1_jours: ph1j,
       phase1_pct: phases[0],
-      phase1_montant: Math.round(ph1j * TJM / 100) * 100,
+      phase1_montant: m1,
       phase2_jours: ph2j,
       phase2_pct: phases[1],
-      phase2_montant: Math.round(ph2j * TJM / 100) * 100,
+      phase2_montant: m2,
       phase3_jours: ph3j,
       phase3_pct: phases[2],
-      phase3_montant: Math.round(ph3j * TJM / 100) * 100,
+      phase3_montant: m3,
     })
 
     setSaving(false)
