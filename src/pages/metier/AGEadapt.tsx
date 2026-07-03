@@ -53,13 +53,14 @@ export default function AGEadapt() {
       setLoading(false)
     }
 
-    // KPI tCO₂e évitées — agrégation réelle depuis ageadapt_actions (§7 fiche v1.1).
-    // Retourne 0 tant qu'aucune action n'est saisie : aucun écran de saisie
-    // n'existe encore pour cette table (Niveau 3, non traité).
+  // KPI tCO₂e évitées — agrégation depuis ageadapt_actions (§7 fiche v1.1),
+    // hors actions abandonnées (décision PO 03/07/2026, cohérent avec l'onglet
+    // Plan d'actions de AGEadaptFiche).
     async function fetchTco2eEvitees() {
       const { data, error } = await supabase
         .from('ageadapt_actions')
         .select('gain_ges_tco2e')
+        .neq('statut', 'abandonne')
 
       if (!error && data) {
         const total = data.reduce((sum, a) => sum + (a.gain_ges_tco2e ?? 0), 0)

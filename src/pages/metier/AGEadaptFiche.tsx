@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Leaf, Calendar, Users, MapPin, Target, Download, Sparkles } from 'lucide-react'
 import jsPDF from 'jspdf'
 import { REGIONS_FRANCE, regionCodeFromNom } from '../../lib/ageadaptRegions'
+import AGEadaptActions from './AGEadaptActions'
 
 interface Mission {
   id: string
@@ -69,6 +70,7 @@ export default function AGEadaptFiche() {
   const [exportEnCours, setExportEnCours] = useState(false)
   const [rapportEnCours, setRapportEnCours] = useState(false)
   const [rapport, setRapport] = useState<string | null>(null)
+  const [ongletActif, setOngletActif] = useState<'fiche' | 'actions'>('fiche')
 
   useEffect(() => {
     if (!id) return
@@ -511,7 +513,29 @@ export default function AGEadaptFiche() {
           </button>
         </div>
       </div>
+{/* Onglets */}
+      <div role="tablist" aria-label="Sections de la mission" style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #E5E1DA' }}>
+        {([['fiche', 'Fiche mission'], ['actions', 'Plan d\'actions']] as const).map(([cle, label]) => (
+          <button
+            key={cle}
+            role="tab"
+            aria-selected={ongletActif === cle}
+            onClick={() => setOngletActif(cle)}
+            style={{
+              padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: 'none', border: 'none', borderBottom: ongletActif === cle ? '2px solid #2F7D5C' : '2px solid transparent',
+              color: ongletActif === cle ? '#2F7D5C' : '#78716C', marginBottom: -1,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
+      {ongletActif === 'actions' && <AGEadaptActions missionId={mission.id} />}
+
+      {ongletActif === 'fiche' && (<>
+     
       {/* Infos client */}
       <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E1DA', padding: '20px 24px', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -706,8 +730,9 @@ export default function AGEadaptFiche() {
               return <p key={i} style={{ marginBottom: 4 }}>{line}</p>
             })}
           </div>
-        </div>
+ </div>
       )}
+      </>)}
 
     </div>
   )
