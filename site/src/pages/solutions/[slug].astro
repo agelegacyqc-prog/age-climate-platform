@@ -1,0 +1,210 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { solutions } from '../../data/solutions';
+
+export function getStaticPaths() {
+  return Object.keys(solutions).map((slug) => ({
+    params: { slug },
+  }));
+}
+
+const { slug } = Astro.params;
+const s = solutions[slug];
+---
+
+<Layout title={`${s.nom} — AGE-QC`}>
+  <section class="hero">
+    <div class="badge">{s.numero}</div>
+    <p class="eyebrow">{s.etape}</p>
+    <h1>{s.nom}</h1>
+    <p class="tagline">{s.tagline}</p>
+    <p class="intro">{s.intro}</p>
+  </section>
+
+  {s.sections.map((block, i) => (
+    <section class={`block ${i % 2 === 1 ? 'reverse' : ''}`}>
+      <div class="block-text">
+        <h2>{block.titre}</h2>
+        <p>{block.description}</p>
+        <ul>
+          {block.checklist.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+     <div class="block-visual">
+        <img
+          src={`/images/solutions/${s.slug}-${i + 1}.jpg`}
+          alt={block.titre}
+          loading="lazy"
+        />
+      </div>
+    </section>
+  ))}
+
+  <section class="closing">
+    <p>{s.closing}</p>
+  </section>
+
+  <section class="cta">
+    <h2>Prêt à passer à l'action ?</h2>
+    <a href="/contact" class="btn-primary">Demander une démo</a>
+  </section>
+</Layout>
+
+<style>
+  .hero {
+    background: #111111;
+    color: #fff;
+    padding: 96px 24px 72px;
+    text-align: center;
+  }
+  .badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #3FCDA0;
+    color: #111111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #3FCDA0;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 42px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .tagline {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 18px;
+    color: #3FCDA0;
+    margin-bottom: 20px;
+  }
+  .intro {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    color: rgba(255,255,255,0.75);
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+    background: #111111;
+    color: #fff;
+    padding: 64px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .block.reverse {
+    direction: rtl;
+  }
+  .block.reverse > * {
+    direction: ltr;
+  }
+  .block-text h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .block-text p {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .block-text ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .block-text li {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #fff;
+    padding-left: 26px;
+    position: relative;
+  }
+  .block-text li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #3FCDA0;
+    font-weight: 700;
+  }
+.block-visual {
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 260px;
+  }
+  .block-visual img {
+    width: 100%;
+    height: 100%;
+    min-height: 260px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .closing {
+    background: #3F7A5D;
+    color: #fff;
+    text-align: center;
+    padding: 72px 24px;
+  }
+  .closing p {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.4;
+  }
+
+  .cta {
+    text-align: center;
+    padding: 72px 24px;
+    background: #F2F2F0;
+  }
+  .cta h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #111111;
+    margin-bottom: 20px;
+  }
+  .btn-primary {
+    display: inline-block;
+    background: #3F7A5D;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    padding: 12px 28px;
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
+  @media (max-width: 768px) {
+    .block, .block.reverse { direction: ltr; grid-template-columns: 1fr; }
+  }
+</style>
