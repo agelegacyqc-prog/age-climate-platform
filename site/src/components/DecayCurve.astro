@@ -1,0 +1,94 @@
+---
+export interface Props {
+  variant?: 'hero' | 'divider';
+}
+const { variant = 'hero' } = Astro.props;
+---
+
+<div class:list={['decay-curve', variant]} role="img" aria-label="Courbe illustrant la décote de valeur d'un bien immobilier dans le temps sous l'effet du risque climatique, avec et sans mesure d'adaptation">
+  <svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+    <!-- Ligne de valeur initiale -->
+    <line x1="40" y1="60" x2="680" y2="60" stroke="var(--color-border)" stroke-width="1" stroke-dasharray="4 4" />
+    <text x="40" y="46" class="axis-label mono">Valeur initiale</text>
+
+    <!-- Tronc commun jusqu'à "aujourd'hui" -->
+    <path class="curve-trunk" d="M40,60 C140,70 220,95 300,140" fill="none" stroke="var(--color-secondary)" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Branche "sans adaptation" -->
+    <path class="curve-decline" d="M300,140 C420,175 560,220 680,258" fill="none" stroke="var(--color-primary)" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Branche "avec adaptation" -->
+    <path class="curve-adapt" d="M300,140 C420,150 560,168 680,186" fill="none" stroke="var(--color-accent)" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Point "aujourd'hui" -->
+    <circle class="today-dot" cx="300" cy="140" r="7" fill="var(--color-accent)" stroke="#fff" stroke-width="2" />
+    <text x="300" y="122" text-anchor="middle" class="axis-label mono">Aujourd'hui</text>
+
+    <!-- Étiquettes de fin de courbe -->
+    <text x="686" y="262" class="end-label mono" fill="var(--color-primary)">−32 %</text>
+    <text x="686" y="190" class="end-label mono" fill="var(--color-accent-text)">−14 % avec adaptation</text>
+
+    <text x="680" y="300" text-anchor="end" class="axis-label mono">Horizon 20 ans</text>
+  </svg>
+</div>
+
+<style>
+  .decay-curve svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .axis-label {
+    font-size: 12px;
+    fill: var(--color-text-secondary);
+  }
+
+  .end-label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .curve-trunk,
+  .curve-decline,
+  .curve-adapt {
+    stroke-dasharray: 500;
+    stroke-dashoffset: 500;
+    animation: draw 1.4s ease forwards;
+  }
+  .curve-decline { animation-delay: 1.1s; }
+  .curve-adapt { animation-delay: 1.1s; }
+
+  .today-dot {
+    opacity: 0;
+    animation: appear 0.4s ease forwards;
+    animation-delay: 1.1s;
+  }
+
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes appear {
+    to { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .curve-trunk, .curve-decline, .curve-adapt {
+      stroke-dashoffset: 0;
+      animation: none;
+    }
+    .today-dot {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  .decay-curve.divider svg {
+    max-height: 80px;
+  }
+  .decay-curve.divider .axis-label,
+  .decay-curve.divider text {
+    display: none;
+  }
+</style>

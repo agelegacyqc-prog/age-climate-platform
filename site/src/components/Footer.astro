@@ -1,0 +1,70 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <p class="logo">AGE-<span>QC</span></p>
+      <p class="tagline">Décote climatique, adaptation et carbone pour l'immobilier.</p>
+    </div>
+
+    <nav aria-label="Plan du site">
+      <ul>
+        <li><a href="/solutions">Solutions</a></li>
+        <li><a href="/tarifs">Tarifs</a></li>
+        <li><a href="/blog">Ressources</a></li>
+        <li><a href="/a-propos">À propos</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </nav>
+
+    <p class="legal">© {year} AGE-QC. Tous droits réservés.</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-16);
+    padding: var(--space-12) 0;
+    color: var(--color-text-secondary);
+  }
+  .footer-inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-8);
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-secondary);
+    margin: 0;
+  }
+  .logo span { color: var(--color-primary); }
+  .tagline { font-size: var(--fs-small); max-width: 32ch; }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: var(--space-6);
+    padding: 0;
+    margin: 0 0 var(--space-6);
+  }
+  nav a {
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: var(--fs-small);
+  }
+  nav a:hover { color: var(--color-primary); }
+
+  .legal {
+    grid-column: 1 / -1;
+    font-size: var(--fs-small);
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    .footer-inner { grid-template-columns: 1fr; }
+  }
+</style>

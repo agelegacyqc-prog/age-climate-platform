@@ -1,0 +1,215 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DecayCurve from '../components/DecayCurve.astro';
+
+const solutions = [
+ {
+    name: 'Prévention',
+    desc: "Une méthodologie de prévention qui anticipe l'exposition aux aléas climatiques avant qu'elle ne se traduise en sinistre ou en perte de valeur.",
+    href: '/solutions/prevention',
+  },
+  {
+    name: 'AGEadapt',
+    desc: "Qualification de missions et tarification d'adaptation climatique ancrée sur le PNACC3.",
+    href: '/solutions/ageadapt',
+  },
+  {
+    name: 'AGEcarbon',
+    desc: "Calculateur carbone propriétaire (méthodologie ABC), 14 périmètres, facteurs Base Carbone ADEME.",
+    href: '/solutions/agecarbon',
+  },
+  {
+    name: 'Marketplace',
+    desc: "Mise à disposition de consultants climat en régie au sein de votre organisation : ils pilotent le diagnostic, l'adaptation et le suivi des dossiers sur le terrain, aux côtés de vos équipes.",
+    href: '/solutions/marketplace',
+  },
+ 
+];
+---
+
+<Layout title="Accueil">
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1>La valeur de vos actifs, ajustée au risque climatique.</h1>
+        <p class="lead">
+          AGE-QC vous accompagne sur toute la chaîne de valeur climatique — de la donnée
+          à l'action. Diagnostic, adaptation, travaux.
+        </p>
+        <div class="hero-actions">
+          <a href="/contact" class="btn btn-primary">Demander une démo</a>
+        <a href="/solutions" class="btn btn-secondary">Voir les solutions</a>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+   <video
+          class="hero-video"
+          src="/videos/hero.mp4"
+          autoplay
+          muted
+          loop
+          playsinline
+          aria-label="Présentation AGE-QC"
+        ></video>
+      </div>
+    </div>
+  </section>
+
+  <section class="value-chain">
+    <div class="container">
+      <h2>De la donnée à l'action</h2>
+      <p class="value-chain-intro">La donnée oriente la décision. Le terrain la concrétise.</p>
+      <ol class="value-chain-steps">
+        <li>
+          <span class="step-number mono">01</span>
+          <h3>Diagnostic</h3>
+          <p>Exposition climatique du bien : data, RGA, aléas.</p>
+        </li>
+        <li>
+          <span class="step-number mono">02</span>
+          <h3>Décote &amp; risque</h3>
+          <p>Chiffrage de la décote climatique — Brown Value.</p>
+        </li>
+        <li>
+          <span class="step-number mono">03</span>
+          <h3>Adaptation</h3>
+          <p>Plan d'action et devis — AGEadapt.</p>
+        </li>
+        <li>
+          <span class="step-number mono">04</span>
+          <h3>Travaux</h3>
+          <p>Mise en œuvre terrain, suivi de dossier.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+ <section class="modules-teaser">
+    <div class="container">
+      <h2>Les briques technologiques qui outillent cette chaîne</h2>
+      <div class="modules-grid">
+        {solutions.map((s) => (
+          <a class="card module-card" href={s.href}>
+            <h3>{s.name}</h3>
+            <p>{s.desc}</p>
+            <span class="module-link mono">En savoir plus →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .hero {
+    padding: var(--space-16) 0;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: var(--space-12);
+    align-items: center;
+  }
+  .hero h1 {
+    font-size: var(--fs-hero);
+  }
+  .lead {
+    font-size: 1.125rem;
+    color: var(--color-text-secondary);
+    max-width: 46ch;
+    margin-bottom: var(--space-8);
+  }
+  .hero-actions {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+.value-chain {
+    padding: var(--space-16) 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .value-chain-intro {
+    color: var(--color-text-secondary);
+    font-size: 1.125rem;
+    margin-bottom: var(--space-8);
+  }
+  .value-chain-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-8);
+  }
+  .value-chain-steps li {
+    position: relative;
+    padding-top: var(--space-6);
+    border-top: 2px solid var(--color-primary);
+  }
+  .step-number {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--color-accent-text);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+  }
+  .value-chain-steps h3 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--space-2);
+  }
+  .value-chain-steps p {
+    font-size: var(--fs-small);
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+  .modules-teaser {
+    padding: var(--space-16) 0;
+  }
+  .modules-teaser h2 {
+    font-size: var(--fs-h2);
+    margin-bottom: var(--space-8);
+  }
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-6);
+  }
+  .module-card {
+    padding: var(--space-6);
+    text-decoration: none;
+    color: var(--color-text);
+    display: block;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .module-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(17,17,17,0.08);
+  }
+  .module-card h3 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--space-2);
+  }
+  .module-card p {
+    font-size: var(--fs-small);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-4);
+  }
+  .module-link {
+    font-size: var(--fs-small);
+    color: var(--color-accent-text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+  }
+.hero-video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-card);
+    object-fit: cover;
+    display: block;
+  }
+</style>
+
