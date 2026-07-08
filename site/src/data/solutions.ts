@@ -1,10 +1,10 @@
 export const solutions = {
-  prevention: {
-    slug: 'prevention',
+  ageprevention: {
+    slug: 'ageprevention',
     numero: '01',
-    nom: 'Prévention',
+    nom: 'AGEprévention',
     tagline: 'Anticiper les aléas avant qu\'ils ne coûtent',
-    etape: 'Diagnostic',
+    etape: 'AGE prévention',
     intro: 'Une méthodologie d\'anticipation des aléas climatiques pour identifier les risques avant qu\'ils n\'impactent la valeur de vos actifs.',
     sections: [
       {
@@ -42,109 +42,115 @@ export const solutions = {
     numero: '02',
     nom: 'AGEadapt',
     tagline: 'Passer du diagnostic à l\'action',
-    etape: 'Adaptation',
+    etape: 'AGE Adaptation',
     intro: 'Le module d\'adaptation qui transforme les risques identifiés en plans d\'action concrets et chiffrés.',
     sections: [
       {
-        titre: 'Sols et fondations',
-        description: 'Face au retrait-gonflement des argiles et à la sécheresse, des solutions techniques adaptées à chaque site.',
+        titre: 'Mesurer l\'impact à l\'ère du changement climatique',
+        description: 'L\'adaptation climatique consiste à protéger son patrimoine — bâtiments d\'entreprise ou logement — face aux risques climatiques (sécheresse, inondation, tempête), pour limiter les pertes et préserver la valeur dans la durée.',
         checklist: [
-          'Stabilisation des sols argileux',
-          'Drainage périphérique',
-          'Reprise en sous-œuvre',
+          'Analyse des risques physiques (aléas actuels et futurs, scénarios de trajectoire)',
+          'Gouvernance de l\'adaptation (pilotage et intégration dans la stratégie)',
+          'Mesures d\'adaptation opérationnelles et suivi de mise en œuvre',
         ],
+        
       },
       {
-        titre: 'Inondations et submersion',
-        description: 'Des dispositifs concrets pour réduire l\'exposition aux risques d\'eau, du rehaussement des seuils à la protection littorale.',
+        titre: 'Les riques physiques',
+        description: 'L\'analyse des risques physiques identifie l\'exposition d\'un actif ou d\'une activité aux aléas climatiques, à horizon présent et futur. Elle croise données climatiques, vulnérabilité du bien et trajectoires de réchauffement pour objectiver le niveau de risque.',
         checklist: [
-          'Rehaussement des seuils, dispositifs anti-retour',
-          'Bassins de rétention',
-          'Protections naturelles et enrochements',
+           'Identification des aléas climatiques pertinents (inondation, RGA, submersion, canicule, etc.)',
+          'Exposition selon plusieurs horizons temporels et scénarios de trajectoire climatique',
+          'Évaluation de la vulnérabilité propre à l\'actif ou à l\'activité',
+          'Hiérarchisation des risques par niveau de criticité',
         ],
       },
-      {
-        titre: 'Accompagnement réglementaire',
-        description: 'Mobilisation des aides existantes et mise en conformité avec les textes en vigueur.',
+     {
+        titre: 'Effets du climat sur la valeur patrimoniale',
+        description: 'Les risques climatiques pèsent directement sur la valeur d\'un actif immobilier : sinistralité accrue, surprimes d\'assurance, difficulté de revente. Cette décote — la « brown value » — peut être quantifiée pour anticiper son impact financier.',
         checklist: [
-          'Mobilisation des aides existantes',
-          'Mise en conformité (Décret Tertiaire, CSRD, Taxonomie)',
-          'Hiérarchisation des priorités d\'investissement',
+          'Impact sur la valeur de marché (décote liée à l\'exposition climatique)',
+          'Surcoûts d\'assurance et de financement',
+          'Perte de liquidité (délai de vente allongé, marché restreint)',
+          'Anticipation de la trajectoire de dépréciation à 5, 10, 20 ans',
         ],
       },
     ],
     closing: 'Réduire la vulnérabilité, c\'est aussi sécuriser la continuité d\'activité.',
   },
-  agecarbon: {
-    slug: 'agecarbon',
+  agecarbone: {
+    slug: 'agecarbone',
     numero: '03',
-    nom: 'AGEcarbon',
+    nom: 'AGEcarbone',
     tagline: 'Mesurer l\'empreinte, piloter la trajectoire',
-    etape: 'Décote & risque',
+    etape: 'AGE CARBONE',
     intro: 'Le calculateur carbone dédié à l\'immobilier, pour mesurer et réduire l\'empreinte de vos actifs.',
     sections: [
-      {
-        titre: 'Croisement de données multiples',
-        description: 'Une quantité importante de données climatiques, environnementales et bâtimentaires, avec une précision inédite.',
+     {
+        titre: 'Calcul des émissions',
+        description: 'Notre méthodologie ABC couvre 14 périmètres d\'émissions, des postes directs aux émissions indirectes de la chaîne de valeur, pour un bilan carbone exhaustif de votre actif ou activité.',
         checklist: [
-          'Données climatiques (scénarios, séries historiques)',
-          'Données bâtimentaires (typologie, matériaux, état structurel)',
-          'Données socio-économiques et réglementaires',
+          'Couverture des 14 périmètres d\'émissions (scopes 1, 2, 3 détaillés)',
+          'Facteurs d\'émission Base Carbone ADEME',
+          'Résultats exprimés en équivalent CO2',
+        ],
+      },
+     {
+        titre: 'Suivi et pilotage de la trajectoire carbone',
+        description: 'Des pistes concrètes et priorisées pour réduire l\'empreinte carbone, adaptées à chaque poste d\'émission identifié.',
+        checklist: [
+          'Priorisation des leviers de réduction',
+          'Estimation de l\'impact de chaque action',
+          'Plan d\'action chiffré et actionnable'
+
+        
         ],
       },
       {
-        titre: 'Modélisation prédictive',
-        description: 'Simulation d\'impacts selon différents horizons temporels et niveaux de sévérité des événements climatiques.',
+        titre: 'Recommandations de réduction',
+        description: 'Au-delà du calcul, un suivi dans le temps pour mesurer la progression et ajuster les actions de réduction.',
         checklist: [
-          'Simulation à 5, 10 et 20 ans',
-          'Niveaux de sévérité des événements',
-          'Priorisation des actifs les plus exposés',
-        ],
-      },
-      {
-        titre: 'Appui à la décision',
-        description: 'Des scénarios d\'adaptation et d\'investissement, en tenant compte des contraintes techniques, financières et réglementaires.',
-        checklist: [
-          'Contraintes techniques',
-          'Contraintes financières',
-          'Contraintes réglementaires',
+          'Suivi des indicateurs clés de performance carbone ',
+          'Suivi de la trajectoire de réduction',
+          'Comparaison d\'une année sur l\'autre',
+
         ],
       },
     ],
     closing: 'Une vision prospective, fondée sur des données fiables et actualisées.',
   },
-  marketplace: {
-    slug: 'marketplace',
+  ageplace: {
+    slug: 'ageplace',
     numero: '04',
-    nom: 'Marketplace',
+    nom: 'AGEplace',
     tagline: 'Des experts, au bon moment',
-    etape: 'Travaux',
+    etape: 'AGE place',
     intro: 'Un réseau de consultants climat en régie pour vous accompagner sur le terrain, à chaque étape.',
     sections: [
       {
         titre: 'Publication du besoin',
-        description: 'Décrivez votre mission et vos contraintes, nous identifions les profils les plus pertinents.',
+        description: 'Décrivez votre mission et vos contraintes : nous identifions les profils de consultants climat les plus pertinents pour y répondre.',
         checklist: [
-          'Cadrage de la mission',
-          'Définition des livrables attendus',
+          'Cadrage de la mission et des livrables attendus',
+          'Définition des compétences requises',
           'Estimation du délai de réalisation',
         ],
       },
-      {
-        titre: 'Mise en relation',
-        description: 'Un accès direct à un réseau de consultants qualifiés, disponibles selon vos besoins.',
+     {
+        titre: 'Mise en relation avec des experts qualifiés',
+        description: 'Un accès direct à un réseau de consultants climat en régie, sélectionnés selon leur expertise et leur disponibilité.',
         checklist: [
-          'Sélection de profils qualifiés',
+          'Sélection de profils qualifiés et vérifiés',
           'Mise en relation rapide',
-          'Négociation transparente',
+          'Conditions de mission transparentes',
         ],
       },
-      {
+       {
         titre: 'Suivi jusqu\'à réalisation',
-        description: 'Un accompagnement continu, jusqu\'à la clôture des travaux sur le terrain.',
+        description: 'Un accompagnement continu de la mission, du démarrage jusqu\'à la clôture des travaux sur le terrain.',
         checklist: [
-          'Suivi de la mission',
           'Points d\'étape réguliers',
+          'Suivi de l\'avancement de la mission',
           'Clôture et retour d\'expérience',
         ],
       },

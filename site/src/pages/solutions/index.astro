@@ -3,11 +3,11 @@ import Layout from '../../layouts/Layout.astro';
 
 const solutions = [
   {
-    slug: 'prevention',
-    nom: 'Prévention',
+    slug: 'ageprevention',
+    nom: 'AGEprévention',
     tagline: 'Anticiper les aléas avant qu\'ils ne coûtent',
     description: 'Une méthodologie d\'anticipation des aléas climatiques pour identifier les risques avant qu\'ils n\'impactent la valeur de vos actifs.',
-    etape: 'Diagnostic',
+    etape: 'Prévention',
   },
   {
     slug: 'ageadapt',
@@ -17,18 +17,18 @@ const solutions = [
     etape: 'Adaptation',
   },
   {
-    slug: 'agecarbon',
-    nom: 'AGEcarbon',
+    slug: 'agecarbone',
+    nom: 'AGEcarbone',
     tagline: 'Mesurer l\'empreinte, piloter la trajectoire',
     description: 'Le calculateur carbone dédié à l\'immobilier, pour mesurer et réduire l\'empreinte de vos actifs.',
-    etape: 'Décote & risque',
+   etape: 'Baisse de vos émissions',
   },
   {
-    slug: 'marketplace',
-    nom: 'Marketplace',
+    slug: 'ageplace',
+    nom: 'AGEplace',
     tagline: 'Des experts, au bon moment',
     description: 'Un réseau de consultants climat en régie pour vous accompagner sur le terrain, à chaque étape.',
-    etape: 'Travaux',
+    etape: 'Consultants climat',
   },
 ];
 ---
@@ -88,13 +88,25 @@ const solutions = [
     line-height: 1.6;
   }
 
-  .solutions-grid {
+ .solutions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 24px;
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 32px 24px 96px;
+  }
+
+  @media (max-width: 900px) {
+    .solutions-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .solutions-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .solution-card {

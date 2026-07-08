@@ -10,6 +10,11 @@ export function getStaticPaths() {
 
 const { slug } = Astro.params;
 const s = solutions[slug];
+
+const slugsOrder = Object.keys(solutions);
+const currentIndex = slugsOrder.indexOf(slug);
+const nextSlug = slugsOrder[(currentIndex + 1) % slugsOrder.length];
+const nextSolution = solutions[nextSlug];
 ---
 
 <Layout title={`${s.nom} — AGE-QC`}>
@@ -18,7 +23,11 @@ const s = solutions[slug];
     <p class="eyebrow">{s.etape}</p>
     <h1>{s.nom}</h1>
     <p class="tagline">{s.tagline}</p>
-    <p class="intro">{s.intro}</p>
+  <p class="intro">{s.intro}</p>
+    <a href={`/solutions/${nextSolution.slug}`} class="next-link">
+      <span class="next-label">Solution suivante</span>
+      <span class="next-name">{nextSolution.nom} →</span>
+    </a>
   </section>
 
   {s.sections.map((block, i) => (
@@ -44,7 +53,7 @@ const s = solutions[slug];
     <p>{s.closing}</p>
   </section>
 
-  <section class="cta">
+ <section class="cta">
     <h2>Prêt à passer à l'action ?</h2>
     <a href="/contact" class="btn-primary">Demander une démo</a>
   </section>
@@ -180,6 +189,35 @@ const s = solutions[slug];
     line-height: 1.4;
   }
 
+ .next-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    margin-top: 32px;
+    padding: 14px 28px;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .next-link:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: #3FCDA0;
+  }
+  .next-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #3FCDA0;
+  }
+  .next-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+  }
   .cta {
     text-align: center;
     padding: 72px 24px;
