@@ -77,6 +77,17 @@ export default function AGEcarbonSaisie() {
   const [showFacteurs, setShowFacteurs] = useState(false)
   const [filtreFacteurs, setFiltreFacteurs] = useState('')
 
+  // Ajout de ligne manuelle
+  const [showAjoutLigne, setShowAjoutLigne] = useState(false)
+  const [posteCible, setPosteCible] = useState('')
+  const [nouvelleLigne, setNouvelleLigne] = useState({
+    libelle: '',
+    mode: 'physique' as 'physique' | 'monetaire',
+    facteur: '',
+    unite: '',
+    scope: '',
+  })
+
   // Import données monétaires
   const [showImport, setShowImport] = useState(false)
   const [importRows, setImportRows] = useState<ImportRow[]>([])
@@ -178,7 +189,7 @@ export default function AGEcarbonSaisie() {
       return
     }
 
-    const { error: errSaisies } = await supabase
+ const { error: errSaisies } = await supabase
       .from('abc_saisies')
       .update({ poste: nouveauPoste })
       .eq('facteur_id', facteur.id)
@@ -191,10 +202,74 @@ export default function AGEcarbonSaisie() {
     setSaisies(prev => prev.map(s => s.facteur_id === facteur.id ? { ...s, poste: nouveauPoste } : s))
     setPosteOuvert(nouveauPoste)
     setEditingPoste(null)
+
+    if (!errSaisies) {
+      await handleRecalculerResultats()
+    }
+  }
+
+  const handleChangerScope = async (facteur: Facteur, nouveauScope: number) => {
+    if (nouveauScope === facteur.scope) return
+
+    const { error: errFact } = await supabase
+      .from('abc_facteurs_emission')
+      .update({ scope: nouveauScope })
+      .eq('id', facteur.id)
+    if (errFact) {
+      console.error('Changement de scope échoué —', facteur.libelle, errFact)
+      return
+    }
+
+    const { error: errSaisiesScope } = await supabase
+      .from('abc_saisies')
+      .update({ scope: nouveauScope })
+      .eq('facteur_id', facteur.id)
+      .eq('bilan_id', id)
+    if (errSaisiesScope) {
+      console.error('Mise à jour abc_saisies (scope) échouée —', facteur.libelle, errSaisiesScope)
+    }
+
+    setFacteurs(prev => prev.map(f => f.id === facteur.id ? { ...f, scope: nouveauScope } : f))
+    setSaisies(prev => prev.map(s => s.facteur_id === facteur.id ? { ...s, scope: nouveauScope } : s))
+
+    if (!errSaisiesScope) {
+      await handleRecalculerResultats()
+    }
+  }
+
+  const handleAjouterLigne = async () => {
+    if (!nouvelleLigne.libelle || !nouvelleLigne.facteur || !nouvelleLigne.scope) return
+
+    const { data: nf, error } = await supabase
+      .from('abc_facteurs_emission')
+      .insert({
+        poste: posteCible,
+        libelle: nouvelleLigne.libelle,
+        source: 'Ajout manuel',
+        facteur_kg_co2e: nouvelleLigne.mode === 'physique' ? parseFloat(nouvelleLigne.facteur) : null,
+        facteur_kg_co2e_eur: nouvelleLigne.mode === 'monetaire' ? parseFloat(nouvelleLigne.facteur) : null,
+        unite_physique: nouvelleLigne.mode === 'physique' ? nouvelleLigne.unite : null,
+        scope: parseInt(nouvelleLigne.scope),
+        actif: true,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Ajout de ligne échoué —', nouvelleLigne.libelle, error)
+      return
+    }
+
+    if (nf) {
+      setFacteurs(prev => [...prev, nf])
+      setPosteOuvert(posteCible)
+    }
+
+    setShowAjoutLigne(false)
+    setNouvelleLigne({ libelle: '', mode: 'physique', facteur: '', unite: '', scope: '' })
   }
 
   // ── Import données monétaires ──────────────────────────────────────
-
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -297,7 +372,7 @@ export default function AGEcarbonSaisie() {
   }
 
   const handleSavePoste = async (poste: string) => {
-    const saisiesPoste = saisies.filter(s => s.poste === poste && (parseFloat(s.quantite) > 0 || parseFloat(s.montant_eur) > 0))
+  const saisiesPoste = saisies.filter(s => s.poste === poste && (parseFloat(s.quantite) > 0 || parseFloat(s.montant_eur) > 0 || s.id))
 
     const sansScope = saisiesPoste.filter(s => s.scope == null)
     if (sansScope.length > 0) {
@@ -308,9 +383,10 @@ export default function AGEcarbonSaisie() {
     setSaving(true)
 
     for (const saisie of saisiesPoste) {
+      const facteurRef = facteurs.find(f => f.id === saisie.facteur_id)
       const payload = {
         bilan_id: id,
-        poste: saisie.poste,
+        poste: facteurRef?.poste ?? saisie.poste,
         sous_poste: saisie.sous_poste,
         libelle_saisie: saisie.libelle_saisie,
         facteur_id: saisie.facteur_id,
@@ -529,7 +605,7 @@ export default function AGEcarbonSaisie() {
                                   </select>
                                 )}
                               </td>
-                              <td style={{ padding: '8px' }}>
+                            <td style={{ padding: '8px' }}>
                                 <select
                                   style={{ ...inputStyle, width: '110px' }}
                                   value={saisie.mode_saisie}
@@ -577,20 +653,19 @@ export default function AGEcarbonSaisie() {
                                 )}
                               </td>
                               <td style={{ padding: '8px' }}>
-                                {facteur.scope != null ? (
-                                  <span style={{ fontSize: '11px', color: '#78716C' }}>Scope {facteur.scope}</span>
-                                ) : (
-                                  <select
-                                    style={{ ...inputStyle, width: '80px', borderColor: saisie.scope == null ? '#D97706' : '#E5E1DA' }}
-                                    value={saisie.scope ?? ''}
-                                    onChange={e => updateSaisie(facteur.id, 'scope', e.target.value)}
-                                  >
-                                    <option value="">—</option>
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
-                                  </select>
-                                )}
+                                <select
+                                  style={{ ...inputStyle, width: '80px', borderColor: saisie.scope == null ? '#D97706' : '#E5E1DA' }}
+                                  value={facteur.scope ?? ''}
+                                  onChange={e => {
+                                    const val = e.target.value
+                                    if (val) handleChangerScope(facteur, parseInt(val))
+                                  }}
+                                >
+                                  <option value="">—</option>
+                                  <option value="1">1</option>
+                                  <option value="2">2</option>
+                                  <option value="3">3</option>
+                                </select>
                               </td>
                               <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: saisie.kg_co2e > 0 ? '#1D9E75' : '#E5E1DA' }}>
                                 {saisie.kg_co2e > 0 ? saisie.kg_co2e.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : '—'}
@@ -611,7 +686,13 @@ export default function AGEcarbonSaisie() {
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                      <button
+                        onClick={() => { setPosteCible(poste.id); setShowAjoutLigne(true) }}
+                        style={{ background: 'transparent', border: '1px dashed #E5E1DA', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', color: '#78716C', cursor: 'pointer' }}
+                      >
+                        + Ajouter une ligne
+                      </button>
                       <button
                         onClick={() => handleSavePoste(poste.id)}
                         disabled={saving}
@@ -780,6 +861,118 @@ export default function AGEcarbonSaisie() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ajout de ligne manuelle */}
+      {showAjoutLigne && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(31,41,55,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '24px' }}>
+          <div style={{ background: 'white', borderRadius: '14px', width: '100%', maxWidth: '440px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '18px 20px', borderBottom: '1px solid #E5E1DA' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937' }}>Ajouter une ligne</div>
+                <div style={{ fontSize: '11px', color: '#78716C' }}>
+                  Poste : {POSTES.find(p => p.id === posteCible)?.label ?? posteCible}
+                </div>
+              </div>
+              <button onClick={() => setShowAjoutLigne(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#78716C' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Libellé</label>
+                <input
+                  style={inputStyle}
+                  value={nouvelleLigne.libelle}
+                  onChange={e => setNouvelleLigne(prev => ({ ...prev, libelle: e.target.value }))}
+                  placeholder="Ex. Électricité — fournisseur local"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Mode</label>
+                <select
+                  style={inputStyle}
+                  value={nouvelleLigne.mode}
+                  onChange={e => setNouvelleLigne(prev => ({ ...prev, mode: e.target.value as 'physique' | 'monetaire' }))}
+                >
+                  <option value="physique">Physique</option>
+                  <option value="monetaire">Monétaire</option>
+                </select>
+              </div>
+
+              {nouvelleLigne.mode === 'physique' ? (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Facteur (kg CO₂e / unité)</label>
+                    <input
+                      style={inputStyle}
+                      type="number"
+                      value={nouvelleLigne.facteur}
+                      onChange={e => setNouvelleLigne(prev => ({ ...prev, facteur: e.target.value }))}
+                      placeholder="0.052"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Unité</label>
+                    <input
+                      style={inputStyle}
+                      value={nouvelleLigne.unite}
+                      onChange={e => setNouvelleLigne(prev => ({ ...prev, unite: e.target.value }))}
+                      placeholder="kWh"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Facteur (kg CO₂e / €)</label>
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    value={nouvelleLigne.facteur}
+                    onChange={e => setNouvelleLigne(prev => ({ ...prev, facteur: e.target.value }))}
+                    placeholder="0.17"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#78716C', display: 'block', marginBottom: '4px' }}>Scope</label>
+                <select
+                  style={inputStyle}
+                  value={nouvelleLigne.scope}
+                  onChange={e => setNouvelleLigne(prev => ({ ...prev, scope: e.target.value }))}
+                >
+                  <option value="">Choisir</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 20px', borderTop: '1px solid #E5E1DA' }}>
+              <button
+                onClick={() => setShowAjoutLigne(false)}
+                style={{ background: 'transparent', border: '1px solid #E5E1DA', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', color: '#1F2937', cursor: 'pointer' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleAjouterLigne}
+                disabled={!nouvelleLigne.libelle || !nouvelleLigne.facteur || !nouvelleLigne.scope}
+                style={{
+                  background: (nouvelleLigne.libelle && nouvelleLigne.facteur && nouvelleLigne.scope) ? '#1D9E75' : '#E5E1DA',
+                  color: 'white', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 500,
+                  cursor: (nouvelleLigne.libelle && nouvelleLigne.facteur && nouvelleLigne.scope) ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Ajouter
+              </button>
             </div>
           </div>
         </div>
