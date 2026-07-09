@@ -5,6 +5,7 @@ const solutions = [
   { href: '/solutions/agecarbon', label: 'AGEcarbon' },
   { href: '/solutions/ageplace', label: 'AGEplace' },
 ];
+
 const audiences = [
   { href: '/vous-etes/particulier', label: 'Particulier' },
   { href: '/vous-etes/notaire', label: 'Notaire' },
@@ -50,8 +51,89 @@ const audiences = [
       <a href="https://app.age-qc.com" class="link-login">Connexion</a>
       <a href="/contact" class="btn btn-primary">Demander une démo</a>
     </div>
+
+    <button
+      class="menu-toggle"
+      id="menu-toggle"
+      type="button"
+      aria-label="Ouvrir le menu"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+    >
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
+  </div>
+
+  <div class="mobile-nav" id="mobile-nav" hidden>
+    <nav aria-label="Navigation mobile">
+      <div class="mobile-group">
+        <button class="mobile-accordion-trigger" type="button" aria-expanded="false" aria-controls="mobile-solutions">
+          Solutions <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+        <ul class="mobile-submenu" id="mobile-solutions" hidden>
+          {solutions.map((item) => (
+            <li><a href={item.href}>{item.label}</a></li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="mobile-group">
+        <button class="mobile-accordion-trigger" type="button" aria-expanded="false" aria-controls="mobile-audiences">
+          Vous êtes <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+        <ul class="mobile-submenu" id="mobile-audiences" hidden>
+          {audiences.map((item) => (
+            <li><a href={item.href}>{item.label}</a></li>
+          ))}
+        </ul>
+      </div>
+
+      <a class="mobile-link" href="/a-propos">À propos</a>
+      <a class="mobile-link" href="/contact">Contact</a>
+
+      <div class="mobile-actions">
+        <a href="https://app.age-qc.com" class="link-login">Connexion</a>
+        <a href="/contact" class="btn btn-primary">Demander une démo</a>
+      </div>
+    </nav>
   </div>
 </header>
+
+<script>
+  const menuToggle = document.getElementById('menu-toggle');
+  const mobileNav = document.getElementById('mobile-nav');
+
+  menuToggle?.addEventListener('click', () => {
+    const isOpen = mobileNav?.hasAttribute('hidden') === false;
+    if (isOpen) {
+      mobileNav?.setAttribute('hidden', '');
+      menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.classList.remove('is-open');
+    } else {
+      mobileNav?.removeAttribute('hidden');
+      menuToggle.setAttribute('aria-expanded', 'true');
+      menuToggle.classList.add('is-open');
+    }
+  });
+
+  document.querySelectorAll('.mobile-accordion-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const controlsId = btn.getAttribute('aria-controls');
+      const submenu = controlsId ? document.getElementById(controlsId) : null;
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!isOpen));
+      if (submenu) {
+        if (isOpen) {
+          submenu.setAttribute('hidden', '');
+        } else {
+          submenu.removeAttribute('hidden');
+        }
+      }
+    });
+  });
+</script>
 
 <style>
   .site-header {
@@ -79,7 +161,7 @@ const audiences = [
   }
   .logo span { color: var(--color-primary); }
 
- .main-nav > ul {
+  .main-nav > ul {
     list-style: none;
     display: flex;
     align-items: center;
@@ -177,7 +259,110 @@ const audiences = [
   }
   .link-login:hover { color: var(--color-secondary); }
 
+  /* Menu toggle (hamburger) */
+  .menu-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .menu-toggle .bar {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--color-secondary);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .menu-toggle.is-open .bar:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+  .menu-toggle.is-open .bar:nth-child(2) {
+    opacity: 0;
+  }
+  .menu-toggle.is-open .bar:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  /* Mobile nav panel */
+  .mobile-nav {
+    border-top: 1px solid var(--color-border);
+    background: var(--color-card);
+  }
+  .mobile-nav nav {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  .mobile-link {
+    padding: var(--space-3) 0;
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .mobile-group {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .mobile-accordion-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: none;
+    border: none;
+    padding: var(--space-3) 0;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+  .mobile-accordion-trigger[aria-expanded="true"] .chevron {
+    transform: rotate(180deg);
+  }
+  .mobile-submenu {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .mobile-submenu a {
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: var(--fs-small);
+  }
+  .mobile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+  .mobile-actions .link-login {
+    text-align: center;
+  }
+
   @media (max-width: 860px) {
-    .main-nav { display: none; }
+    .main-nav,
+    .header-actions {
+      display: none;
+    }
+    .menu-toggle {
+      display: flex;
+    }
+  }
+
+  @media (min-width: 861px) {
+    .mobile-nav {
+      display: none;
+    }
   }
 </style>
