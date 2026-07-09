@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import {
@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import BarometreEmployesModal from '../../components/BarometreEmployesModal'
+import GenerateurRapportIA, { GenerateurRapportIARef } from '../../components/GenerateurRapportIA'
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,9 @@ export default function AGEcarbonResultats() {
   const [erreur, setErreur] = useState<string | null>(null)
   const [exportEnCours, setExportEnCours] = useState(false)
   const [barometreOuvert, setBarometreOuvert] = useState(false)
+  const refGenerateurIA = useRef<GenerateurRapportIARef>(null)
+  const [rapportIAEnCours, setRapportIAEnCours] = useState(false)
+  const [erreurRapportIA, setErreurRapportIA] = useState<string | null>(null)
 
   // ── Chargement ──────────────────────────────────────────────────────────────
 
@@ -356,34 +361,60 @@ const libelle = libellePoste.length > 55 ? libellePoste.substring(0, 52) + '...'
             </div>
           </div>
         </div>
-        <button
-          onClick={exporterPDF}
-          disabled={exportEnCours}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: COULEUR_PRIMAIRE, color: '#fff',
-            border: 'none', borderRadius: 8,
-            padding: '10px 20px', fontSize: 14, fontWeight: 600,
-            cursor: exportEnCours ? 'not-allowed' : 'pointer',
-            opacity: exportEnCours ? 0.7 : 1,
-          }}
-        >
-          <Download size={16} />
-          {exportEnCours ? 'Export en cours…' : 'Exporter PDF'}
+       <div style={{ display: 'flex', alignItems: 'center' }}>
           <button
-          onClick={() => setBarometreOuvert(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: '#fff', color: '#1F2937',
-            border: '1px solid #E5E1DA', borderRadius: 8,
-            padding: '10px 20px', fontSize: 14, fontWeight: 600,
-            cursor: 'pointer', marginRight: 12,
-          }}
-        >
-          <Users size={16} />
-          Baromètre employés
-        </button>
-        </button>
+            onClick={async () => {
+              if (!bilanId) return
+              setErreurRapportIA(null)
+              setRapportIAEnCours(true)
+              await refGenerateurIA.current?.generer(bilanId)
+              setRapportIAEnCours(false)
+            }}
+            disabled={rapportIAEnCours}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#1F2937', color: '#fff',
+              border: 'none', borderRadius: 8,
+              padding: '10px 20px', fontSize: 14, fontWeight: 600,
+              cursor: rapportIAEnCours ? 'not-allowed' : 'pointer',
+              opacity: rapportIAEnCours ? 0.7 : 1,
+              marginRight: 12,
+            }}
+          >
+            <Leaf size={16} />
+            {rapportIAEnCours ? 'Génération en cours…' : 'Générer rapport IA'}
+          </button>
+
+          <button
+            onClick={() => setBarometreOuvert(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#fff', color: '#1F2937',
+              border: '1px solid #E5E1DA', borderRadius: 8,
+              padding: '10px 20px', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer', marginRight: 12,
+            }}
+          >
+            <Users size={16} />
+            Baromètre employés
+          </button>
+
+          <button
+            onClick={exporterPDF}
+            disabled={exportEnCours}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: COULEUR_PRIMAIRE, color: '#fff',
+              border: 'none', borderRadius: 8,
+              padding: '10px 20px', fontSize: 14, fontWeight: 600,
+              cursor: exportEnCours ? 'not-allowed' : 'pointer',
+              opacity: exportEnCours ? 0.7 : 1,
+            }}
+          >
+            <Download size={16} />
+            {exportEnCours ? 'Export en cours…' : 'Exporter PDF'}
+          </button>
+        </div>
       </div>
 
       {/* ── KPIs scopes ── */}
@@ -613,12 +644,33 @@ const libelle = libellePoste.length > 55 ? libellePoste.substring(0, 52) + '...'
       </table>
       </div>
 
-      {barometreOuvert && (
+     {barometreOuvert && (
         <BarometreEmployesModal
           bilanId={bilanId!}
           onClose={() => setBarometreOuvert(false)}
           onSaved={() => {}}
         />
+      )}
+
+      <GenerateurRapportIA
+        ref={refGenerateurIA}
+        onErreur={(msg) => setErreurRapportIA(msg)}
+      />
+
+      {erreurRapportIA && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, background: '#B91C1C', color: '#fff',
+          padding: '14px 20px', borderRadius: 8, fontSize: 13, maxWidth: 360,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 2000,
+        }}>
+          {erreurRapportIA}
+          <button
+            onClick={() => setErreurRapportIA(null)}
+            style={{ marginLeft: 12, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+          >
+            ✕
+          </button>
+        </div>
       )}
 
     </div>
