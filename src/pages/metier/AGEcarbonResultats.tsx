@@ -6,10 +6,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts'
 import {
-  ArrowLeft, Download, Leaf, AlertTriangle, CheckCircle,
+  ArrowLeft, Download, Leaf, AlertTriangle, CheckCircle, Users,
+
   TrendingDown, Factory, Zap, Package
 } from 'lucide-react'
 import jsPDF from 'jspdf'
+import BarometreEmployesModal from '../../components/BarometreEmployesModal'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +95,7 @@ export default function AGEcarbonResultats() {
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState<string | null>(null)
   const [exportEnCours, setExportEnCours] = useState(false)
+  const [barometreOuvert, setBarometreOuvert] = useState(false)
 
   // ── Chargement ──────────────────────────────────────────────────────────────
 
@@ -367,6 +370,19 @@ const libelle = libellePoste.length > 55 ? libellePoste.substring(0, 52) + '...'
         >
           <Download size={16} />
           {exportEnCours ? 'Export en cours…' : 'Exporter PDF'}
+          <button
+          onClick={() => setBarometreOuvert(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#fff', color: '#1F2937',
+            border: '1px solid #E5E1DA', borderRadius: 8,
+            padding: '10px 20px', fontSize: 14, fontWeight: 600,
+            cursor: 'pointer', marginRight: 12,
+          }}
+        >
+          <Users size={16} />
+          Baromètre employés
+        </button>
         </button>
       </div>
 
@@ -594,8 +610,16 @@ const libelle = libellePoste.length > 55 ? libellePoste.substring(0, 52) + '...'
               </tr>
             </tfoot>
           )}
-        </table>
+      </table>
       </div>
+
+      {barometreOuvert && (
+        <BarometreEmployesModal
+          bilanId={bilanId!}
+          onClose={() => setBarometreOuvert(false)}
+          onSaved={() => {}}
+        />
+      )}
 
     </div>
   )

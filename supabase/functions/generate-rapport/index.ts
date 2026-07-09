@@ -15,73 +15,93 @@ serve(async (req) => {
 
     // Construction du prompt selon le module
     let prompt = ""
-
-    if (module === "ageadapt") {
-      const m = data.mission
-      const s = data.simulation
-      prompt = `Tu es un expert en adaptation climatique et conseil environnemental. 
-Tu dois rédiger un rapport de mission AGEadapt professionnel et structuré en français.
-
-DONNÉES DE LA MISSION :
-- Client : ${m.raison_sociale}${m.siren ? ` (SIREN : ${m.siren})` : ""}
-- Type de structure : ${m.type_structure || "—"}
-- Secteur NAF : ${m.secteur_naf || "—"}
-- Région : ${m.region || "—"}
-- Méthode : ${m.methode === "abc" ? "Bilan Carbone® ABC" : m.methode === "act" ? "ACT Adaptation" : m.methode === "vuln" ? "Diagnostic de vulnérabilité" : "Mission complète"}
-- Bilan existant : ${m.bilan_existant ? "Oui" : "Non"}
-- Aléas climatiques identifiés : ${m.aleas?.join(", ") || "Non renseignés"}
-- Horizons analysés : ${[m.horizon_2030 && "2030", m.horizon_2040 && "2040", m.horizon_2050 && "2050"].filter(Boolean).join(", ") || "Non renseignés"}
-${s ? `
-SIMULATION TARIFAIRE :
-- Jours consultant : ${s.jours_consultant}
-- Durée : ${s.duree_mois} mois
-- Honoraires HT : ${s.tarif_bas_ht?.toLocaleString("fr-FR")} – ${s.tarif_haut_ht?.toLocaleString("fr-FR")} €` : ""}
-
-Rédige un rapport structuré avec les sections suivantes :
-1. **Contexte et enjeux** — présentation du client et de ses enjeux climatiques
-2. **Diagnostic de vulnérabilité** — analyse des aléas identifiés et de leur impact potentiel
-3. **Recommandations prioritaires** — 3 à 5 actions concrètes adaptées au profil du client
-4. **Ancrage réglementaire** — références PNACC3 pertinentes (mesures 33, 40, 41)
-5. **Plan d'action proposé** — structuré par horizon temporel (2030, 2040, 2050)
-6. **Cadrage de la mission** — périmètre, livrables attendus, prochaines étapes
-
-Sois précis, professionnel et ancré dans le contexte réglementaire français (PNACC3, TRACC, guides DGE/ADEME).`
-    }
-
-    if (module === "agecarbon") {
+if (module === "agecarbon") {
       const b = data.bilan
       const r = data.resultats
+      const barometre = data.barometre ?? null
+
       const total = r.reduce((s: number, row: any) => s + parseFloat(row.total_kg_co2e || 0), 0) / 1000
       const scope1 = r.filter((row: any) => row.scope === 1).reduce((s: number, row: any) => s + parseFloat(row.total_kg_co2e || 0), 0) / 1000
       const scope2 = r.filter((row: any) => row.scope === 2).reduce((s: number, row: any) => s + parseFloat(row.total_kg_co2e || 0), 0) / 1000
       const scope3 = r.filter((row: any) => row.scope === 3).reduce((s: number, row: any) => s + parseFloat(row.total_kg_co2e || 0), 0) / 1000
-      const postePrincipal = r.sort((a: any, b: any) => b.total_kg_co2e - a.total_kg_co2e)[0]
 
-      prompt = `Tu es un expert en comptabilité carbone et bilan GES selon la méthodologie ABC (Bilan Carbone®).
-Tu dois rédiger un rapport de bilan carbone professionnel et structuré en français.
+      const LIBELLES_POSTES: Record<string, string> = {
+        energie: "Énergie",
+        hors_energie: "Émissions hors énergie",
+        deplacements: "Déplacements",
+        fret: "Fret",
+        intrants: "Intrants",
+        immobilisations: "Immobilisations",
+        dechets: "Déchets",
+        futurs_emballages: "Emballages futurs",
+        utilisation: "Utilisation des produits",
+        fin_de_vie: "Fin de vie",
+      }
+
+      // Postes réellement présents dans ce bilan (dynamique — pas de liste fixe)
+      const postesPresents = Array.from(new Set(r.map((row: any) => row.poste)))
+        .filter((poste) => r.some((row: any) => row.poste === poste && parseFloat(row.total_kg_co2e || 0) > 0))
+        .map((poste) => {
+          const tco2e = r.filter((row: any) => row.poste === poste).reduce((s: number, row: any) => s + parseFloat(row.total_kg_co2e || 0), 0) / 1000
+          return { poste, libelle: LIBELLES_POSTES[poste as string] ?? poste, tco2e }
+        })
+        .sort((a, b) => b.tco2e - a.tco2e)
+
+      const barometreTexte = barometre
+        ? `
+DONNÉES BAROMÈTRE EMPLOYÉS (à commenter dans "teletravail" et "barometre_employes") :
+- Taux moyen de télétravail : ${barometre.taux_teletravail_moyen_pct ?? "—"} %
+- Jours télétravaillés (total) : ${barometre.jours_teletravail_total ?? "—"}
+- Empreinte énergie télétravail : ${barometre.empreinte_energie_teletravail_tco2e ?? "—"} tCO₂e
+- Émissions évitées grâce au télétravail : ${barometre.emissions_evitees_teletravail_tco2e ?? "—"} tCO₂e
+- Distance domicile-travail agrégée : ${barometre.distance_domicile_travail_km ?? "—"} km (${barometre.emissions_domicile_travail_tco2e ?? "—"} tCO₂e)
+- Répartition modes : voiture ${barometre.mode_voiture_pct ?? "—"} % / covoiturage ${barometre.mode_covoiturage_pct ?? "—"} % / TC ${barometre.mode_transports_commun_pct ?? "—"} % / vélo ${barometre.mode_velo_pct ?? "—"} % / marche ${barometre.mode_marche_pct ?? "—"} %
+- Collaborateurs pratiquant le covoiturage : ${barometre.collaborateurs_covoiturage_pct ?? "—"} %
+- Sensibilisation climat : ${barometre.sensibilisation_climat_pct ?? "—"} %
+- Collaborateurs formés aux enjeux climat : ${barometre.collaborateurs_formes_climat_pct ?? "—"} %
+- Satisfaction politique climat entreprise : ${barometre.satisfaction_politique_climat_pct ?? "—"} %`
+        : `
+Aucune donnée de baromètre employés renseignée pour ce bilan — ne pas inventer de chiffres, indiquer dans "teletravail" et "barometre_employes" que ces données ne sont pas encore disponibles.`
+
+      prompt = `Tu es un expert en comptabilité carbone selon la méthodologie ABC (Bilan Carbone®).
+Tu dois générer le CONTENU TEXTE d'un rapport de bilan carbone au format d'un objet JSON strict.
+
+RÈGLES IMPÉRATIVES :
+- Réponds UNIQUEMENT avec un objet JSON valide. Aucun texte avant, aucun texte après, aucun bloc markdown \`\`\`.
+- Tu ne dois JAMAIS inventer ou recalculer de chiffres (tCO₂e, %, km) : ces valeurs sont injectées séparément depuis les données réelles. Tu rédiges uniquement des commentaires qualitatifs qui s'appuient sur les chiffres fournis ci-dessous, sans en réécrire d'autres.
+- Si une donnée n'est pas fournie, ne l'invente pas : indique que l'information n'est pas disponible.
 
 DONNÉES DU BILAN :
 - Organisation : ${b.raison_sociale}${b.siren ? ` (SIREN : ${b.siren})` : ""}
 - Secteur : ${b.secteur_naf || "—"}
 - Année de reporting : ${b.annee_reporting || "—"}
 - Total émissions : ${total.toFixed(2)} tCO₂e
-- Scope 1 (émissions directes) : ${scope1.toFixed(2)} tCO₂e (${total > 0 ? (scope1/total*100).toFixed(1) : 0} %)
-- Scope 2 (indirectes énergie) : ${scope2.toFixed(2)} tCO₂e (${total > 0 ? (scope2/total*100).toFixed(1) : 0} %)
-- Scope 3 (autres indirectes) : ${scope3.toFixed(2)} tCO₂e (${total > 0 ? (scope3/total*100).toFixed(1) : 0} %)
-- Poste dominant : ${postePrincipal?.poste || "—"} (${(parseFloat(postePrincipal?.total_kg_co2e || 0)/1000).toFixed(2)} tCO₂e)
+- Scope 1 : ${scope1.toFixed(2)} tCO₂e (${total > 0 ? (scope1/total*100).toFixed(1) : 0} %)
+- Scope 2 : ${scope2.toFixed(2)} tCO₂e (${total > 0 ? (scope2/total*100).toFixed(1) : 0} %)
+- Scope 3 : ${scope3.toFixed(2)} tCO₂e (${total > 0 ? (scope3/total*100).toFixed(1) : 0} %)
 
-DÉTAIL PAR POSTE :
-${r.map((row: any) => `- ${row.poste} (Scope ${row.scope}) : ${(parseFloat(row.total_kg_co2e)/1000).toFixed(2)} tCO₂e`).join("\n")}
+POSTES PRÉSENTS DANS CE BILAN (rédige une entrée dans "resultats_par_poste" pour CHACUN, ni plus ni moins) :
+${postesPresents.map(p => `- ${p.libelle} (clé: "${p.poste}") : ${p.tco2e.toFixed(2)} tCO₂e`).join("\n")}
+${barometreTexte}
 
-Rédige un rapport structuré avec les sections suivantes :
-1. **Synthèse exécutive** — résultats clés et niveau d'émissions par rapport au secteur
-2. **Analyse par scope** — commentaire sur la répartition et les postes dominants
-3. **Postes prioritaires** — analyse des 3 postes les plus émetteurs et leviers de réduction
-4. **Objectifs de réduction** — trajectoire recommandée compatible avec les accords de Paris (-50 % d'ici 2030)
-5. **Plan d'actions** — 5 à 8 actions concrètes classées par potentiel de réduction
-6. **Prochaines étapes** — mise à jour du bilan, plan de transition, reporting CSRD
-
-Sois précis, ancré dans la méthodologie ABC et le cadre réglementaire français (BEGES, CSRD, ESRS E1).`
+Réponds avec EXACTEMENT ce schéma JSON :
+{
+  "synthese": {
+    "phrase_accroche": "1 phrase d'accroche sur le niveau d'émissions",
+    "pourquoi_agir": "2-3 phrases sur l'importance d'agir, ton pédagogique",
+    "budget_carbone_contexte": "2-3 phrases sur le budget carbone et la trajectoire 1,5°C"
+  },
+  "resultats_par_poste": [
+    { "poste": "clé exacte du poste", "libelle": "libellé exact du poste", "commentaire": "2-3 phrases de commentaire qualitatif sur ce poste" }
+  ],
+  "teletravail": "2-3 phrases commentant les données télétravail fournies, ou mention d'absence de données",
+  "barometre_employes": "2-3 phrases commentant les données baromètre fournies, ou mention d'absence de données",
+  "agir": {
+    "typologie_intro": "2-3 phrases introduisant les leviers d'action (réduction, contribution, sensibilisation)",
+    "plan_actions": ["5 à 8 actions concrètes, classées par potentiel de réduction, adaptées aux postes dominants de ce bilan"]
+  },
+  "annexes": "1-2 phrases de mention méthodologique (ABC, facteurs d'émission ADEME)"
+}`
     }
 
     if (module === "prediag") {
@@ -158,13 +178,29 @@ Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur 
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 4000,
+        max_tokens: module === "agecarbon" ? 6000 : 4000,
         messages: [{ role: "user", content: prompt }],
       }),
     })
 
-    const result = await response.json()
+  const result = await response.json()
     const texte = result.content?.[0]?.text ?? ""
+
+    if (module === "agecarbon") {
+      let rapportStructure
+      try {
+        const nettoye = texte.replace(/^```json\s*|\s*```$/g, "").trim()
+        rapportStructure = JSON.parse(nettoye)
+      } catch (parseError) {
+        return new Response(JSON.stringify({ error: "Réponse IA non conforme au format JSON attendu.", brut: texte }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      return new Response(JSON.stringify({ rapport_structure: rapportStructure }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
 
     return new Response(JSON.stringify({ rapport: texte }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
