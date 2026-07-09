@@ -52,7 +52,7 @@ export default function AGEcarbon() {
           <Calculator size={22} color="#2F7D5C" />
         </div>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1F2937', margin: 0 }}>AGEcarbon</h1>
+          <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1F2937', margin: 0 }}>AGEcarbone</h1>
           <p style={{ fontSize: '13px', color: '#78716C', margin: 0 }}>
             Calculateur Bilan Carbone® — Méthodologie ABC — 14 postes Scope 1, 2, 3
           </p>

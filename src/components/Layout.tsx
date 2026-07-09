@@ -232,7 +232,7 @@ function EnvironnementMenu() {
             style={{ fontSize: '12px', padding: '6px 10px' }}
           >
             <i className="ti ti-calculator nav-item__icon" style={{ fontSize: '14px' }} />
-            <span className="nav-item__label">AGEcarbon</span>
+            <span className="nav-item__label">AGEcarbone</span>
           </NavLink>
         </div>
       )}
