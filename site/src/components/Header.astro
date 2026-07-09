@@ -1,10 +1,17 @@
 ---
-const links = [
-  { href: '/solutions', label: 'Solutions' },
-  { href: '/tarifs', label: 'Tarifs' },
-  { href: '/blog', label: 'Ressources' },
-  { href: '/a-propos', label: 'À propos' },
-  { href: '/contact', label: 'Contact' },
+const solutions = [
+  { href: '/solutions/ageprevention', label: 'AGEprévention' },
+  { href: '/solutions/ageadapt', label: 'AGEadapt' },
+  { href: '/solutions/agecarbon', label: 'AGEcarbon' },
+  { href: '/solutions/ageplace', label: 'AGEplace' },
+];
+const audiences = [
+  { href: '/vous-etes/particulier', label: 'Particulier' },
+  { href: '/vous-etes/notaire', label: 'Notaire' },
+  { href: '/vous-etes/assureur', label: 'Assureur' },
+  { href: '/vous-etes/banque', label: 'Banque' },
+  { href: '/vous-etes/collectivite', label: 'Collectivité' },
+  { href: '/vous-etes/entreprise', label: 'Entreprise' },
 ];
 ---
 
@@ -14,9 +21,28 @@ const links = [
 
     <nav class="main-nav" aria-label="Navigation principale">
       <ul>
-        {links.map((link) => (
-          <li><a href={link.href}>{link.label}</a></li>
-        ))}
+        <li class="has-dropdown">
+          <button class="dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+            Solutions <span class="chevron" aria-hidden="true">⌄</span>
+          </button>
+          <ul class="dropdown-menu">
+            {solutions.map((item) => (
+              <li><a href={item.href}>{item.label}</a></li>
+            ))}
+          </ul>
+        </li>
+        <li class="has-dropdown">
+          <button class="dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+            Vous êtes <span class="chevron" aria-hidden="true">⌄</span>
+          </button>
+          <ul class="dropdown-menu">
+            {audiences.map((item) => (
+              <li><a href={item.href}>{item.label}</a></li>
+            ))}
+          </ul>
+        </li>
+        <li><a href="/a-propos">À propos</a></li>
+        <li><a href="/contact">Contact</a></li>
       </ul>
     </nav>
 
@@ -53,9 +79,10 @@ const links = [
   }
   .logo span { color: var(--color-primary); }
 
-  .main-nav ul {
+ .main-nav > ul {
     list-style: none;
     display: flex;
+    align-items: center;
     gap: var(--space-6);
     margin: 0;
     padding: 0;
@@ -67,6 +94,75 @@ const links = [
     font-weight: 500;
   }
   .main-nav a:hover { color: var(--color-primary); }
+
+  .has-dropdown {
+    position: relative;
+  }
+  .dropdown-trigger {
+    background: none;
+    border: none;
+    font-family: inherit;
+    color: var(--color-text);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+  }
+  .has-dropdown:hover .dropdown-trigger,
+  .has-dropdown:focus-within .dropdown-trigger {
+    color: var(--color-primary);
+  }
+  .chevron {
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+  }
+  .has-dropdown:hover .chevron,
+  .has-dropdown:focus-within .chevron {
+    transform: rotate(180deg);
+  }
+  .dropdown-menu {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--space-2) 0;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    z-index: 20;
+  }
+  .has-dropdown:hover .dropdown-menu,
+  .has-dropdown:focus-within .dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  .dropdown-menu li { padding: 0; }
+  .dropdown-menu a {
+    display: block;
+    padding: var(--space-2) var(--space-4);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--fs-small);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .dropdown-menu a:hover {
+    color: var(--color-primary);
+    background: var(--color-bg);
+  }
 
   .header-actions {
     display: flex;

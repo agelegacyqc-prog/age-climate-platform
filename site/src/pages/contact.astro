@@ -1,0 +1,206 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const profils = [
+  { value: 'particulier', label: 'Particulier' },
+  { value: 'notaire', label: 'Notaire' },
+  { value: 'assureur', label: 'Assureur' },
+  { value: 'banque', label: 'Banque' },
+  { value: 'collectivite', label: 'Collectivité' },
+  { value: 'entreprise', label: 'Entreprise' },
+  { value: 'autre', label: 'Autre' },
+];
+---
+
+<Layout title="Contact — AGE-QC">
+  <section class="hero">
+    <div class="container hero-content">
+      <p class="eyebrow mono">Contact</p>
+      <h1>Parlons de votre projet.</h1>
+      <p class="lead">
+        Une question, une démo, un dossier à évaluer ? Décrivez-nous votre
+        besoin, nous revenons vers vous rapidement.
+      </p>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="container form-wrap">
+      <form id="contact-form" class="card contact-form">
+        <div class="field">
+          <label for="nom">Nom complet *</label>
+          <input type="text" id="nom" name="nom" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email *</label>
+          <input type="email" id="email" name="email" required />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="telephone">Téléphone</label>
+            <input type="tel" id="telephone" name="telephone" />
+          </div>
+          <div class="field">
+            <label for="organisation">Organisation</label>
+            <input type="text" id="organisation" name="organisation" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="profil">Vous êtes *</label>
+          <select id="profil" name="profil" required>
+            <option value="" disabled selected>Choisissez un profil</option>
+            {profils.map((p) => (
+              <option value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="message">Message *</label>
+          <textarea id="message" name="message" rows="5" required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          Envoyer
+        </button>
+
+        <p id="form-feedback" class="form-feedback" role="status"></p>
+      </form>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { createClient } from '@supabase/supabase-js';
+
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  const form = document.getElementById('contact-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const feedback = document.getElementById('form-feedback') as HTMLParagraphElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Envoi en cours...';
+    feedback.textContent = '';
+    feedback.className = 'form-feedback';
+
+    const formData = new FormData(form);
+    const payload = {
+      nom: formData.get('nom') as string,
+      email: formData.get('email') as string,
+      telephone: (formData.get('telephone') as string) || null,
+      organisation: (formData.get('organisation') as string) || null,
+      profil: formData.get('profil') as string,
+      message: formData.get('message') as string,
+    };
+
+    const { error } = await supabase.from('demandes_contact_site').insert(payload);
+
+    if (error) {
+      feedback.textContent = "Une erreur est survenue. Merci de réessayer ou de nous contacter par email.";
+      feedback.classList.add('error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Envoyer';
+    } else {
+      form.reset();
+      feedback.textContent = 'Merci, votre message a bien été envoyé. Nous revenons vers vous rapidement.';
+      feedback.classList.add('success');
+      submitBtn.textContent = 'Envoyé';
+    }
+  });
+</script>
+
+<style>
+  .hero {
+    padding: var(--space-16) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .hero-content {
+    max-width: 640px;
+  }
+  .eyebrow {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-accent-text);
+    margin-bottom: var(--space-4);
+  }
+  .hero h1 {
+    font-size: var(--fs-hero);
+    margin-bottom: var(--space-4);
+  }
+  .lead {
+    font-size: 1.125rem;
+    color: var(--color-text-secondary);
+  }
+
+  .form-section {
+    padding: var(--space-16) 0;
+  }
+  .form-wrap {
+    max-width: 640px;
+  }
+  .contact-form {
+    padding: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+  }
+  label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+  input,
+  select,
+  textarea {
+    font-family: var(--font-body, inherit);
+    font-size: var(--fs-small);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--color-text);
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+  textarea {
+    resize: vertical;
+  }
+  .form-feedback {
+    font-size: var(--fs-small);
+    margin: 0;
+    min-height: 1.2em;
+  }
+  .form-feedback.success {
+    color: var(--color-primary);
+  }
+  .form-feedback.error {
+    color: #B91C1C;
+  }
+
+  @media (max-width: 640px) {
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>

@@ -1,0 +1,199 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const solutions = [
+  {
+    name: 'AGEprévention',
+    desc: 'Évaluer l\'exposition climatique d\'un bien avant financement.',
+    href: '/solutions/ageprevention',
+  },
+  {
+    name: 'AGEcarbone',
+    desc: 'Mesurer l\'empreinte carbone des actifs financés.',
+    href: '/solutions/agecarbone',
+  },
+];
+---
+
+<Layout title="Banque — AGE-QC">
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow mono">Vous êtes banque</p>
+        <h1>Intégrer le risque climatique à votre analyse de crédit.</h1>
+        <p class="lead">
+          Un bien exposé aux aléas climatiques peut perdre de la valeur sur
+          la durée du prêt. AGE-QC vous donne une lecture claire du risque
+          pour sécuriser vos garanties et affiner vos décisions de
+          financement.
+        </p>
+        <div class="hero-actions">
+          <a href="/contact" class="btn btn-primary">Demander une démo</a>
+          <a href="/solutions" class="btn btn-secondary">Voir les solutions</a>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <img
+          src="/images/vous-etes/banque.jpg"
+          alt="Analyse de dossier de financement immobilier en banque"
+          class="hero-image"
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="benefits">
+    <div class="container">
+      <h2>Pourquoi intégrer AGE-QC à votre analyse crédit ?</h2>
+      <div class="benefits-grid">
+        <div class="card benefit-card">
+          <h3>Sécuriser la garantie</h3>
+          <p>
+            Anticiper la dépréciation climatique d'un bien hypothéqué sur
+            toute la durée du prêt.
+          </p>
+        </div>
+        <div class="card benefit-card">
+          <h3>Répondre aux exigences réglementaires</h3>
+          <p>
+            Documenter le risque physique climatique dans vos obligations de
+            reporting extra-financier (CSRD, taxonomie).
+          </p>
+        </div>
+        <div class="card benefit-card">
+          <h3>Piloter les encours</h3>
+          <p>
+            Une vision consolidée de l'exposition climatique de votre
+            portefeuille de prêts immobiliers.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="modules-teaser">
+    <div class="container">
+      <h2>Les solutions qui vous concernent</h2>
+      <div class="modules-grid">
+        {solutions.map((s) => (
+          <a class="card module-card" href={s.href}>
+            <h3>{s.name}</h3>
+            <p>{s.desc}</p>
+            <span class="module-link mono">En savoir plus →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .hero {
+    padding: var(--space-16) 0;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: var(--space-12);
+    align-items: center;
+  }
+  .eyebrow {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-accent-text);
+    margin-bottom: var(--space-4);
+  }
+  .hero h1 {
+    font-size: var(--fs-hero);
+    margin-bottom: var(--space-4);
+  }
+  .lead {
+    font-size: 1.125rem;
+    color: var(--color-text-secondary);
+    max-width: 46ch;
+    margin-bottom: var(--space-8);
+  }
+  .hero-actions {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .hero-image {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-card);
+    object-fit: cover;
+    display: block;
+  }
+
+  .benefits {
+    padding: var(--space-16) 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .benefits h2 {
+    font-size: var(--fs-h2);
+    margin-bottom: var(--space-8);
+  }
+  .benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-6);
+  }
+  .benefit-card {
+    padding: var(--space-6);
+  }
+  .benefit-card h3 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--space-2);
+  }
+  .benefit-card p {
+    font-size: var(--fs-small);
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  .modules-teaser {
+    padding: var(--space-16) 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .modules-teaser h2 {
+    font-size: var(--fs-h2);
+    margin-bottom: var(--space-8);
+  }
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-6);
+  }
+  .module-card {
+    padding: var(--space-6);
+    text-decoration: none;
+    color: var(--color-text);
+    display: block;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .module-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(17,17,17,0.08);
+  }
+  .module-card h3 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--space-2);
+  }
+  .module-card p {
+    font-size: var(--fs-small);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-4);
+  }
+  .module-link {
+    font-size: var(--fs-small);
+    color: var(--color-accent-text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+  }
+</style>
