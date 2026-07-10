@@ -1,0 +1,54 @@
+# To better understand this file read this:
+# https://docs.ionos.space/docs/github-actions-customization/
+
+name: "Deploy Now: Execute Build"
+
+on:
+  workflow_call:
+    inputs:
+      site-url:
+        required: true
+        type: string
+      branch-id:
+        required: true
+        type: string
+
+env:
+  DEPLOYMENT_FOLDER: site/dist
+
+jobs:
+# Please do not rename this job
+  build-project:
+    name: build age-climate-platform
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Run script
+# uncomment the following lines if you want to add environment variables for this step
+#        env:
+#          MY_ENV_VAR: value-for-my-env-var
+#          MY_SECRET_ENV_VAR: ${{ secrets.MY_SECRET }} # here you can find information how to create secrets: https://docs.github.com/en/actions/security-guides/encrypted-secrets
+        run: cd site && npm install
+
+      - name: Run script
+        env:
+          PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrY2x2ZnNibHNqcHV5Y2pmaXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1OTUyOTAsImV4cCI6MjA5NDE3MTI5MH0.QXHUn86DFZdMfqBi8uyr3coBuq4DFAOXfr9fXTRiG48
+          PUBLIC_SUPABASE_URL: https://vkclvfsblsjpuycjfiso.supabase.co
+        run: cd site && npm run build
+
+# Please do not touch the following action
+      - name: Store deployment content
+        uses: ionos-deploy-now/artifact-action@v1
+        with:
+          api-key: ${{ secrets.IONOS_API_KEY }}
+          service-host: api-eu.ionos.space
+          project-id: 558bea35-2ee9-40dd-9ada-736617851f5a
+          branch-id: ${{ inputs.branch-id }}
+          version: ${{ github.sha }}
+          folder: ${{ env.DEPLOYMENT_FOLDER }}
+          config-file: .deploy-now/age-climate-platform/config.yaml
+          action: upload
