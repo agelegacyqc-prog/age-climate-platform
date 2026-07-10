@@ -2,8 +2,8 @@
 > Source de vérité du suivi de développement · Mis à jour à chaque session Claude
 > Format statut : `[ ]` À faire · `[~]` En cours · `[x]` Terminé
 
-**Dernière mise à jour :** 08/07/2026
-**Rapport de référence :** Session 08/07/2026 — P3-25 clos (AGEcarbon : import données monétaires, reclassement poste/scope sur référentiel partagé, ajout de ligne manuelle, correctif calcul `abc_resultats` absent, correctif filtre montant=0, correctif désync poste saisie/facteur, policies RLS `abc_facteurs_emission`). Session précédente 03/07/2026 — P3-22 clos (simulateur tarifaire §4.1/§4.2 centralisé dans `src/lib/ageadaptTarif.ts`, 27 tests Vitest, câblé dans `AGEadaptMission.tsx`), P3-19 clos (onglet « Plan d'actions » CRUD complet dans `AGEadaptFiche.tsx` + KPI « tCO₂e évitées » du dashboard connecté à `ageadapt_actions`, hors actions abandonnées).
+**Dernière mise à jour :** 09/07/2026
+**Rapport de référence :** Session 09/07/2026 — P3-26 en cours (AGEcarbon : rapport IA généré depuis la page Résultats, PDF multi-pages avec graphiques Recharts rasterisés, structure dynamique par poste réel du bilan — voir détail ci-dessous, non testé de bout en bout, pas encore clos). Session précédente 08/07/2026 — P3-25 clos (AGEcarbon : import données monétaires, reclassement poste/scope sur référentiel partagé, ajout de ligne manuelle, correctif calcul `abc_resultats` absent, correctif filtre montant=0, correctif désync poste saisie/facteur, policies RLS `abc_facteurs_emission`).
 
 ---
 
@@ -95,6 +95,7 @@
 | P3-23 | AGEadapt | Rapport IA enrichi — sortie JSON structurée du prompt `generate-rapport` + rendu graphique (matrice probabilité×intensité, radar de criticité, cartes de recommandation avec timeline) rattaché à la v2.0 déjà prévue en fiche (« rapport pré-diagnostic via Claude API »). Gabarit visuel cible : rapport « Pierre Fabre Médicament » fourni le 02/07/2026 (gabarit uniquement, pas de contenu par défaut) | `[ ]` |
 | P3-24 | AGEadapt | Police Unicode embarquée dans jsPDF (`AGEadaptFiche.tsx`) — remplace la désaccentuation actuelle des libellés PDF, contraire à la règle socle « libellés repris mot pour mot » | `[ ]` |
 | P3-25 | AGEcarbon | **Import données monétaires + gestion du référentiel de facteurs** — voir détail ci-dessous | `[x]` 08/07/2026 |
+| P3-26 | AGEcarbon | **Rapport IA conforme (bouton page Résultats)** — génération PDF via Claude API, reproduisant la structure du gabarit `Bilan_Carbone_Exemple__Tech.pdf`, à partir des données réelles `abc_resultats`/`abc_barometre_employes` — voir détail ci-dessous | `[~]` en cours |
 
 ### Détail P3-22 — Tests unitaires simulateur tarifaire (clos)
 
@@ -144,6 +145,27 @@ CREATE POLICY "abc_facteurs_emission_update" ON abc_facteurs_emission FOR UPDATE
 - Désynchronisation possible entre `abc_saisies.poste` et `abc_facteurs_emission.poste` après un reclassement : `handleSavePoste` écrivait `saisie.poste` (valeur locale mémorisée, potentiellement obsolète) au lieu du poste actuel du facteur. Correctif : lecture de `facteurs.find(f => f.id === saisie.facteur_id)?.poste` au moment de la sauvegarde.
 
 **Nouveau facteur ajouté au référentiel** : « Électricité mix-énergétique » (poste `energie`, scope 2, 0,052 kg CO₂e/kWh, mode physique).
+
+### Détail P3-26 — AGEcarbon : rapport IA conforme (en cours)
+
+**Fait le 09/07/2026 :**
+- Table `abc_barometre_employes` créée (bilan_id unique, 15 champs : télétravail, déplacements domicile-travail, répartition des modes, sensibilisation/satisfaction climat) + RLS `admin`/`admin_national`/`responsable_regional`/`consultant`.
+- `BarometreEmployesModal.tsx` créé (`src/components/`) — formulaire de saisie consultant (chiffres agrégés, pas de questionnaire diffusé aux employés), upsert par `bilan_id`, saisie FR (point et virgule acceptés).
+- `AGEcarbonResultats.tsx` : bouton "Baromètre employés" + bouton "Générer rapport IA" ajoutés dans le header, aux côtés du bouton "Exporter PDF" existant.
+- Edge Function `generate-rapport` (`supabase/functions/generate-rapport/index.ts`) : branche `module === "agecarbon"` réécrite pour renvoyer un JSON structuré (`rapport_structure`) au lieu d'un texte libre — sections `synthese`, `resultats_par_poste` (dynamique, un poste = une entrée basée sur les postes réellement présents dans `abc_resultats` du bilan, pas les 9 postes fixes du gabarit exemple), `teletravail`, `barometre_employes`, `agir`, `annexes`. Chiffres (tCO₂e, %) injectés depuis les données réelles, jamais générés par l'IA — l'IA ne produit que du commentaire qualitatif. `max_tokens` porté à 6000 pour ce module. Testé isolément via Dashboard Supabase (payload de test), réponse JSON valide confirmée. Déployé via `supabase functions deploy generate-rapport --project-ref vkclvfsblsjpuycjfiso`.
+- `src/lib/agecarbonRapportIA.ts` créé — appelle l'Edge Function via `supabase.functions.invoke()` (pattern à confirmer contre `PreDiagDrawer.tsx`, non vérifié en session), récupère bilan + `abc_resultats` + `abc_barometre_employes`.
+- `src/lib/agecarbonRapportPDF.ts` créé — construction du PDF multi-pages avec jsPDF : page de couverture, sections Introduction/Synthèse/Résultats/Agir/Annexes avec fil de navigation reproduisant le gabarit, blocs statistiques colorés, barres de progression, badges numérotés pour le plan d'actions, cercles décoratifs. Nombre de pages variable selon le nombre de postes réels du bilan (pas fixé à 17, décision actée : postes dynamiques plutôt que la liste fixe du gabarit exemple).
+- `src/components/GenerateurRapportIA.tsx` créé — rend les graphiques Recharts (donut scopes, barres par poste, répartition modes de déplacement si baromètre rempli) hors-écran, les rasterise via `html2canvas` (`pnpm add html2canvas`), appelle l'Edge Function, construit et télécharge le PDF.
+
+**Bugs corrigés en session :**
+- Texte IA tronqué dans le PDF : le caractère Unicode subscript `₂` (utilisé par Claude dans "tCO₂e") corrompait le calcul de largeur de `splitTextToSize()` de jsPDF (police Helvetica standard, non-Unicode), faisant disparaître des morceaux de texte adjacents. Correctif : fonction `nettoyerTexteJsPDF()` normalisant les subscripts en chiffres classiques avant tout rendu texte.
+- Graphiques vides dans le PDF : l'animation par défaut de Recharts (croissance progressive via `clipPath` SVG) casse la capture `html2canvas` (référence de `clipPath` perdue lors du clonage DOM). Correctif : `isAnimationActive={false}` sur `Pie` et `Bar`.
+- Graphique "Émissions par poste" affichait certains postes en double (ex. "energie" et "intrants" apparaissaient deux fois) : `abc_resultats` stocke une ligne par couple poste/scope (cf. règle 25 du backlog), donc un poste couvrant plusieurs scopes générait plusieurs barres. Correctif : fusion par poste (`parPosteDetail`) avant construction du graphique de synthèse — le détail par scope reste visible dans le tableau à l'écran de `AGEcarbonResultats.tsx`, non impacté.
+
+**Reste à faire avant clôture :**
+- Test de bout en bout complet non encore confirmé par le PO (génération + téléchargement + relecture complète du contenu sur un bilan réel).
+- Vérifier que le pattern d'appel `supabase.functions.invoke()` dans `agecarbonRapportIA.ts` correspond bien à celui utilisé par `PreDiagDrawer.tsx` (jamais confirmé en session — supposition non vérifiée).
+- Mise en page validée visuellement par le PO une fois (round 1 "pas satisfaisant" → densification appliquée), mais pas revalidée depuis le dernier correctif.
 
 ### Détail P3-19 — Écran de gestion `ageadapt_actions` (clos)
 
@@ -350,3 +372,6 @@ CREATE POLICY "abc_facteurs_emission_update" ON abc_facteurs_emission FOR UPDATE
 25. AGEcarbon : `abc_resultats` n'est **jamais** recalculé automatiquement par un simple update de `abc_bilans` — toujours appeler `handleRecalculerResultats()` (delete + insert par couple poste/scope) après toute modification touchant `abc_saisies` (enregistrement de poste, reclassement poste/scope, ajout de ligne).
 26. AGEcarbon : dans tout filtre sur les saisies avant écriture (`handleSavePoste` et équivalents), ne jamais filtrer uniquement sur `quantite > 0 || montant_eur > 0` — une ligne déjà enregistrée doit toujours être incluse même remise à 0, sous peine de laisser une ancienne valeur figée en base. Toujours ajouter `|| s.id` (ou équivalent) au filtre.
 27. AGEcarbon : au moment d'écrire `abc_saisies.poste`, toujours relire le poste **actuel** du facteur (`facteurs.find(...).poste`), jamais la valeur mémorisée sur l'objet `saisie` local — celle-ci peut être obsolète après un reclassement de poste effectué entre deux sauvegardes.
+28. AGEcarbon : `abc_barometre_employes` est un formulaire de saisie **consultant** (chiffres agrégés), pas un questionnaire diffusé aux employés — ne pas construire de module d'authentification/diffusion employé sans nouvelle demande explicite.
+29. AGEcarbon : jsPDF (police Helvetica standard) ne supporte pas les caractères Unicode subscript (`₀`-`₉`) — toujours passer le texte par `nettoyerTexteJsPDF()` (ou équivalent) avant tout `doc.text()`/`splitTextToSize()`, sous peine de troncature silencieuse de texte adjacent.
+30. AGEcarbon : les graphiques Recharts destinés à un export `html2canvas` doivent avoir `isAnimationActive={false}` — l'animation par défaut (clipPath SVG) casse la capture (image vide).
