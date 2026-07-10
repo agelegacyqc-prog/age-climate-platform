@@ -1,0 +1,182 @@
+---
+// src/pages/mentions-legales.astro
+import Layout from "../layouts/layout.astro";
+---
+
+<Layout title="Mentions légales" description="Mentions légales du site age-qc.com">
+  <div class="legal-page">
+    <section class="legal-hero">
+      <p class="eyebrow">AGE-QC</p>
+      <h1>Mentions légales</h1>
+      <p class="updated">Dernière mise à jour : 10 juillet 2026</p>
+    </section>
+
+    <section class="legal-content">
+      <p>
+        Conformément aux dispositions de l'article 6-III de la loi n°2004-575 du 21 juin 2004
+        pour la confiance dans l'économie numérique (LCEN), il est précisé aux utilisateurs du
+        site age-qc.com l'identité des différents intervenants dans le cadre de sa réalisation
+        et de son suivi.
+      </p>
+
+      <h2>1. Éditeur du site</h2>
+      <p>Le site age-qc.com est édité par :</p>
+      <ul class="legal-list">
+        <li><strong>Dénomination sociale :</strong> CAPTB</li>
+        <li><strong>Forme juridique :</strong> Société par Actions Simplifiée (SAS)</li>
+        <li><strong>Capital social :</strong> 40 800 €</li>
+        <li><strong>Siège social :</strong> 80 Boulevard de l'Europe, ZAC de l'Anjoly, 13127 Vitrolles</li>
+        <li><strong>RCS :</strong> Salon-de-Provence, immatriculée le 20/04/2006</li>
+        <li><strong>SIRET :</strong> 451 299 986 00021</li>
+        <li><strong>N° TVA intracommunautaire :</strong> FR63451299986</li>
+        <li><strong>Email :</strong> <a href="mailto:contact@age-qc.com">contact@age-qc.com</a></li>
+      </ul>
+
+      <h2>2. Directeur de la publication</h2>
+      <ul class="legal-list">
+        <li><strong>Nom :</strong> Hubert Roche</li>
+        <li><strong>Qualité :</strong> Président</li>
+      </ul>
+
+      <h2>3. Hébergement du site</h2>
+      <p>Le site age-qc.com est hébergé par :</p>
+      <ul class="legal-list">
+        <li><strong>Société :</strong> 1&amp;1 IONOS SARL</li>
+        <li><strong>Adresse :</strong> 7 place de la Gare, 57200 Sarreguemines, France</li>
+        <li><strong>RCS :</strong> Sarreguemines 431 303 775</li>
+        <li><strong>Téléphone :</strong> 0970 808 911</li>
+        <li><strong>Email :</strong> <a href="mailto:support@ionos.fr">support@ionos.fr</a></li>
+        <li><strong>Site web :</strong> <a href="https://www.ionos.fr" target="_blank" rel="noopener noreferrer">ionos.fr</a></li>
+      </ul>
+
+      <h2>4. Conception et développement</h2>
+      <p><strong>Réalisation :</strong> CAPTB</p>
+
+      <h2>5. Propriété intellectuelle</h2>
+      <p>
+        L'ensemble des éléments composant le site age-qc.com (textes, graphismes, logos, icônes,
+        images, structure, logiciels, etc.) est la propriété exclusive de CAPTB, sauf mention
+        contraire, et est protégé par les lois françaises et internationales relatives à la
+        propriété intellectuelle.
+      </p>
+      <p>
+        Toute reproduction, représentation, modification, publication ou adaptation de tout ou
+        partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite
+        sans autorisation écrite préalable de CAPTB.
+      </p>
+
+      <h2>6. Données personnelles</h2>
+      <p>
+        Les informations relatives à la collecte et au traitement des données personnelles des
+        utilisateurs du site sont détaillées dans la
+        <a href="/politique-de-confidentialite">Politique de confidentialité</a>.
+      </p>
+      <p>
+        Pour toute question relative à vos données personnelles, vous pouvez contacter :
+        <a href="mailto:contact@age-qc.com">contact@age-qc.com</a>
+      </p>
+
+      <h2>7. Cookies</h2>
+      <p>Le site age-qc.com n'utilise pas de cookies de traçage tiers.</p>
+
+      <h2>8. Limitation de responsabilité</h2>
+      <p>
+        CAPTB s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur
+        le site, mais ne peut garantir l'exhaustivité, l'exactitude ou l'actualité des
+        informations mises à disposition. En conséquence, CAPTB décline toute responsabilité pour
+        toute imprécision, inexactitude ou omission portant sur des informations disponibles sur
+        le site.
+      </p>
+
+      <h2>9. Droit applicable et juridiction compétente</h2>
+      <p>
+        Les présentes mentions légales sont soumises au droit français. En cas de litige, et à
+        défaut d'accord amiable, les tribunaux français seront seuls compétents.
+      </p>
+
+      <h2>10. Contact</h2>
+      <ul class="legal-list">
+        <li><strong>Par email :</strong> <a href="mailto:contact@age-qc.com">contact@age-qc.com</a></li>
+        <li><strong>Par courrier :</strong> 80 Boulevard de l'Europe, ZAC de l'Anjoly, 13127 Vitrolles</li>
+      </ul>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .legal-page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+  }
+
+  .legal-hero {
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--font-display);
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 0.5rem;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    color: var(--color-secondary);
+    margin: 0 0 0.5rem;
+  }
+
+  .updated {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .legal-content h2 {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    color: var(--color-primary);
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: 0.4rem;
+    margin: 2.5rem 0 1rem;
+  }
+
+  .legal-content p {
+    line-height: 1.7;
+    color: var(--color-text);
+    margin: 0 0 1rem;
+  }
+
+  .legal-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+  }
+
+  .legal-list li {
+    padding: 0.3rem 0;
+    line-height: 1.6;
+    color: var(--color-text);
+  }
+
+  .legal-note {
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+  }
+
+  .legal-content a {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
+
+  .legal-content a:hover {
+    color: var(--color-accent, #1f8f6b);
+  }
+</style>
