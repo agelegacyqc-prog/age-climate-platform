@@ -17,7 +17,7 @@ const nextSlug = slugsOrder[(currentIndex + 1) % slugsOrder.length];
 const nextSolution = solutions[nextSlug];
 ---
 
-<Layout title={`${s.nom} — AGE-QC`}>
+<Layout title={`${s.nom} — AGE-QC`} description={s.intro}>
   <section class="hero">
     <div class="badge">{s.numero}</div>
     <p class="eyebrow">{s.etape}</p>

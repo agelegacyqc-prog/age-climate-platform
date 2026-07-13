@@ -3,31 +3,33 @@ import Layout from '../layouts/Layout.astro';
 import DecayCurve from '../components/DecayCurve.astro';
 
 const solutions = [
- {
+  {
     name: 'AGEprévention',
-    
+    desc: "Anticiper les aléas avant qu'ils ne coûtent.",
     href: '/solutions/ageprevention',
   },
   {
     name: 'AGEadapt',
-    
+    desc: 'Passer du diagnostic à l\'action.',
     href: '/solutions/ageadapt',
   },
   {
     name: 'AGEcarbone',
-    
+    desc: "Mesurer l'empreinte, piloter la trajectoire.",
     href: '/solutions/agecarbone',
   },
   {
-   name: 'AGEplace',
-    
+    name: 'AGEplace',
+    desc: 'Des experts, au bon moment.',
     href: '/solutions/ageplace',
   },
- 
 ];
 ---
 
-<Layout title="Accueil">
+<Layout
+  title="Accueil"
+  description="AGE-QC évalue et pilote la valeur de vos actifs immobiliers face au risque climatique : diagnostic, décote, adaptation et suivi de travaux."
+>
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy">
