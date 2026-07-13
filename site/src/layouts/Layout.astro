@@ -46,6 +46,18 @@ const ogImageURL = new URL(image, Astro.site);
     <meta name="twitter:title" content={`${title} · AGE-QC`} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageURL} />
+
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "AGE-QC",
+      "url": "https://age-qc.com",
+      "logo": "https://age-qc.com/images/logo.png",
+      "description": "AGE-QC évalue et pilote le risque climatique des actifs immobiliers : diagnostic, décote climatique, adaptation et carbone.",
+      "sameAs": [
+        "https://www.linkedin.com/company/greenage-assets-services/"
+      ]
+    })} />
   </head>
   <body>
     <Header />
