@@ -34,26 +34,26 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
 
 <style>
   .news-page {
-    max-width: 800px;
+    max-width: 760px;
     margin: 0 auto;
-    padding: 64px 24px;
+    padding: 48px 24px 80px;
   }
 
   .news-header {
-    margin-bottom: 48px;
+    margin-bottom: 40px;
   }
 
   .news-header h1 {
     font-family: 'Space Grotesk', sans-serif;
     font-size: 40px;
     font-weight: 600;
-    color: var(--color-secondary, #111111);
-    margin: 0 0 12px;
+    color: #111111;
+    margin: 0 0 10px;
   }
 
   .news-header p {
     font-family: 'Inter', sans-serif;
-    font-size: 16px;
+    font-size: 17px;
     color: #555;
   }
 
@@ -62,14 +62,17 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
     margin: 0;
     padding: 0;
     position: relative;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(17, 17, 17, 0.06);
   }
 
   .news-feed::before {
     content: '';
     position: absolute;
-    left: 76px;
-    top: 8px;
-    bottom: 8px;
+    left: 84px;
+    top: 28px;
+    bottom: 28px;
     width: 1px;
     background: #E5E1DA;
   }
@@ -82,15 +85,18 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
     display: grid;
     grid-template-columns: 64px 24px 1fr;
     align-items: start;
-    gap: 0;
     text-decoration: none;
     color: inherit;
-    padding: 20px 0;
-    border-bottom: 1px solid #ECEAE5;
+    padding: 22px 24px 22px 20px;
+    transition: background 0.15s ease;
   }
 
-  .news-feed li:last-child a {
-    border-bottom: none;
+  .news-feed a:hover {
+    background: #FAFAF8;
+  }
+
+  .news-feed li:not(:last-child) a {
+    border-bottom: 1px solid #ECEAE5;
   }
 
   time {
@@ -101,13 +107,14 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
   }
 
   .marker {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: var(--color-accent-mint, #3FCDA0);
-    margin: 6px auto 0;
+    background: #3FCDA0;
+    margin: 5px auto 0;
     position: relative;
     z-index: 1;
+    box-shadow: 0 0 0 3px #fff;
   }
 
   .news-content h2 {
@@ -115,7 +122,7 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
     font-size: 17px;
     font-weight: 600;
     margin: 0 0 6px;
-    color: var(--color-secondary, #111111);
+    color: #111111;
   }
 
   .news-content p {
@@ -132,6 +139,7 @@ const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.va
     }
     .news-feed a {
       grid-template-columns: 40px 20px 1fr;
+      padding: 18px 16px;
     }
     time {
       font-size: 10px;

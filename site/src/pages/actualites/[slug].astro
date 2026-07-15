@@ -53,7 +53,7 @@ const jsonLd = {
   .news-item-page {
     max-width: 640px;
     margin: 0 auto;
-    padding: 64px 24px 96px;
+    padding: 48px 24px 96px;
   }
 
   .back-link {
@@ -62,11 +62,11 @@ const jsonLd = {
     color: #555;
     text-decoration: none;
     display: inline-block;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
   }
 
   .back-link:hover {
-    color: var(--color-primary, #3F7A5D);
+    color: #3F7A5D;
   }
 
   time {
@@ -80,7 +80,7 @@ const jsonLd = {
     font-size: 28px;
     font-weight: 600;
     margin: 12px 0 32px;
-    color: var(--color-secondary, #111111);
+    color: #111111;
   }
 
   .news-body {
@@ -88,13 +88,21 @@ const jsonLd = {
     font-size: 16px;
     line-height: 1.7;
     color: #222;
+    background: #fff;
+    padding: 28px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(17, 17, 17, 0.06);
   }
 
   .news-body :global(p) {
     margin: 0 0 18px;
   }
 
+  .news-body :global(p:last-child) {
+    margin: 0;
+  }
+
   .news-body :global(a) {
-    color: var(--color-primary, #3F7A5D);
+    color: #3F7A5D;
   }
 </style>

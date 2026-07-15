@@ -47,14 +47,14 @@ const personaLinks: Record<string, string> = {
 };
 
 const solutionLinks: Record<string, { label: string; href: string }> = {
-  ageprevention: { label: 'AGEprévention', href: '/solutions/ageprevention' },
+  ageprevention: { label: 'AGEprevention', href: '/solutions/ageprevention' },
   ageadapt: { label: 'AGEadapt', href: '/solutions/ageadapt' },
   agecarbone: { label: 'AGEcarbone', href: '/solutions/agecarbone' },
   ageplace: { label: 'AGEplace', href: '/solutions/ageplace' },
 };
 ---
 
-<Layout title={`${post.data.title} — AGE-QC`} description={post.data.description}>
+<Layout title={`${post.data.title} - AGE-QC`} description={post.data.description}>
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
   <article class="post-page">
@@ -67,14 +67,14 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
       <h1>{post.data.title}</h1>
       <div class="meta">
         <span>{post.data.author}</span>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true">-</span>
         <time datetime={post.data.pubDate.toISOString()}>
           {post.data.pubDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
         </time>
         {post.data.updatedDate && (
           <>
-            <span aria-hidden="true">·</span>
-            <span>Mis à jour le {post.data.updatedDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <span aria-hidden="true">-</span>
+            <span>Mis a jour le {post.data.updatedDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </>
         )}
       </div>
@@ -92,12 +92,12 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
         <div class="related-links">
           {post.data.solution && solutionLinks[post.data.solution] && (
             <a href={solutionLinks[post.data.solution].href} class="related-link">
-              Découvrir {solutionLinks[post.data.solution].label} →
+              Decouvrir {solutionLinks[post.data.solution].label} -&gt;
             </a>
           )}
           {post.data.persona?.map((p) => personaLinks[p] && (
             <a href={personaLinks[p]} class="related-link">
-              Vous êtes {p} ? →
+              Vous etes {p} ? -&gt;
             </a>
           ))}
         </div>
@@ -105,7 +105,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
     )}
 
     <footer class="post-footer">
-      <a href="/blog" class="back-link">← Retour au blog</a>
+      <a href="/blog" class="back-link">&lt;- Retour au blog</a>
     </footer>
   </article>
 </Layout>
@@ -114,14 +114,14 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
   .post-page {
     max-width: 720px;
     margin: 0 auto;
-    padding: 64px 24px 96px;
+    padding: 48px 24px 96px;
   }
 
   .post-header h1 {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 36px;
+    font-size: 38px;
     font-weight: 600;
-    color: var(--color-secondary, #111111);
+    color: #111111;
     margin: 16px 0;
     line-height: 1.25;
   }
@@ -135,11 +135,10 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
   .tag {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
-    padding: 4px 10px;
+    padding: 4px 11px;
     border-radius: 20px;
-    background: #F2F2F0;
-    color: var(--color-primary, #3F7A5D);
-    border: 1px solid #E5E1DA;
+    background: #E1F5EE;
+    color: #0F6E56;
   }
 
   .meta {
@@ -155,6 +154,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
     width: 100%;
     border-radius: 16px;
     margin-bottom: 40px;
+    box-shadow: 0 4px 20px rgba(17, 17, 17, 0.08);
   }
 
   .post-body {
@@ -169,7 +169,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
     font-size: 24px;
     font-weight: 600;
     margin: 40px 0 16px;
-    color: var(--color-secondary, #111111);
+    color: #111111;
   }
 
   .post-body :global(h3) {
@@ -184,11 +184,11 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
   }
 
   .post-body :global(a) {
-    color: var(--color-primary, #3F7A5D);
+    color: #3F7A5D;
   }
 
   .related {
-    margin-top: 56px;
+    margin-top: 48px;
     padding: 24px;
     background: #F2F2F0;
     border-radius: 12px;
@@ -199,6 +199,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
     font-size: 16px;
     font-weight: 600;
     margin: 0 0 12px;
+    color: #111111;
   }
 
   .related-links {
@@ -210,7 +211,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
   .related-link {
     font-family: 'Inter', sans-serif;
     font-size: 14px;
-    color: var(--color-primary, #3F7A5D);
+    color: #3F7A5D;
     text-decoration: none;
     font-weight: 500;
   }
@@ -231,6 +232,6 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
   }
 
   .back-link:hover {
-    color: var(--color-primary, #3F7A5D);
+    color: #3F7A5D;
   }
 </style>
