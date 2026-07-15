@@ -1,0 +1,217 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const posts = allPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const [featured, ...rest] = posts;
+---
+
+<Layout title="Blog — AGE-QC" description="Analyses, guides et données sur le risque climatique immobilier.">
+  <section class="blog-page">
+    <header class="blog-header">
+      <h1>Blog</h1>
+      <p>Analyses, guides réglementaires et données sur le risque climatique immobilier.</p>
+    </header>
+
+    {featured && (
+      <a href={`/blog/${featured.slug}/`} class="featured-card">
+        {featured.data.image && <img src={featured.data.image} alt={featured.data.title} />}
+        <div class="featured-content">
+          {featured.data.tags.length > 0 && (
+            <div class="tags">
+              {featured.data.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </div>
+          )}
+          <h2>{featured.data.title}</h2>
+          <p>{featured.data.description}</p>
+          <time datetime={featured.data.pubDate.toISOString()}>
+            {featured.data.pubDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </time>
+        </div>
+      </a>
+    )}
+
+    <div class="posts-grid">
+      {rest.map((post) => (
+        <a href={`/blog/${post.slug}/`} class="post-card">
+          {post.data.image && <img src={post.data.image} alt={post.data.title} />}
+          {post.data.tags.length > 0 && (
+            <div class="tags">
+              {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </div>
+          )}
+          <h3>{post.data.title}</h3>
+          <p>{post.data.description}</p>
+          <time datetime={post.data.pubDate.toISOString()}>
+            {post.data.pubDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </time>
+        </a>
+      ))}
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .blog-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 64px 24px;
+  }
+
+  .blog-header {
+    margin-bottom: 48px;
+  }
+
+  .blog-header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--color-secondary, #111111);
+    margin: 0 0 12px;
+  }
+
+  .blog-header p {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    color: #555;
+    max-width: 560px;
+  }
+
+  .featured-card {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    text-decoration: none;
+    color: inherit;
+    margin-bottom: 56px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #E5E1DA;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .featured-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .featured-card img {
+    width: 100%;
+    height: 100%;
+    min-height: 280px;
+    object-fit: cover;
+  }
+
+  .featured-content {
+    padding: 32px 32px 32px 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .featured-content h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    margin: 12px 0;
+    color: var(--color-secondary, #111111);
+  }
+
+  .featured-content p {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: #444;
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+  }
+
+  .post-card {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #E5E1DA;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .post-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  .post-card img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+  }
+
+  .post-card h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 19px;
+    font-weight: 600;
+    margin: 16px 20px 8px;
+    color: var(--color-secondary, #111111);
+  }
+
+  .post-card p {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
+    margin: 0 20px 12px;
+  }
+
+  .tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 16px 20px 0;
+  }
+
+  .featured-content .tags {
+    margin: 0;
+  }
+
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #F2F2F0;
+    color: var(--color-primary, #3F7A5D);
+    border: 1px solid #E5E1DA;
+  }
+
+  time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    margin: 0 20px 20px;
+    display: block;
+  }
+
+  .featured-content time {
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    .featured-card {
+      grid-template-columns: 1fr;
+    }
+    .featured-content {
+      padding: 0 24px 24px;
+    }
+    .posts-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

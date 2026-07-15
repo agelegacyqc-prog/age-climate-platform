@@ -17,6 +17,11 @@ const audiences = [
   { href: '/vous-etes/entreprise', label: 'Entreprise' },
 ];
 
+const ressources = [
+  { href: '/blog', label: 'Blog' },
+  { href: '/actualites', label: 'Actualités' },
+];
+
 const infos = [
   { href: '/a-propos', label: 'À propos' },
   { href: '/contact', label: 'Contact' },
@@ -24,11 +29,12 @@ const infos = [
   { href: '/politique-de-confidentialite', label: 'Politique de confidentialité' },
 ];
 ---
+---
 
 <footer class="site-footer">
   <div class="container footer-inner">
     <div>
-      <p class="logo">AGE-<span>QC</span></p>
+      <img src="/images/logo.png" alt="AGE-QC" class="footer-logo-img" />
       <p class="tagline">Décote climatique, adaptation et carbone pour l'immobilier.</p>
     </div>
 
@@ -45,6 +51,15 @@ const infos = [
       <p class="nav-title">Vous êtes</p>
       <ul>
         {audiences.map((item) => (
+          <li><a href={item.href}>{item.label}</a></li>
+        ))}
+      </ul>
+    </nav>
+
+    <nav aria-label="Ressources">
+      <p class="nav-title">Ressources</p>
+      <ul>
+        {ressources.map((item) => (
           <li><a href={item.href}>{item.label}</a></li>
         ))}
       </ul>
@@ -70,18 +85,16 @@ const infos = [
     padding: var(--space-12) 0;
     color: var(--color-text-secondary);
   }
-  .footer-inner {
+.footer-inner {
     display: grid;
-    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr;
     gap: var(--space-8);
   }
-  .logo {
-    font-family: var(--font-display);
-    font-weight: 600;
-    color: var(--color-secondary);
-    margin: 0;
+  .footer-logo-img {
+    height: 24px;
+    width: auto;
+    display: block;
   }
-  .logo span { color: var(--color-primary); }
   .tagline { font-size: var(--fs-small); max-width: 32ch; }
 
   .nav-title {
@@ -112,6 +125,10 @@ const infos = [
     grid-column: 1 / -1;
     font-size: var(--fs-small);
     margin: var(--space-8) 0 0;
+  }
+
+  @media (max-width: 1024px) {
+    .footer-inner { grid-template-columns: 1fr 1fr 1fr; }
   }
 
   @media (max-width: 860px) {

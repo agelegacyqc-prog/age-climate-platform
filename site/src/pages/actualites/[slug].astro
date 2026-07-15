@@ -1,0 +1,100 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection, type CollectionEntry } from 'astro:content';
+
+export async function getStaticPaths() {
+  const items = await getCollection('actualites', ({ data }) => !data.draft);
+  return items.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }));
+}
+
+type Props = { item: CollectionEntry<'actualites'> };
+const { item } = Astro.props;
+const { Content } = await item.render();
+
+const siteUrl = 'https://age-qc.com';
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: item.data.title,
+  description: item.data.description,
+  datePublished: item.data.pubDate.toISOString(),
+  author: { '@type': 'Person', name: item.data.author },
+  publisher: {
+    '@type': 'Organization',
+    name: 'AGE-QC',
+    logo: { '@type': 'ImageObject', url: `${siteUrl}/images/og-default.jpg` },
+  },
+};
+---
+
+<Layout title={`${item.data.title} — AGE-QC`} description={item.data.description}>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+  <article class="news-item-page">
+    <a href="/actualites" class="back-link">← Toutes les actualités</a>
+
+    <header>
+      <time datetime={item.data.pubDate.toISOString()}>
+        {item.data.pubDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </time>
+      <h1>{item.data.title}</h1>
+    </header>
+
+    <div class="news-body">
+      <Content />
+    </div>
+  </article>
+</Layout>
+
+<style>
+  .news-item-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  .back-link {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #555;
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 32px;
+  }
+
+  .back-link:hover {
+    color: var(--color-primary, #3F7A5D);
+  }
+
+  time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #888;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    margin: 12px 0 32px;
+    color: var(--color-secondary, #111111);
+  }
+
+  .news-body {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    color: #222;
+  }
+
+  .news-body :global(p) {
+    margin: 0 0 18px;
+  }
+
+  .news-body :global(a) {
+    color: var(--color-primary, #3F7A5D);
+  }
+</style>

@@ -1,0 +1,140 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+
+const allNews = await getCollection('actualites', ({ data }) => !data.draft);
+const news = allNews.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<Layout title="Actualités — AGE-QC" description="Suivez en continu les évolutions réglementaires et climatiques qui impactent l'immobilier.">
+  <section class="news-page">
+    <header class="news-header">
+      <h1>Actualités</h1>
+      <p>Réglementation, données climatiques, vie de l'entreprise — suivi au fil de l'eau.</p>
+    </header>
+
+    <ol class="news-feed">
+      {news.map((item) => (
+        <li>
+          <a href={`/actualites/${item.slug}/`}>
+            <time datetime={item.data.pubDate.toISOString()}>
+              {item.data.pubDate.toLocaleDateString('fr-FR', { month: '2-digit', year: 'numeric' })}
+            </time>
+            <span class="marker" aria-hidden="true"></span>
+            <div class="news-content">
+              <h2>{item.data.title}</h2>
+              <p>{item.data.description}</p>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </section>
+</Layout>
+
+<style>
+  .news-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 64px 24px;
+  }
+
+  .news-header {
+    margin-bottom: 48px;
+  }
+
+  .news-header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--color-secondary, #111111);
+    margin: 0 0 12px;
+  }
+
+  .news-header p {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    color: #555;
+  }
+
+  .news-feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+  }
+
+  .news-feed::before {
+    content: '';
+    position: absolute;
+    left: 76px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: #E5E1DA;
+  }
+
+  .news-feed li {
+    position: relative;
+  }
+
+  .news-feed a {
+    display: grid;
+    grid-template-columns: 64px 24px 1fr;
+    align-items: start;
+    gap: 0;
+    text-decoration: none;
+    color: inherit;
+    padding: 20px 0;
+    border-bottom: 1px solid #ECEAE5;
+  }
+
+  .news-feed li:last-child a {
+    border-bottom: none;
+  }
+
+  time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    padding-top: 3px;
+  }
+
+  .marker {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--color-accent-mint, #3FCDA0);
+    margin: 6px auto 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .news-content h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    color: var(--color-secondary, #111111);
+  }
+
+  .news-content p {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  @media (max-width: 600px) {
+    .news-feed::before {
+      left: 52px;
+    }
+    .news-feed a {
+      grid-template-columns: 40px 20px 1fr;
+    }
+    time {
+      font-size: 10px;
+    }
+  }
+</style>
