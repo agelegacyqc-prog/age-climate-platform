@@ -12,8 +12,12 @@ const blog = defineCollection({
     image: z.string().optional(),
     persona: z.array(z.enum(['particulier', 'notaire', 'assureur', 'banque', 'collectivite', 'entreprise'])).optional(),
     solution: z.enum(['ageprevention', 'ageadapt', 'agecarbone', 'ageplace']).optional(),
-    tags: z.array(z.string()).default([]),
+   tags: z.array(z.string()).default([]),
     draft: z.boolean().default(false),
+    faq: z.array(z.object({
+      question: z.string(),
+      reponse: z.string(),
+    })).optional(),
   }),
 });
 

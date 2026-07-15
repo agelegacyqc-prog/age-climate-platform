@@ -6,7 +6,19 @@ author: "Hubert Roche"
 persona: ["particulier", "notaire"]
 solution: "ageprevention"
 tags: ["ERRIAL", "reglementation"]
+faq:
+  - question: "Qu'est-ce qu'ERRIAL exactement ?"
+    reponse: "ERRIAL est la plateforme qui genere les donnees d'entree de l'etat des risques et pollutions (ERP) : zonage sismique, exposition RGA, zones inondables, radon, proximite d'installations classees. Elle produit une fiche synthetique a partir d'une adresse."
+  - question: "ERRIAL genere-t-il directement le document legal ERP ?"
+    reponse: "Non. ERRIAL fournit les donnees d'entree, mais c'est au vendeur ou au bailleur de completer et signer l'etat des risques a partir de ces donnees, en y ajoutant les elements propres au bien comme les sinistres passes ou les travaux realises."
+  - question: "Qui doit fournir l'etat des risques lors d'une transaction immobiliere ?"
+    reponse: "Tout vendeur ou bailleur d'un bien situe dans une commune couverte par un plan de prevention des risques doit fournir ce document. Les notaires verifient sa conformite avant signature."
+  - question: "L'etat des risques constitue-t-il une garantie ou une assurance ?"
+    reponse: "Non. C'est une obligation d'information reglementaire, pas une garantie ni une assurance. Il photographie un risque a un instant donne, sans niveau de criticite personnalise ni projection dans le temps."
+  - question: "Quelles sont les limites de l'ERP par rapport a un diagnostic climatique complet ?"
+    reponse: "L'ERP ne donne pas de niveau de criticite personnalise au bien, ne propose pas de recommandations d'adaptation, et ne projette pas l'evolution du risque climatique dans le temps. Un diagnostic terrain croise avec des donnees climatiques prospectives va plus loin que cette obligation reglementaire."
 ---
+
 
 L'etat des risques et pollutions (ERP), plus connu par le nom de la plateforme qui le genere, ERRIAL, est un document obligatoire lors de la vente ou de la location d'un bien immobilier situe dans une zone a risque. Beaucoup de proprietaires et d'acquereurs le confondent avec une garantie ou une assurance — ce n'est pas le cas.
 

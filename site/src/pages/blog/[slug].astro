@@ -33,9 +33,22 @@ const jsonLd = {
     name: 'AGE-QC',
     logo: { '@type': 'ImageObject', url: `${siteUrl}/images/og-default.jpg` },
   },
-  image: post.data.image ? `${siteUrl}${post.data.image}` : `${siteUrl}/images/og-default.jpg`,
+ image: post.data.image ? `${siteUrl}${post.data.image}` : `${siteUrl}/images/og-default.jpg`,
   mainEntityOfPage: canonicalUrl,
 };
+
+const faqJsonLd = post.data.faq && post.data.faq.length > 0 ? {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: post.data.faq.map((item) => ({
+    '@type': 'Question',
+    name: item.question,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.reponse,
+    },
+  })),
+} : null;
 
 const personaLinks: Record<string, string> = {
   particulier: '/vous-etes/particulier',
@@ -56,6 +69,7 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
 
 <Layout title={`${post.data.title} - AGE-QC`} description={post.data.description}>
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
 
   <article class="post-page">
     <header class="post-header">
@@ -82,9 +96,23 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
 
     {post.data.image && <img class="cover" src={post.data.image} alt={post.data.title} />}
 
-    <div class="post-body">
+   <div class="post-body">
       <Content />
     </div>
+
+    {post.data.faq && post.data.faq.length > 0 && (
+      <section class="faq" aria-labelledby="faq-heading">
+        <h2 id="faq-heading">Questions frequentes</h2>
+        <div class="faq-list">
+          {post.data.faq.map((item) => (
+            <details class="faq-item">
+              <summary>{item.question}</summary>
+              <p>{item.reponse}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+    )}
 
     {(post.data.persona?.length || post.data.solution) && (
       <aside class="related">
@@ -185,6 +213,64 @@ const solutionLinks: Record<string, { label: string; href: string }> = {
 
   .post-body :global(a) {
     color: #3F7A5D;
+  }
+
+  .faq {
+    margin-top: 48px;
+  }
+
+  .faq h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 20px;
+    color: #111111;
+  }
+
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .faq-item {
+    background: #FFFFFF;
+    border: 1px solid #E5E1DA;
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+
+  .faq-item summary {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: #111111;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq-item summary::before {
+    content: '+';
+    display: inline-block;
+    width: 18px;
+    color: #3F7A5D;
+    font-weight: 600;
+  }
+
+  .faq-item[open] summary::before {
+    content: '-';
+  }
+
+  .faq-item p {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    color: #333;
+    margin: 12px 0 0 18px;
   }
 
   .related {
