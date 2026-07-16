@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import ReportingParticulier from "./ReportingParticulier"
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
   bilan_ges:     { label: "Bilan GES — Scope 1, 2, 3", icon: "ti-leaf",           color: "#065F46", bg: "#ECFDF5" },
@@ -26,13 +27,26 @@ export default function ClientReporting() {
   const [actifs, setActifs]             = useState<any[]>([])
   const [loadingForm, setLoadingForm]   = useState(false)
   const [succesForm, setSuccesForm]     = useState(false)
-  const [erreurForm, setErreurForm]     = useState("")
+ const [erreurForm, setErreurForm]     = useState("")
+  const [typeClient, setTypeClient]     = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+
+    const { data: profilData } = await supabase
+      .from("profils_client")
+      .select("type_client")
+      .eq("id", user.id)
+      .maybeSingle()
+    setTypeClient(profilData?.type_client || null)
+
+    if (profilData?.type_client === "proprietaire") {
+      setLoading(false)
+      return
+    }
 
     const [{ data: raps }, { data: acts }] = await Promise.all([
       supabase
@@ -82,6 +96,8 @@ export default function ClientReporting() {
   const nbDemandes    = rapports.filter(r => r.statut === "demande").length
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
+
+  if (typeClient === "proprietaire") return <ReportingParticulier />
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
