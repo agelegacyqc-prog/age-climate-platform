@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase"
 const PROFILS = [
   { id: "banque",       label: "Banque",       icon: "ti-building-bank",      desc: "Financement immobilier, crédit, analyse du risque de portefeuille" },
   { id: "assureur",     label: "Assurance",    icon: "ti-shield-check",       desc: "Souscription, sinistres, exposition climatique des assurés" },
-  { id: "particulier",  label: "Particulier",  icon: "ti-home",               desc: "Évaluation du risque climatique de votre bien immobilier" },
+  { id: "proprietaire", label: "Particulier",  icon: "ti-home",               desc: "Évaluation du risque climatique de votre bien immobilier" },
   { id: "collectivite", label: "Collectivité", icon: "ti-building-community", desc: "Adaptation territoriale et conformité réglementaire" },
   { id: "entreprise",   label: "Entreprise",   icon: "ti-building-factory",   desc: "PME, ETI, Grand groupe — obligations réglementaires et transition énergétique" },
   { id: "foncieres",    label: "Foncière",     icon: "ti-building-estate",    desc: "Valorisation et résilience de votre patrimoine immobilier" },
@@ -69,6 +69,7 @@ export default function MonProfil() {
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [erreur, setErreur]     = useState("")
 
   useEffect(() => { charger() }, [])
 
@@ -77,59 +78,68 @@ export default function MonProfil() {
     if (!user) return
     setEmail(user.email || "")
 
-    const { data: p } = await supabase.from("profils").select("*").eq("id", user.id).single()
-    if (p) {
-      setPrenom(p.prenom || "")
-      setNom(p.nom || "")
-      setTelephone(p.telephone || "")
-      setPoste(p.poste || "")
-      setSociete(p.societe || "")
-      setAdresse(p.adresse || "")
-      setProfil(p.profil || "")
-    }
+  const { data: pc } = await supabase
+      .from("profils_client")
+      .select("prenom, nom, telephone, poste, enjeux, niveau, organisation_id, type_client")
+      .eq("id", user.id)
+      .maybeSingle()
 
-    const { data: pc } = await supabase.from("profils_client").select("enjeux, niveau, organisation_id, type_client").eq("id", user.id).single()
-if (pc) {
-  setEnjeux(pc.enjeux || [])
-  setNiveau(pc.niveau || "")
-  setOrganisationId(pc.organisation_id || null)
-  setProfil(pc.type_client || "")
-}
     if (pc) {
+      setPrenom(pc.prenom || "")
+      setNom(pc.nom || "")
+      setTelephone(pc.telephone || "")
+      setPoste(pc.poste || "")
       setEnjeux(pc.enjeux || [])
       setNiveau(pc.niveau || "")
+      setOrganisationId(pc.organisation_id || null)
+      setProfil(pc.type_client || "")
+
+      if (pc.organisation_id) {
+        const { data: org } = await supabase
+          .from("organisations")
+          .select("raison_sociale, adresse")
+          .eq("id", pc.organisation_id)
+          .maybeSingle()
+        if (org) {
+          setSociete(org.raison_sociale || "")
+          setAdresse(typeof org.adresse === "string" ? org.adresse : "")
+        }
+      }
     }
 
     setLoading(false)
   }
 
-  async function sauvegarder() {
+async function sauvegarder() {
     setSaving(true)
+    setErreur("")
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setSaving(false); return }
 
-    await supabase.from("profils").upsert({
-  id: user.id, prenom, nom, telephone, poste,
-})
+    const payloadClient: any = { prenom, nom, telephone, poste, type_client: profil }
+    if (editParcours) { payloadClient.enjeux = enjeux; payloadClient.niveau = niveau }
 
-if (organisationId) {
-  await supabase.from("organisations").update({
-    raison_sociale: societe,
-    adresse: adresse,
-  }).eq("id", organisationId)
-}
+    const { error: errClient } = await supabase
+      .from("profils_client")
+      .update(payloadClient)
+      .eq("id", user.id)
 
-await supabase.from("profils_client").update({
-  type_client: profil,
-}).eq("id", user.id)
-
-    if (editParcours) {
-      await supabase.from("profils_client").upsert({
-        id: user.id, enjeux, niveau,
-      })
+    let errOrg = null
+    if (organisationId) {
+      const { error } = await supabase
+        .from("organisations")
+        .update({ raison_sociale: societe, adresse: adresse })
+        .eq("id", organisationId)
+      errOrg = error
     }
 
     setSaving(false)
+
+    if (errClient || errOrg) {
+      setErreur("Échec de la sauvegarde : " + (errClient?.message || errOrg?.message))
+      return
+    }
+
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -148,10 +158,16 @@ await supabase.from("profils_client").update({
         <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: "6px", background: "white", border: "1px solid #E2E8F0", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#64748B", fontSize: "13px", fontFamily: "inherit" }}>
           <i className="ti ti-arrow-left" style={{ fontSize: "14px" }} aria-hidden="true" /> Retour
         </button>
-        {saved && (
+       {saved && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ECFDF5", color: "#065F46", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, border: "1px solid #A7F3D0" }}>
             <i className="ti ti-circle-check" style={{ fontSize: "15px" }} aria-hidden="true" />
             Modifications sauvegardées
+          </div>
+        )}
+        {erreur && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#FEF2F2", color: "#991B1B", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 500, border: "1px solid #FECACA" }}>
+            <i className="ti ti-alert-triangle" style={{ fontSize: "15px" }} aria-hidden="true" />
+            {erreur}
           </div>
         )}
       </div>
