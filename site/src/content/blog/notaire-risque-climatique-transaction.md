@@ -7,14 +7,14 @@ persona: ["notaire"]
 solution: "ageprevention"
 tags: ["notaire", "transaction"]
 faq:
-  - question: "Pourquoi verifier la fraicheur des donnees climatiques avant une signature ?"
-    reponse: "Un etat des risques valide juridiquement peut s'appuyer sur des donnees perimees, notamment depuis la revision de la carte RGA en juillet 2026. Un bien classe en zone faible il y a un an peut aujourd'hui entrer dans une zone d'exposition plus elevee, ce qui expose a un litige post-vente si ce n'est pas verifie."
-  - question: "Comment objectiver une decote liee au risque climatique lors d'une negociation ?"
-    reponse: "Plutot qu'une estimation subjective au gre des parties, un diagnostic chiffre et methodologique permet de quantifier l'impact du risque sur le prix, ce qui facilite un accord equilibre entre vendeur et acquereur."
+  - question: "Pourquoi verifier la fraicheur des données climatiques avant une signature ?"
+    reponse: "Un état des risques validé juridiquement peut s'appuyer sur des données perimées, notamment depuis la revision de la carte RGA en juillet 2026. Un bien classé en zone faible il y a un an peut aujourd'hui entrer dans une zone d'exposition plus elevée, ce qui expose à un litige post-vente si ce n'est pas verifié."
+  - question: "Comment objectiver une decôte liée au risque climatique lors d'une negociation ?"
+    reponse: "Plutot qu'une estimation subjective au gré des parties, un diagnostic chiffré et methodologique permet de quantifier l'impact du risque sur le prix, ce qui facilite un accord equilibré entre vendeur et acquereur."
   - question: "Quelles obligations futures un acquereur peut-il heriter sur un bien professionnel ?"
-    reponse: "Pour les biens a usage professionnel, le Decret Tertiaire ou la CSRD peuvent imposer des obligations de renovation a l'acquereur. Signaler ce point en amont du parcours de vente evite les mauvaises surprises."
+    reponse: "Pour les biens a usage professionnel, le Decret Tertiaire ou la CSRD peuvent imposer des obligations de rénovation a l'acquéreur. Signaler ce point en amont du parcours de vente evite les mauvaises surprises."
   - question: "A quel moment du parcours de vente un diagnostic climatique est-il le plus utile ?"
-    reponse: "Le diagnostic est mobilisable des la phase de negociation, avec un rapport exploitable par toutes les parties : vendeur, acquereur et notaire."
+    reponse: "Le diagnostic est mobilisable dès la phase de negociation, avec un rapport exploitable par toutes les parties : vendeur, acquéreur et notaire."
 ---
 
 Le role du notaire dans une transaction immobiliere depasse de plus en plus la simple verification de conformite reglementaire. Le risque climatique, longtemps traite comme une case a cocher, devient un sujet de conseil a part entiere.
