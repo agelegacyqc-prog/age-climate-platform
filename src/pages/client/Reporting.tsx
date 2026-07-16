@@ -61,9 +61,16 @@ export default function ClientReporting() {
   .eq("categorie", "patrimoine_propre")
   .order("created_at", { ascending: false }),
     ])
-    setRapports(raps || [])
+setRapports(raps || [])
     setActifs(acts || [])
     setLoading(false)
+
+    await supabase
+      .from("rapports_client")
+      .update({ vu_client: true })
+      .eq("client_id", user.id)
+      .eq("statut", "disponible")
+      .eq("vu_client", false)
   }
 
   async function handleDemander() {
@@ -89,6 +96,11 @@ export default function ClientReporting() {
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
+  }
+
+  async function telechargerRapport(cheminFichier: string) {
+    const { data } = await supabase.storage.from("rapports-client").createSignedUrl(cheminFichier, 3600)
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank")
   }
 
   const nbDisponibles = rapports.filter(r => r.statut === "disponible").length
@@ -236,11 +248,11 @@ export default function ClientReporting() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                     {r.statut === "disponible" && r.fichier_url && (
-                      <a href={r.fichier_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none", background: type.color, color: "white", fontSize: "12px", fontWeight: 500, textDecoration: "none" }}>
+                      <button onClick={() => telechargerRapport(r.fichier_url)} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "none", background: type.color, color: "white", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
                         <i className="ti ti-download" style={{ fontSize: "14px" }} aria-hidden="true" /> PDF
-                      </a>
+                      </button>
                     )}
                     {r.statut !== "disponible" && (
                       <span style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "6px", border: "1px solid #E2E8F0", background: "white", color: "#94A3B8", fontSize: "12px", opacity: 0.6 }}>

@@ -300,9 +300,11 @@ export default function Layout() {
   const [nbFileAttente, setNbFileAttente]       = useState(0)
   const [nbCampagnes, setNbCampagnes]           = useState(0)
   const [nbMissions, setNbMissions]             = useState(0)
+  const [nbRapportsAttente, setNbRapportsAttente] = useState(0)
   const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)
   const [nbMessagesClient, setNbMessagesClient] = useState(0)
   const [detailMessagesClient, setDetailMessagesClient] = useState({ demandes: 0, campagnes: 0, actifs: 0 })
+  const [nbRapportsDispo, setNbRapportsDispo] = useState(0)
 
   useEffect(() => {
     async function chargerProfil() {
@@ -366,10 +368,28 @@ export default function Layout() {
             .is("consultant_id", null)
             .in("statut", ["nouvelle", "en_cours"])
 
+          const { count: countRapportsAttente } = await supabase
+            .from("rapports_client")
+            .select("id", { count: "exact", head: true })
+            .eq("statut", "demande")
+
           setNbFileAttente(
             (countFile || 0) + (countCampagnesAttente || 0) +
-            (countRdv || 0) + (countMissionsAttente || 0)
+            (countRdv || 0) + (countMissionsAttente || 0) + (countRapportsAttente || 0)
           )
+          setNbRapportsAttente(countRapportsAttente || 0)
+
+          supabase
+            .channel(`rapports-demande-${Date.now()}`)
+            .on("postgres_changes", {
+              event: "INSERT", schema: "public", table: "rapports_client",
+            }, (payload: any) => {
+              if (payload.new?.statut === "demande") {
+                setNbFileAttente(prev => prev + 1)
+                setNbRapportsAttente(prev => prev + 1)
+              }
+            })
+            .subscribe()
 
           const { count: countCamp } = await supabase
             .from("campagnes")
@@ -399,13 +419,47 @@ export default function Layout() {
             .eq('region_code', profilAGE.region)
           setNbFileAttente(prev => prev + (countAlertes || 0))
 
-          // Missions de la région non assignées
+        // Missions de la région non assignées
           const { count: countMissRegion } = await supabase
             .from("missions")
             .select("id", { count: "exact", head: true })
             .eq("region", profilAGE.region)
             .is("consultant_id", null)
           setNbMissions(countMissRegion || 0)
+
+          // Rapports demandés par des clients de la région
+       const { data: clientsRegion } = await supabase
+            .from("profils_client")
+            .select("id")
+            .eq("region", profilAGE.region)
+          const clientIdsRegion = (clientsRegion || []).map(c => c.id)
+        if (clientIdsRegion.length > 0) {
+            const { count: countRapportsRegion } = await supabase
+              .from("rapports_client")
+              .select("id", { count: "exact", head: true })
+              .eq("statut", "demande")
+              .in("client_id", clientIdsRegion)
+            setNbFileAttente(prev => prev + (countRapportsRegion || 0))
+            setNbRapportsAttente(countRapportsRegion || 0)
+          }
+
+          supabase
+            .channel(`rapports-demande-region-${Date.now()}`)
+            .on("postgres_changes", {
+              event: "INSERT", schema: "public", table: "rapports_client",
+            }, async (payload: any) => {
+              if (payload.new?.statut !== "demande") return
+              const { data: pc } = await supabase
+                .from("profils_client")
+                .select("region")
+                .eq("id", payload.new.client_id)
+                .maybeSingle()
+              if (pc?.region === profilAGE.region) {
+                setNbFileAttente(prev => prev + 1)
+                setNbRapportsAttente(prev => prev + 1)
+              }
+            })
+            .subscribe()
         }
 
         // Messages non lus (tous rôles AGE)
@@ -453,7 +507,7 @@ export default function Layout() {
         setEspace("client")
         setMonProfilClient(profilClient)
 
-        const { data: msgsNonLus } = await supabase
+     const { data: msgsNonLus } = await supabase
           .from("messages")
           .select("demande_id, campagne_id, actif_id")
           .eq("type_conversation", "client")
@@ -469,6 +523,30 @@ export default function Layout() {
         })
         setDetailMessagesClient(detail)
         setNbMessagesClient(detail.demandes + detail.campagnes + detail.actifs)
+
+        const { count: countRapportsDispo } = await supabase
+          .from("rapports_client")
+          .select("id", { count: "exact", head: true })
+          .eq("client_id", user.id)
+          .eq("statut", "disponible")
+          .eq("vu_client", false)
+        setNbRapportsDispo(countRapportsDispo || 0)
+
+        supabase
+          .channel(`rapports-dispo-${Date.now()}`)
+          .on("postgres_changes", {
+            event: "*", schema: "public", table: "rapports_client",
+            filter: `client_id=eq.${user.id}`,
+          }, async () => {
+            const { count } = await supabase
+              .from("rapports_client")
+              .select("id", { count: "exact", head: true })
+              .eq("client_id", user.id)
+              .eq("statut", "disponible")
+              .eq("vu_client", false)
+            setNbRapportsDispo(count || 0)
+          })
+          .subscribe()
 
         supabase
           .channel(`messages-client-non-lus-${Date.now()}`)
@@ -569,7 +647,7 @@ export default function Layout() {
               )}
 
               <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
-              <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" />
+              <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" badge={nbRapportsDispo} />
               <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
               <NavItem
                 to="/client/messagerie"
@@ -599,13 +677,13 @@ export default function Layout() {
                 />
               )}
 
-              {/* Missions */}
+            {/* Missions */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem
                   to="/metier/missions"
                   icon="ti-briefcase"
                   label="Missions"
-                  badge={roleAGE === "responsable_regional" ? nbMissions : 0}
+                  badge={roleAGE === "responsable_regional" ? nbMissions + nbRapportsAttente : nbRapportsAttente}
                 />
               )}
               {roleAGE === "consultant" && (
