@@ -6,6 +6,7 @@ import Login from "./pages/auth/Login"
 import Accueil from "./pages/Accueil"
 import DossierRGA from "./pages/client/DossierRGA"
 import DocumentsRGA from "./pages/client/DocumentsRGA"
+import CarnetLogement from "./pages/client/CarnetLogement"
 import Sensibilisation from "./pages/Sensibilisation"
 import Projets from "./pages/Projets"
 import Marketplace from "./pages/Marketplace"
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="client/actifs" element={<ProtectedRoute><MesActifs /></ProtectedRoute>} />
           <Route path="/client/dossier-rga/:id" element={<DossierRGA />} />
           <Route path="/client/documents-rga/:id" element={<DocumentsRGA />} />
+          <Route path="client/carnet-logement" element={<ProtectedRoute><CarnetLogement /></ProtectedRoute>} />
           <Route path="client/actifs/nouveau" element={<ProtectedRoute><NouvelActif /></ProtectedRoute>} />
           <Route path="/client/actifs/nouveau-particulier" element={<NouvelActifParticulier />} />
           <Route path="client/actifs/:id" element={<ProtectedRoute><FicheActif /></ProtectedRoute>} />

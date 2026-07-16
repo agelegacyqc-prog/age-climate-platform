@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/client/profil":              "Mon profil",
   "/client/messagerie":          "Messagerie",
   "/client/utilisateurs":        "Gestion des utilisateurs",
+  "/client/carnet-logement":     "Carnet du logement",
   "/metier":                     "Dashboard métier",
   "/metier/file-attente":        "File d'attente",
   "/metier/campagnes":           "Campagnes",
@@ -535,6 +536,9 @@ export default function Layout() {
                   icon="ti-building"
                   label={labelProfil === "Particulier" ? "Mon bien" : "Mon Patrimoine"}
                 />
+              )}
+              {labelProfil === "Particulier" && (
+                <NavItem to="/client/carnet-logement" icon="ti-notebook" label="Carnet du logement" />
               )}
               {labelProfil === "Collectivité" && (
                 <NavItem to="/client/actifs" icon="ti-map" label="Mon Territoire" />
