@@ -64,13 +64,34 @@ export default function ClientMessagerie() {
       setMonPrenom(org.raison_sociale || "")
       setMonNom("")
     } else {
-      const { data: pc } = await supabase
+ const { data: pc } = await supabase
         .from("profils_client")
         .select("type_client")
         .eq("id", user.id)
         .maybeSingle()
       setMonPrenom(pc?.type_client || "Client")
     }
+
+    // Ouvrir directement l'onglet contenant le plus de messages non lus
+    const { data: nonLus } = await supabase
+      .from("messages")
+      .select("demande_id, campagne_id, actif_id")
+      .or(`client_id.eq.${user.id},destinataire_id.eq.${user.id}`)
+      .eq("type_conversation", "client")
+      .eq("lu", false)
+      .neq("expediteur_id", user.id)
+    if (nonLus && nonLus.length > 0) {
+      const counts = { demandes: 0, campagnes: 0, actifs: 0 }
+      nonLus.forEach(m => {
+        if (m.demande_id)  counts.demandes++
+        if (m.campagne_id) counts.campagnes++
+        if (m.actif_id)    counts.actifs++
+      })
+      const meilleur = (Object.entries(counts) as [Onglet, number][])
+        .sort((a, b) => b[1] - a[1])[0]
+      if (meilleur[1] > 0) setOnglet(meilleur[0])
+    }
+
     setLoading(false)
   }
 

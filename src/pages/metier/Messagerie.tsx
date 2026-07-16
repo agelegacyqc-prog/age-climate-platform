@@ -267,11 +267,11 @@ export default function Messagerie() {
     if (!contenu.trim() || !selected || !userId) return
     setSending(true)
 
-    const payload: any = {
+   const payload: any = {
       expediteur_id:     userId,
       contenu:           contenu.trim(),
       lu:                false,
-      type_conversation: onglet,
+      type_conversation: onglet === "clients" ? "client" : "interne",
       client_id:         selected.clientId || null,
     }
 
@@ -295,7 +295,14 @@ export default function Messagerie() {
       }
     }
 
-    await supabase.from("messages").insert(payload)
+   const { error } = await supabase.from("messages").insert(payload)
+
+    if (error) {
+      console.error("Erreur envoi message :", error)
+      alert("Échec de l'envoi : " + error.message)
+      setSending(false)
+      return
+    }
 
     setContenu("")
     await loadMessages()

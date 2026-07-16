@@ -50,6 +50,7 @@ interface NavItemProps {
   label: string
   badge?: number
   end?: boolean
+  title?: string
 }
 
 // ─── Menus collapsibles ───────────────────────────────────────────────────────
@@ -242,11 +243,12 @@ function EnvironnementMenu() {
 }
 
 // ─── NavItem ─────────────────────────────────────────────────────────────────
-function NavItem({ to, icon, label, badge, end }: NavItemProps) {
+function NavItem({ to, icon, label, badge, end, title }: NavItemProps) {
   return (
     <NavLink
       to={to}
       end={end}
+      title={title}
       className={({ isActive }) =>
         isActive ? "nav-item nav-item--active" : "nav-item"
       }
@@ -300,6 +302,7 @@ export default function Layout() {
   const [nbMissions, setNbMissions]             = useState(0)
   const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)
   const [nbMessagesClient, setNbMessagesClient] = useState(0)
+  const [detailMessagesClient, setDetailMessagesClient] = useState({ demandes: 0, campagnes: 0, actifs: 0 })
 
   useEffect(() => {
     async function chargerProfil() {
@@ -450,13 +453,22 @@ export default function Layout() {
         setEspace("client")
         setMonProfilClient(profilClient)
 
-        const { count: countMsgClient } = await supabase
+        const { data: msgsNonLus } = await supabase
           .from("messages")
-          .select("id", { count: "exact", head: true })
+          .select("demande_id, campagne_id, actif_id")
+          .eq("type_conversation", "client")
           .eq("lu", false)
-          .eq("client_id", user.id)
           .neq("expediteur_id", user.id)
-        setNbMessagesClient(countMsgClient || 0)
+          .or(`client_id.eq.${user.id},destinataire_id.eq.${user.id}`)
+
+        const detail = { demandes: 0, campagnes: 0, actifs: 0 }
+        msgsNonLus?.forEach(m => {
+          if (m.demande_id) detail.demandes++
+          if (m.campagne_id) detail.campagnes++
+          if (m.actif_id) detail.actifs++
+        })
+        setDetailMessagesClient(detail)
+        setNbMessagesClient(detail.demandes + detail.campagnes + detail.actifs)
 
         supabase
           .channel(`messages-client-non-lus-${Date.now()}`)
@@ -564,6 +576,9 @@ export default function Layout() {
                 icon="ti-message-circle"
                 label="Messagerie"
                 badge={nbMessagesClient}
+                title={nbMessagesClient > 0
+                  ? `${detailMessagesClient.demandes} demande${detailMessagesClient.demandes > 1 ? "s" : ""} · ${detailMessagesClient.campagnes} campagne${detailMessagesClient.campagnes > 1 ? "s" : ""} · ${detailMessagesClient.actifs} actif${detailMessagesClient.actifs > 1 ? "s" : ""}`
+                  : undefined}
               />
               {monProfilClient?.role_client === "admin_client" && (
                 <NavItem to="/client/utilisateurs" icon="ti-users-group" label="Utilisateurs" />
