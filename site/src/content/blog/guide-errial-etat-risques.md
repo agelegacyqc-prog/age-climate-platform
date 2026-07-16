@@ -8,7 +8,7 @@ solution: "ageprevention"
 tags: ["ERRIAL", "reglementation"]
 faq:
   - question: "Qu'est-ce qu'ERRIAL exactement ?"
-    reponse: "ERRIAL est la plateforme qui genere les données d'entrée de l'etat des risques et pollutions (ERP) : zonage sismique, exposition RGA, zones inondables, radon, proximite d'installations classées. Elle produit une fiche synthetique à partir d'une adresse."
+    reponse: "ERRIAL est la plateforme qui genere les données d'entrée de l'etat des risques et pollutions (ERP) : zonage sismique, exposition RGA, zones inondables, radon, à proximité d'installations classées. Elle produit une fiche synthetique à partir d'une adresse."
   - question: "ERRIAL genere-t-il directement le document legal ERP ?"
     reponse: "Non. ERRIAL fournit les données d'entrée, mais c'est au vendeur ou au bailleur de completer et signer l'état des risques à partir de ces données, en y ajoutant les élements propres au bien comme les sinistres passés ou les travaux realisés."
   - question: "Qui doit fournir l'état des risques lors d'une transaction immobilière ?"
