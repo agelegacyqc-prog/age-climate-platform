@@ -196,6 +196,18 @@ export default function AGEadaptMission() {
   const handleSave = async () => {
     setSaving(true)
 
+    // Auto-assignation : un consultant qui crée une mission en devient
+    // automatiquement le consultant assigné (décision PO 03/08/2026).
+    // Nécessaire depuis le renforcement RLS de ageadapt_missions_write
+    // (WITH CHECK exige consultant_id = auth.uid() pour ce rôle).
+    const { data: { user: userCourant } } = await supabase.auth.getUser()
+    const { data: monProfil } = await supabase
+      .from('profils')
+      .select('role')
+      .eq('id', userCourant?.id)
+      .maybeSingle()
+    const consultantIdAAssigner = monProfil?.role === 'consultant' ? userCourant?.id ?? null : null
+
     // Transformation des champs étape 4 (Cadrage mission) vers le schéma §7 fiche v1.1
     const risqueOperationnel = {
       territoire: form.risques.risque_territoire || null,
@@ -232,6 +244,7 @@ export default function AGEadaptMission() {
         nb_sites_tranche: parseInt(form.nb_sites_tranche) || null,
         region: form.region,
         region_code: regionCodeFromNom(form.region),
+        consultant_id: consultantIdAAssigner,
         bilan_existant: form.bilan_existant,
         diagnostic_existant: form.diagnostic_existant,
         plan_transition_init: form.plan_transition_init,
