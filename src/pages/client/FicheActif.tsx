@@ -64,6 +64,9 @@ export default function FicheActif() {
     const { data: actifData } = await supabase.from("actifs").select("*").eq("id", id).single()
     const { data: reglData }  = await supabase.from("actifs_reglementaire").select("*").eq("actif_id", id)
     const { data: docData }   = await supabase.from("actifs_documents").select("*").eq("actif_id", id)
+    const { data: gedData }   = await supabase.from("documents")
+      .select("id, nom, categorie, storage_path")
+      .eq("actif_id", id).eq("visible_client", true).eq("est_version_courante", true)
     const { data: { user } }  = await supabase.auth.getUser()
 
     const [{ data: rapportsData }, { data: demandesData }] = await Promise.all([
@@ -82,7 +85,10 @@ export default function FicheActif() {
     }
 
     setReglementations(reglData || [])
-    setDocuments(docData || [])
+    const docsGedFormates = (gedData || []).map((g:any) => ({
+      nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged"
+    }))
+    setDocuments([...(docData || []), ...docsGedFormates])
     setRapports(rapportsData || [])
     setDemandes(demandesData || [])
     setLoading(false)

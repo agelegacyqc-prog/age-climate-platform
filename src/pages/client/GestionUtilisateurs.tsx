@@ -73,32 +73,16 @@ function ModalInvitation({ organisationId, onClose, onSuccess }: ModalInvitation
     setErreur("")
 
     try {
-      // Invitation Supabase — crée le compte auth et envoie l'email
-      const { data, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          organisation_id: organisationId,
-          role_client: role,
-          prenom,
-          nom,
-        },
+      // L'invitation (auth.admin.inviteUserByEmail) requiert la clé
+      // service_role — jamais exposée côté navigateur. Cet appel passe
+      // donc par l'Edge Function invite-collaborateur, qui vérifie côté
+      // serveur que l'appelant est bien admin_client avant d'agir.
+      const { data, error: fnError } = await supabase.functions.invoke("invite-collaborateur", {
+        body: { email: email.trim(), prenom, nom, role_client: role },
       })
 
-      if (inviteError) throw inviteError
-
-      // Créer le profil_client en attente
-      const { error: profilError } = await supabase
-        .from("profils_client")
-        .insert({
-          id: data.user.id,
-          organisation_id: organisationId,
-          role_client: role,
-          prenom: prenom || null,
-          nom: nom || null,
-          actif: true,
-          onboarding_complete: false,
-        })
-
-      if (profilError) throw profilError
+      if (fnError) throw fnError
+      if (data?.error) throw new Error(data.error)
 
       onSuccess()
     } catch (e: any) {

@@ -122,6 +122,7 @@ export default function GED() {
   const [uploadCategorie, setUploadCategorie] = useState("rapport")
   const [uploadActifId, setUploadActifId] = useState("")
   const [uploadNote, setUploadNote] = useState("")
+  const [uploadVisibleClient, setUploadVisibleClient] = useState(false)
   const [uploadParentId, setUploadParentId] = useState<string | null>(null)
   const [showUploadForm, setShowUploadForm] = useState(false)
 
@@ -149,7 +150,7 @@ export default function GED() {
   async function loadDocuments() {
     const { data } = await supabase
       .from("documents")
-      .select("*, actif:actif_id(nom, adresse)")
+      .select("*, actif:actif_id(nom, adresse), client:client_id(nom, prenom)")
       .order("created_at", { ascending: false })
     setDocuments(data ?? [])
   }
@@ -185,6 +186,14 @@ export default function GED() {
       const nomSanitize = sanitizeFilename(uploadFichier.name)
       const path = `ged/${userId}/${uploadActifId || "general"}/${Date.now()}_${nomSanitize}`
 
+      // Dériver le client depuis l'actif sélectionné (actifs.client_id → auth.users.id → profils_client.id)
+      let clientIdDerive: string | null = null
+      if (uploadActifId) {
+        const { data: actifData } = await supabase.from("actifs")
+          .select("client_id").eq("id", uploadActifId).maybeSingle()
+        clientIdDerive = actifData?.client_id ?? null
+      }
+
       const { error: storageError } = await supabase.storage
         .from("documents-clients")
         .upload(path, uploadFichier)
@@ -206,7 +215,7 @@ export default function GED() {
           .eq("document_parent_id", uploadParentId)
       }
 
-      await supabase.from("documents").insert({
+     const { error: insertError } = await supabase.from("documents").insert({
         nom: uploadFichier.name,
         nom_fichier: nomSanitize,
         type_fichier: detectType(uploadFichier),
@@ -216,12 +225,18 @@ export default function GED() {
         storage_path: path,
         consultant_id: userId,
         actif_id: uploadActifId || null,
+        client_id: clientIdDerive,
+        visible_client: uploadActifId ? uploadVisibleClient : false,
         version,
         document_parent_id: uploadParentId,
         est_version_courante: true,
         region_code: profil?.region ?? null,
         note: uploadNote.trim() || null,
       })
+      if (insertError) {
+        console.error("Erreur insert documents:", insertError)
+        throw new Error(`${insertError.message} (code ${insertError.code}) — ${insertError.details ?? insertError.hint ?? ''}`)
+      }
 
       showToast('ok', uploadParentId ? `Version ${version} enregistrée` : 'Document enregistré')
       resetUpload()
@@ -236,6 +251,7 @@ export default function GED() {
   function resetUpload() {
     setUploadFichier(null); setUploadActifId(""); setUploadNote("")
     setUploadCategorie("rapport"); setUploadParentId(null); setShowUploadForm(false)
+    setUploadVisibleClient(false)
   }
 
   // ── Téléchargement ──────────────────────────────────────────────────────────
@@ -458,7 +474,15 @@ export default function GED() {
                 placeholder="Ex : version signée client"
                 style={{ ...selectStyle, background: "#fff" }} />
             </div>
-          </div>
+         </div>
+
+          {uploadActifId && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1F2937", marginBottom: 16, cursor: "pointer" }}>
+              <input type="checkbox" checked={uploadVisibleClient} onChange={e => setUploadVisibleClient(e.target.checked)}
+                style={{ accentColor: "#0F6E56" }} />
+              Visible par le client sur la fiche de son actif
+            </label>
+          )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button onClick={resetUpload} style={{
@@ -517,7 +541,7 @@ export default function GED() {
           <table style={{ width: "100%", borderCollapse: "collapse" as const }}>
             <thead>
               <tr style={{ background: "#F8F7F4", borderBottom: "1px solid #E5E1DA" }}>
-                {["Nom", "Type", "Catégorie", "Actif", "Version", "Taille", "Date", "Note", ""].map((h, i) => (
+{["Nom", "Type", "Catégorie", "Actif", "Client", "Version", "Taille", "Date", "Note", ""].map((h, i) => (
                   <th key={i} style={{
                     padding: "10px 16px", textAlign: "left" as const,
                     fontSize: 10, fontWeight: 700, color: "#78716C",
@@ -529,7 +553,7 @@ export default function GED() {
             <tbody>
               {documentsFiltres.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: 48, textAlign: "center" as const, color: "#78716C" }}>
+                  <td colSpan={10} style={{ padding: 48, textAlign: "center" as const, color: "#78716C" }}>
                     <FileText size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
                     <p style={{ margin: 0 }}>Aucun document trouvé</p>
                   </td>
@@ -581,6 +605,10 @@ export default function GED() {
 
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#78716C" }}>
                         {(doc.actif as any)?.nom || (doc.actif as any)?.adresse || "—"}
+                      </td>
+
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#78716C" }}>
+                        {doc.client ? `${(doc.client as any).prenom ?? ''} ${(doc.client as any).nom ?? ''}`.trim() || "—" : "—"}
                       </td>
 
                       <td style={{ padding: "12px 16px" }}>

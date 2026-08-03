@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import ConsultantsRecommandes from "../../components/ConsultantsRecommandes"
 
 const etapes = [
   {num:1,label:"Informations"},
@@ -442,6 +443,13 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
   const reglsFrance = reglementations.filter(r => r.cadre === "france")
   const reglsEurope = reglementations.filter(r => r.cadre === "europe")
 
+  // Réglementations Éligibles + Potentielles — base du matching consultants
+  // (P.O. 03/08/2026 : périmètre volontairement plus large que le seul
+  // "Éligible", pour ne pas exclure les besoins d'accompagnement anticipé)
+  const alertesReglConsultants = reglementations
+    .filter(r => r.statut === "eligible" || r.statut === "potentiel")
+    .map(r => ({ reglementation: r.id }))
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:"1rem",marginBottom:"2rem"}}>
@@ -749,6 +757,15 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
               ))}
             </div>
           </div>
+
+          {/* Consultants recommandés — matching sur les réglementations
+              Éligibles + Potentielles (décision PO 03/08/2026) */}
+          {alertesReglConsultants.length > 0 && (
+            <div style={{marginBottom:"1.5rem"}}>
+              <ConsultantsRecommandes alertesRegl={alertesReglConsultants} />
+            </div>
+          )}
+
           <div style={{display:"flex",justifyContent:"space-between"}}>
             <button onClick={() => setEtape(2)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
             <button onClick={saveEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>Analyser le score climatique →</button>

@@ -113,35 +113,44 @@ export default function MonProfil() {
 async function sauvegarder() {
     setSaving(true)
     setErreur("")
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
+    try {
+      const { data: { user }, error: errUser } = await supabase.auth.getUser()
+      if (errUser || !user) {
+        setErreur("Session expirée ou invalide — veuillez vous reconnecter.")
+        setSaving(false)
+        return
+      }
 
-    const payloadClient: any = { prenom, nom, telephone, poste, type_client: profil }
-    if (editParcours) { payloadClient.enjeux = enjeux; payloadClient.niveau = niveau }
+      const payloadClient: any = { prenom, nom, telephone, poste, type_client: profil }
+      if (editParcours) { payloadClient.enjeux = enjeux; payloadClient.niveau = niveau }
 
-    const { error: errClient } = await supabase
-      .from("profils_client")
-      .update(payloadClient)
-      .eq("id", user.id)
+      const { error: errClient } = await supabase
+        .from("profils_client")
+        .update(payloadClient)
+        .eq("id", user.id)
 
-    let errOrg = null
-    if (organisationId) {
-      const { error } = await supabase
-        .from("organisations")
-        .update({ raison_sociale: societe, adresse: adresse })
-        .eq("id", organisationId)
-      errOrg = error
+      let errOrg = null
+      if (organisationId) {
+        const { error } = await supabase
+          .from("organisations")
+          .update({ raison_sociale: societe, adresse: adresse })
+          .eq("id", organisationId)
+        errOrg = error
+      }
+
+      setSaving(false)
+
+      if (errClient || errOrg) {
+        setErreur("Échec de la sauvegarde : " + (errClient?.message || errOrg?.message))
+        return
+      }
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e: any) {
+      setSaving(false)
+      setErreur("Erreur réseau : impossible de contacter le serveur (" + (e?.message || "inconnue") + ")")
     }
-
-    setSaving(false)
-
-    if (errClient || errOrg) {
-      setErreur("Échec de la sauvegarde : " + (errClient?.message || errOrg?.message))
-      return
-    }
-
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
   }
 
   const initiales = `${prenom?.[0] || ""}${nom?.[0] || ""}`.toUpperCase() || "?"
