@@ -35,9 +35,12 @@ interface Rapport {
   fichier_url: string | null
   created_at: string
   updated_at: string | null
+  responsable_id?: string | null
+  consultant_id?: string | null
   clientNom?: string
   clientRegion?: string | null
   actifNom?: string | null
+  consultantNom?: string | null
 }
 
 const phases = [
@@ -82,10 +85,11 @@ const STATUT_OPTIONS = [
 
 // ─── Config rapports ───────────────────────────────────────────────────────────
 const TYPE_RAPPORT_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  bilan_ges:     { label: "Bilan GES — Scope 1, 2, 3", icon: "ti-leaf",           color: "#065F46", bg: "#ECFDF5" },
-  csrd:          { label: "CSRD / ESRS",                icon: "ti-file-analytics", color: "#92400E", bg: "#FFFBEB" },
-  bilan_carbone: { label: "Bilan Carbone",              icon: "ti-chart-pie",      color: "#1E40AF", bg: "#EFF6FF" },
-  brown_value:   { label: "Brown Value",                icon: "ti-home",           color: "#B25C2A", bg: "#FDF4EF" },
+  bilan_ges:         { label: "Bilan GES — Scope 1, 2, 3", icon: "ti-leaf",           color: "#065F46", bg: "#ECFDF5" },
+  csrd:              { label: "CSRD / ESRS",                icon: "ti-file-analytics", color: "#92400E", bg: "#FFFBEB" },
+  bilan_carbone:     { label: "Bilan Carbone",              icon: "ti-chart-pie",      color: "#1E40AF", bg: "#EFF6FF" },
+  brown_value:       { label: "Brown Value",                icon: "ti-home",           color: "#B25C2A", bg: "#FDF4EF" },
+  analyse_climatique:{ label: "Analyse climatique",         icon: "ti-thermometer",    color: "#7C3AED", bg: "#F5F3FF" },
 }
 
 const STATUT_RAPPORT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -160,10 +164,10 @@ export default function Missions() {
       setRegionAGE(profil.region || null)
     }
 
-    await Promise.all([
+  await Promise.all([
       loadMissions(user.id, profil?.role, profil?.region),
       loadConsultants(),
-      loadRapports(profil?.role, profil?.region),
+      loadRapports(profil?.role, profil?.region, user.id),
     ])
     setLoading(false)
   }
@@ -184,33 +188,62 @@ export default function Missions() {
     setMissions(data || [])
   }
 
-  async function loadConsultants() {
+async function loadConsultants() {
     const { data } = await supabase
       .from("profils")
-      .select("id, prenom, nom")
+      .select("id, prenom, nom, region")
       .eq("role", "consultant")
     setConsultants(data || [])
   }
 
   // ── Rapports : chargement + résolution identité client ──────────────────
-  async function loadRapports(role?: string, region?: string | null) {
-    if (role === "consultant") { setRapports([]); return }
+ async function loadRapports(role?: string, region?: string | null, uid?: string) {
+    let raps: any[] = []
 
-    let clientIdsFiltre: string[] | null = null
-    if (role === "responsable_regional" && region) {
-      const { data: clientsRegion } = await supabase
+    if (role === "responsable_regional" && uid) {
+      // Analyses climatiques explicitement assignées à ce responsable
+      const { data: assignees } = await supabase
+        .from("rapports_client")
+        .select("*")
+        .eq("responsable_id", uid)
+
+      // Autres rapports (bilan_ges, csrd, etc.) des clients de sa région —
+      // comportement préexistant conservé pour les types hors climatique
+      let parRegion: any[] = []
+      if (region) {
+        const { data: clientsRegion } = await supabase
+          .from("profils_client")
+          .select("id")
+          .eq("region", region)
+        const clientIdsRegion = (clientsRegion || []).map(c => c.id)
+        if (clientIdsRegion.length > 0) {
+          const { data } = await supabase
+            .from("rapports_client")
+            .select("*")
+            .in("client_id", clientIdsRegion)
+          parRegion = data || []
+        }
+      }
+
+      const dedup = new Map<string, any>()
+      ;[...(assignees || []), ...parRegion].forEach(r => dedup.set(r.id, r))
+      raps = Array.from(dedup.values())
+    } else if (role === "consultant" && uid) {
+      const { data: clientsAssignes } = await supabase
         .from("profils_client")
         .select("id")
-        .eq("region", region)
-      clientIdsFiltre = (clientsRegion || []).map(c => c.id)
+        .or(`responsable_commercial_id.is.null,responsable_commercial_id.eq.${uid}`)
+      const clientIdsFiltre = (clientsAssignes || []).map(c => c.id)
       if (clientIdsFiltre.length === 0) { setRapports([]); return }
+      const { data } = await supabase.from("rapports_client").select("*").in("client_id", clientIdsFiltre)
+      raps = data || []
+    } else {
+      const { data } = await supabase.from("rapports_client").select("*")
+      raps = data || []
     }
 
-    let query = supabase.from("rapports_client").select("*").order("created_at", { ascending: false })
-    if (clientIdsFiltre) query = query.in("client_id", clientIdsFiltre)
-
-    const { data: raps } = await query
-    if (!raps || raps.length === 0) { setRapports([]); return }
+    raps.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    if (raps.length === 0) { setRapports([]); return }
 
     // Résolution identité client
     const clientIds = [...new Set(raps.map(r => r.client_id).filter(Boolean))]
@@ -237,6 +270,13 @@ export default function Missions() {
     const actifMap: Record<string, string> = {}
     actifsData?.forEach(a => { actifMap[a.id] = a.nom })
 
+   const consultantIdsRap = [...new Set(raps.map(r => r.consultant_id).filter(Boolean))]
+    const { data: consData } = consultantIdsRap.length > 0
+      ? await supabase.from("profils").select("id, prenom, nom").in("id", consultantIdsRap)
+      : { data: [] }
+    const consMap: Record<string, string> = {}
+    consData?.forEach(c => { consMap[c.id] = `${c.prenom} ${c.nom}` })
+
     const enrichis: Rapport[] = raps.map(r => {
       const pc = pcMap[r.client_id]
       let clientNom = "Client inconnu"
@@ -250,6 +290,7 @@ export default function Missions() {
         clientNom,
         clientRegion: pc?.region || null,
         actifNom: r.actif_id ? (actifMap[r.actif_id] || null) : null,
+        consultantNom: r.consultant_id ? (consMap[r.consultant_id] || null) : null,
       }
     })
 
@@ -294,6 +335,16 @@ export default function Missions() {
     setKpisEdit(Object.entries(r.kpis || {}).map(([cle, valeur]) => ({ cle, valeur: String(valeur) })))
     setErreurRapport("")
     setRapportDrawerOpen(true)
+  }
+
+  async function assignerConsultantRapport(rapportId: string, consultantId: string) {
+    const { error } = await supabase
+      .from("rapports_client")
+      .update({ consultant_id: consultantId || null })
+      .eq("id", rapportId)
+    if (error) { console.error("Erreur délégation consultant:", error); return }
+    setRapports(prev => prev.map(r => r.id === rapportId ? { ...r, consultant_id: consultantId || null, consultantNom: consultants.find(c => c.id === consultantId) ? `${consultants.find(c => c.id === consultantId).prenom} ${consultants.find(c => c.id === consultantId).nom}` : null } : r))
+    setSelectedRapport(prev => prev ? { ...prev, consultant_id: consultantId || null } : null)
   }
 
   async function updateStatutRapport(rapportId: string, statut: string) {
@@ -378,7 +429,7 @@ export default function Missions() {
   const rapportsEnAttente = rapports.filter(r => r.statut === "demande").length
   const isAdmin = userRole === "admin" || userRole === "admin_national"
   const isResponsable = userRole === "responsable_regional"
-  const peutVoirRapports = isAdmin || isResponsable
+  const peutVoirRapports = isAdmin || isResponsable || userRole === "consultant"
 
   if (loading) return <div style={{ padding: "2rem", color: "#6B7280", fontSize: "14px" }}>Chargement…</div>
 
@@ -591,9 +642,9 @@ export default function Missions() {
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
+          <thead>
                 <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
-                  {["Client", "Type de rapport", "Actif", "Période", "Statut", "Demandé le", ""].map(h => (
+                  {["Client", "Type de rapport", "Actif", "Consultant", "Statut", "Demandé le", ""].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
@@ -621,7 +672,7 @@ export default function Missions() {
                         </div>
                       </td>
                       <td style={{ ...tdStyle, fontSize: "12px", color: "#6B7280" }}>{r.actifNom || "Transverse"}</td>
-                      <td style={{ ...tdStyle, fontSize: "12px", color: "#6B7280" }}>{r.periode || "—"}</td>
+                      <td style={{ ...tdStyle, fontSize: "12px", color: r.consultantNom ? "#111827" : "#D97706" }}>{r.consultantNom || "Non délégué"}</td>
                       <td style={tdStyle}>
                         <span style={{ background: statut.bg, color: statut.color, fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500 }}>
                           {statut.label}
@@ -629,13 +680,24 @@ export default function Missions() {
                       </td>
                       <td style={{ ...tdStyle, fontSize: "12px", color: "#6B7280" }}>{formatDate(r.created_at)}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); ouvrirRapport(r) }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                        >
-                          <i className="ti ti-eye" style={{ fontSize: "13px" }} />
-                          Traiter
-                        </button>
+                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                          {r.type_rapport === "analyse_climatique" && r.actif_id && (
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/metier/portefeuille/${r.actif_id}`, { state: { ongletInitial: "mission" } }) }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #DDD6FE", background: "#F5F3FF", color: "#7C3AED", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                            >
+                              <i className="ti ti-external-link" style={{ fontSize: "13px" }} />
+                              Ouvrir la fiche du bien
+                            </button>
+                          )}
+                          <button
+                            onClick={e => { e.stopPropagation(); ouvrirRapport(r) }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <i className="ti ti-eye" style={{ fontSize: "13px" }} />
+                            Traiter
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -836,6 +898,24 @@ export default function Missions() {
                   </div>
                 </div>
               </div>
+
+             {isResponsable && (
+                <div>
+                  <div style={sectionTitleStyle}>Déléguer à un consultant</div>
+                  <select
+                    className="input"
+                    value={selectedRapport.consultant_id || ""}
+                    onChange={e => assignerConsultantRapport(selectedRapport.id, e.target.value)}
+                  >
+                    <option value="">— Non délégué —</option>
+                    {consultants
+                      .filter(c => !regionAGE || c.region === regionAGE)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <div style={sectionTitleStyle}>Statut</div>

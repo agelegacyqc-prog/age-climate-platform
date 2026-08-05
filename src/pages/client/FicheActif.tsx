@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
+import { calculerScoreGeorisques } from "../../lib/scoreGeorisques"
 import ScoreHistorique from "../metier/ScoreHistorique"
+import ScoreRepartitionPie from "../../components/ScoreRepartitionPie"
+import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
 
 const statutReglColor:any = {
   eligible:    { bg:"#F0FDF4", color:"#2F7D5C", label:"Obligatoire",  icone:"ti-circle-check" },
@@ -34,7 +37,16 @@ const typesDocuments = [
   { id:"rapport_csrd", label:"Rapport CSRD/ESG",  desc:"Rapport durabilité" },
   { id:"factures",     label:"Factures énergie",  desc:"12 derniers mois" },
 ]
-
+const ALEA_LABELS: Record<string, string> = {
+  inondation: "Inondation",
+  chaleur: "Vagues de chaleur",
+  secheresse: "Sécheresse",
+  feux_foret: "Feux de forêt",
+  tempetes: "Tempêtes",
+  rga: "RGA",
+  submersion: "Submersion",
+  episodes_froids: "Épisodes froids",
+}
 export default function FicheActif() {
   const { id }   = useParams()
   const navigate = useNavigate()
@@ -48,6 +60,9 @@ export default function FicheActif() {
   const [documents, setDocuments]               = useState<any[]>([])
   const [rapports, setRapports]                 = useState<any[]>([])
   const [demandes, setDemandes]                 = useState<any[]>([])
+  const [prediagnostic, setPrediagnostic]       = useState<any>(null)
+  const [demandeAnalyse, setDemandeAnalyse]     = useState<any>(null)
+  const [envoiDemandeAnalyse, setEnvoiDemandeAnalyse] = useState(false)
   const [loading, setLoading]                   = useState(true)
   const [onglet, setOnglet]                     = useState("synthese")
   const [ajoutDoc, setAjoutDoc]                 = useState(false)
@@ -69,12 +84,24 @@ export default function FicheActif() {
       .eq("actif_id", id).eq("visible_client", true).eq("est_version_courante", true)
     const { data: { user } }  = await supabase.auth.getUser()
 
-    const [{ data: rapportsData }, { data: demandesData }] = await Promise.all([
+    const [{ data: rapportsData }, { data: demandesData }, { data: prediagData }, { data: demandeAnalyseData }] = await Promise.all([
       supabase.from("rapports_client").select("id, statut, type_rapport").eq("actif_id", id).eq("statut", "disponible"),
       supabase.from("demandes_marketplace").select("id").eq("actif_id", id).eq("client_id", user?.id || ""),
+      supabase.from("prediagnostics")
+        .select("id, statut, recommandations, priorite, generated_at, risk_score:risk_score_id(score_global, classe_risque, scores_aleas)")
+        .eq("actif_id", id).eq("statut", "generated")
+        .order("generated_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("rapports_client")
+        .select("id, statut").eq("actif_id", id).eq("type_rapport", "analyse_climatique")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ])
 
-    setActif(actifData)
+  setActif(actifData)
+
+    if (actifData && !actifData.georisques_data) {
+      const georisquesData = await fetchAndStoreGeorisques(actifData)
+      if (georisquesData) setActif((prev: any) => ({ ...prev, georisques_data: georisquesData }))
+    }
 
     // Charger la photo du bâtiment
     if (actifData?.photo_batiment) {
@@ -89,14 +116,37 @@ export default function FicheActif() {
       nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged"
     }))
     setDocuments([...(docData || []), ...docsGedFormates])
-    setRapports(rapportsData || [])
+ setRapports(rapportsData || [])
     setDemandes(demandesData || [])
+    setPrediagnostic(prediagData || null)
+    setDemandeAnalyse(demandeAnalyseData || null)
     setLoading(false)
+  }
+
+async function demanderAnalyseClimatique() {
+    if (!actif) return
+    setEnvoiDemandeAnalyse(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Session expirée")
+      const { data, error } = await supabase.from("rapports_client").insert({
+        client_id: user.id,
+        actif_id: actif.id,
+        type_rapport: "analyse_climatique",
+        statut: "demande",
+      }).select("id, statut").single()
+      if (error) throw error
+      setDemandeAnalyse(data)
+    } catch (err: any) {
+      console.error("Erreur demande analyse climatique:", err)
+      alert("Erreur lors de l'envoi de la demande : " + (err.message || "inconnue"))
+    } finally {
+      setEnvoiDemandeAnalyse(false)
+    }
   }
 
   async function lancerAnalyseReglementaire() {
     if (!actif) return
-
     const echeancesMap: Record<string, string> = {
       tertiaire:"2026-09-30", bacs:"2026-01-01", audit_energetique:"2026-11-01",
       csrd:"2026-12-31", eu_taxonomy:"2026-12-31", sfdr:"2026-06-30",
@@ -202,8 +252,14 @@ export default function FicheActif() {
   if (loading) return <div style={{padding:"2rem",color:"#666"}}>Chargement...</div>
   if (!actif)  return <div style={{padding:"2rem",color:"#666"}}>Actif introuvable</div>
 
-  const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
+const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
   const scoreColor = (actif.score_climatique||0) >= 70 ? "#b91c1c" : (actif.score_climatique||0) >= 40 ? "#d97706" : "#2d6a4f"
+  const scoreGeorisques = calculerScoreGeorisques(actif.exposition_rga, actif.georisques_data)
+  const nbEligibleScore = reglementations.filter(r => r.statut === "eligible").length
+  const scoreReglementaire = reglementations.length > 0
+    ? Math.round((nbEligibleScore / reglementations.length) * 100)
+    : 0
+  const scoreClimatiqueAge = prediagnostic?.risk_score?.score_global ?? null
 
   return (
     <div>
@@ -268,13 +324,29 @@ export default function FicheActif() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                  <span style={{ background: "#FEF2F2", color: "#B91C1C", padding: "6px 14px", borderRadius: "999px", fontWeight: 700, fontSize: "15px", fontFamily: "JetBrains Mono, monospace" }}>
-                    {actif.score_climatique || "—"}/100
-                  </span>
-                  <span style={{ background: "#FFFBEB", color: "#D97706", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
-                    En attente d'analyse
-                  </span>
+                  {[
+                    { label: "Géorisques", valeur: scoreGeorisques,    couleur: "#0369A1" },
+                    { label: "Rgl.",        valeur: scoreReglementaire, couleur: "#7C3AED" },
+                    { label: "Clim. AGE",   valeur: scoreClimatiqueAge, couleur: "#B91C1C" },
+                  ].map((s, i) => (
+                    <span key={i} title={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#FAFAF9", color: s.couleur, padding: "4px 10px", borderRadius: "8px", border: "1px solid #E2DDD8", minWidth: 58 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", opacity: 0.85 }}>{s.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "JetBrains Mono, monospace" }}>
+                        {s.valeur === null ? "—" : `${s.valeur}/100`}
+                      </span>
+                    </span>
+                  ))}
+                  {prediagnostic ? (
+                    <span style={{ background: "#F0FDF4", color: "#2F7D5C", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <i className="ti ti-circle-check" style={{ fontSize: "12px" }} />
+                      Analyse disponible
+                    </span>
+                  ) : demandeAnalyse?.statut === "demande" ? (
+                    <span style={{ background: "#FFFBEB", color: "#D97706", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <i className="ti ti-alert-triangle" style={{ fontSize: "12px" }} />
+                      En attente d'analyse
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -349,13 +421,21 @@ export default function FicheActif() {
               ["Année construction",actif.annee_construction||"—"],
               ["Secteur",actif.secteur_activite||"—"],
               ["Effectifs",actif.effectifs+" salariés"],
-              ["Nb sites",actif.nb_sites||1],
+             ["Nb sites",actif.nb_sites||1],
             ].map(([k,v],i) => (
               <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
                 <span style={{color:"#666",fontSize:"0.9rem"}}>{k}</span>
                 <span style={{fontWeight:"600",color:"#111827",fontSize:"0.9rem"}}>{v}</span>
               </div>
             ))}
+            <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #f0f0f0" }}>
+              <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>Répartition des scores</div>
+              <ScoreRepartitionPie
+                scoreGeorisques={scoreGeorisques}
+                scoreReglementaire={scoreReglementaire}
+                scoreClimatiqueAge={scoreClimatiqueAge}
+              />
+            </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
             <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
@@ -430,35 +510,111 @@ export default function FicheActif() {
           )}
         </div>
       )}
-{/* Onglet Climatique — réservé missions AGE */}
+{/* Onglet Climatique */}
       {onglet==="climatique" && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 24px", background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FDF0E8", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-            <i className="ti ti-lock" style={{ fontSize: 28, color: "#B25C2A" }} />
+        prediagnostic ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: "1rem" }}>
+              <div>
+                <h3 style={{ color: "#111827", margin: 0 }}>Analyse climatique</h3>
+                <p style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                  Réalisée le {new Date(prediagnostic.generated_at).toLocaleDateString("fr-FR")}
+                </p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 20, fontWeight: 700, color: "#B91C1C" }}>
+                  {prediagnostic.risk_score?.score_global ?? "—"}/100
+                </span>
+                {prediagnostic.priorite && (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    background: prediagnostic.priorite === "urgence" ? "#FEF2F2" : prediagnostic.priorite === "surveillance" ? "#FFFBEB" : "#F0FDF4",
+                    color: prediagnostic.priorite === "urgence" ? "#B91C1C" : prediagnostic.priorite === "surveillance" ? "#D97706" : "#2F7D5C",
+                  }}>
+                    {prediagnostic.priorite === "urgence" ? "Urgence" : prediagnostic.priorite === "surveillance" ? "Surveillance" : "Veille"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+              <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Exposition par aléa</h3>
+              {Object.keys(prediagnostic.risk_score?.scores_aleas || {}).length === 0 ? (
+                <p style={{ color: "#6B7280", fontSize: 13 }}>Aucune décomposition par aléa disponible.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {Object.entries(prediagnostic.risk_score.scores_aleas as Record<string, number>).map(([alea, score]) => (
+                    <div key={alea} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ width: 160, fontSize: 13, color: "#111827" }}>{ALEA_LABELS[alea] || alea}</span>
+                      <div style={{ flex: 1, background: "#F1F5F9", borderRadius: 4, height: 8, overflow: "hidden" }}>
+                        <div style={{ width: `${score}%`, height: "100%", background: score >= 70 ? "#B91C1C" : score >= 40 ? "#D97706" : "#2F7D5C", borderRadius: 4 }} />
+                      </div>
+                      <span style={{ width: 36, textAlign: "right" as const, fontFamily: "JetBrains Mono, monospace", fontSize: 12, color: "#6B7280" }}>{score}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+              <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Recommandations d'adaptation</h3>
+              {!prediagnostic.recommandations || prediagnostic.recommandations.length === 0 ? (
+                <p style={{ color: "#6B7280", fontSize: 13 }}>Aucune recommandation renseignée.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {prediagnostic.recommandations.map((r: any, i: number) => (
+                    <div key={i} style={{ padding: "1rem", background: "#F8F7F4", borderRadius: 8, border: "1px solid #E5E1DA" }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginBottom: 6 }}>
+                        {ALEA_LABELS[r.alea] || r.alea}
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        {(r.actions || []).map((a: string, j: number) => (
+                          <li key={j} style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>{a}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 10 }}>
-            Analyse climatique réservée aux missions AGE
-          </h3>
-          <p style={{ fontSize: 14, color: "#6B7280", maxWidth: 420, lineHeight: 1.7, marginBottom: 24 }}>
-            L'exposition aux aléas climatiques, le score de risque physique et les recommandations d'adaptation de votre bien sont réalisés par nos consultants dans le cadre d'une mission dédiée.
-          </p>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button
-              onClick={() => navigate("/client/demandes")}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "none", background: "#B25C2A", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              <i className="ti ti-send" style={{ fontSize: 14 }} />
-              Demander une analyse
-            </button>
-            <button
-              onClick={() => navigate("/marketplace")}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "1px solid #E2DDD8", background: "white", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              <i className="ti ti-building-store" style={{ fontSize: 14 }} />
-              Voir nos offres
-            </button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 24px", background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FDF0E8", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+              <i className="ti ti-lock" style={{ fontSize: 28, color: "#B25C2A" }} />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 10 }}>
+              Analyse climatique réservée aux missions AGE
+            </h3>
+            <p style={{ fontSize: 14, color: "#6B7280", maxWidth: 420, lineHeight: 1.7, marginBottom: 24 }}>
+              L'exposition aux aléas climatiques, le score de risque physique et les recommandations d'adaptation de votre bien sont réalisés par nos consultants dans le cadre d'une mission dédiée.
+            </p>
+            {demandeAnalyse ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 8, background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#2F7D5C", fontSize: 13, fontWeight: 600 }}>
+                <i className="ti ti-clock" style={{ fontSize: 14 }} />
+                {demandeAnalyse.statut === "demande" ? "Demande envoyée — en attente de traitement" : "Analyse en cours de réalisation"}
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  onClick={demanderAnalyseClimatique}
+                  disabled={envoiDemandeAnalyse}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "none", background: envoiDemandeAnalyse ? "#D6B199" : "#B25C2A", color: "white", fontSize: 13, fontWeight: 600, cursor: envoiDemandeAnalyse ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-send" style={{ fontSize: 14 }} />
+                  {envoiDemandeAnalyse ? "Envoi…" : "Demander une analyse"}
+                </button>
+                <button
+                  onClick={() => navigate("/marketplace")}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 8, border: "1px solid #E2DDD8", background: "white", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-building-store" style={{ fontSize: 14 }} />
+                  Voir nos offres
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )
       )}
     
 

@@ -305,6 +305,7 @@ export default function Layout() {
   const [nbMessagesClient, setNbMessagesClient] = useState(0)
   const [detailMessagesClient, setDetailMessagesClient] = useState({ demandes: 0, campagnes: 0, actifs: 0 })
   const [nbRapportsDispo, setNbRapportsDispo] = useState(0)
+  const [detailFileAttente, setDetailFileAttente] = useState<Record<string, number>>({})
 
   useEffect(() => {
     async function chargerProfil() {
@@ -373,11 +374,18 @@ export default function Layout() {
             .select("id", { count: "exact", head: true })
             .eq("statut", "demande")
 
-          setNbFileAttente(
+        setNbFileAttente(
             (countFile || 0) + (countCampagnesAttente || 0) +
             (countRdv || 0) + (countMissionsAttente || 0) + (countRapportsAttente || 0)
           )
           setNbRapportsAttente(countRapportsAttente || 0)
+          setDetailFileAttente({
+            marketplace: countFile || 0,
+            campagnes:   countCampagnesAttente || 0,
+            rdv:         countRdv || 0,
+            missions:    countMissionsAttente || 0,
+            climatique:  countRapportsAttente || 0,
+          })
 
           supabase
             .channel(`rapports-demande-${Date.now()}`)
@@ -405,7 +413,7 @@ export default function Layout() {
           setNbFileAttente(prev => prev + (countAlertesAdmin || 0))
         }
 
-        if (role === "responsable_regional") {
+    if (role === "responsable_regional") {
           const { count: countCampRegion } = await supabase
             .from("campagnes")
             .select("id", { count: "exact", head: true })
@@ -427,36 +435,27 @@ export default function Layout() {
             .is("consultant_id", null)
           setNbMissions(countMissRegion || 0)
 
-          // Rapports demandés par des clients de la région
-       const { data: clientsRegion } = await supabase
-            .from("profils_client")
-            .select("id")
-            .eq("region", profilAGE.region)
-          const clientIdsRegion = (clientsRegion || []).map(c => c.id)
-        if (clientIdsRegion.length > 0) {
-            const { count: countRapportsRegion } = await supabase
-              .from("rapports_client")
-              .select("id", { count: "exact", head: true })
-              .eq("statut", "demande")
-              .in("client_id", clientIdsRegion)
-            setNbFileAttente(prev => prev + (countRapportsRegion || 0))
-            setNbRapportsAttente(countRapportsRegion || 0)
-          }
+          // Demandes d'analyse climatique non assignées — visible par tous les
+          // responsables régionaux, sans filtre région (rapports_client.region
+          // reste toujours NULL, décision PO 05/08/2026)
+          const { count: countRapportsRegion } = await supabase
+            .from("rapports_client")
+            .select("id", { count: "exact", head: true })
+            .eq("statut", "demande")
+            .eq("type_rapport", "analyse_climatique")
+          setNbFileAttente(prev => prev + (countRapportsRegion || 0))
+          setNbRapportsAttente(countRapportsRegion || 0)
+          setDetailFileAttente({ climatique: countRapportsRegion || 0 })
 
           supabase
             .channel(`rapports-demande-region-${Date.now()}`)
             .on("postgres_changes", {
               event: "INSERT", schema: "public", table: "rapports_client",
-            }, async (payload: any) => {
-              if (payload.new?.statut !== "demande") return
-              const { data: pc } = await supabase
-                .from("profils_client")
-                .select("region")
-                .eq("id", payload.new.client_id)
-                .maybeSingle()
-              if (pc?.region === profilAGE.region) {
+            }, (payload: any) => {
+              if (payload.new?.statut === "demande" && payload.new?.type_rapport === "analyse_climatique") {
                 setNbFileAttente(prev => prev + 1)
                 setNbRapportsAttente(prev => prev + 1)
+                setDetailFileAttente(prev => ({ ...prev, climatique: (prev.climatique || 0) + 1 }))
               }
             })
             .subscribe()
@@ -667,13 +666,18 @@ export default function Layout() {
           {/* ── Espace Métier AGE ──────────────────────────────────────── */}
           {espace === "metier" && (
             <>
-              {/* File d'attente — admin national uniquement */}
-              {roleAGE === "admin_national" && (
+          {/* File d'attente — admin national (complète) et responsable régional (analyses climatiques uniquement) */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem
                   to="/metier/file-attente"
                   icon="ti-inbox"
                   label="File d'attente"
-                  badge={nbFileAttente + nbCampagnes}
+                  badge={roleAGE === "admin_national" ? nbFileAttente + nbCampagnes : nbFileAttente}
+                  title={
+                    roleAGE === "admin_national"
+                      ? `${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.campagnes || 0} campagnes · ${detailFileAttente.rdv || 0} RDV · ${detailFileAttente.missions || 0} missions · ${detailFileAttente.climatique || 0} analyses climatiques`
+                      : `${detailFileAttente.climatique || 0} analyse${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} climatique${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} en attente`
+                  }
                 />
               )}
 
@@ -701,7 +705,7 @@ export default function Layout() {
               )}
 
               {/* Clients */}
-              {roleAGE === "admin_national" && (
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
               )}
 

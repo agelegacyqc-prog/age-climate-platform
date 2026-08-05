@@ -62,6 +62,8 @@ const labelStyle: React.CSSProperties = {
 export default function Clients() {
   const navigate = useNavigate()
 
+  const [userRole, setUserRole]         = useState("")
+  const [userRegion, setUserRegion]     = useState("")
   const [clients, setClients]           = useState<Client[]>([])
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState("")
@@ -71,24 +73,45 @@ export default function Clients() {
   const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string }[]>([])
 
   const [newClientOpen, setNewClientOpen]     = useState(false)
-  const [newClientForm, setNewClientForm]     = useState({
+ const [newClientForm, setNewClientForm]     = useState({
     raison_sociale: "", type_client: "entreprise",
-    prenom: "", nom: "", email: "", password: "",
+    prenom: "", nom: "", email: "", password: "", region: "",
   })
   const [newClientError, setNewClientError]   = useState("")
   const [newClientSuccess, setNewClientSuccess] = useState("")
   const [newClientLoading, setNewClientLoading] = useState(false)
   const [newClientCreds, setNewClientCreds]   = useState<{ email: string; password: string } | null>(null)
 
-  useEffect(() => { charger() }, [])
+useEffect(() => { charger() }, [])
 
   async function charger() {
     setLoading(true)
     try {
-      const { data: profilsData } = await supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      let roleCourant = ""
+      let regionCourante = ""
+      if (user) {
+        const { data: monProfil } = await supabase
+          .from("profils")
+          .select("role, region")
+          .eq("id", user.id)
+          .maybeSingle()
+        roleCourant = monProfil?.role || ""
+        regionCourante = monProfil?.region || ""
+        setUserRole(roleCourant)
+        setUserRegion(regionCourante)
+      }
+
+      let requete = supabase
         .from("profils_client")
         .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, region, prenom, nom")
         .order("created_at", { ascending: false })
+
+      if (roleCourant === "responsable_regional") {
+        requete = requete.or(`region.is.null,region.eq.${regionCourante}`)
+      }
+
+      const { data: profilsData } = await requete
 
       if (!profilsData) { setLoading(false); return }
 
@@ -133,16 +156,21 @@ export default function Clients() {
     }
   }
 
-  async function toggleActif(client: Client) {
+ async function toggleActif(client: Client) {
     const nouvelle_valeur = !client.actif
     setClients(prev => prev.map(c => c.id === client.id ? { ...c, actif: nouvelle_valeur } : c))
-    await supabase.from("profils_client").update({ actif: nouvelle_valeur }).eq("id", client.id)
+    const { error } = await supabase.from("profils_client").update({ actif: nouvelle_valeur }).eq("id", client.id)
+    if (error) {
+      console.error("Erreur toggleActif:", error)
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, actif: !nouvelle_valeur } : c))
+      alert("Erreur lors de la mise à jour du statut : " + error.message)
+    }
   }
 
   async function handleCreerClient() {
     setNewClientError("")
     setNewClientSuccess("")
-    const { raison_sociale, type_client, prenom, nom, email, password } = newClientForm
+const { raison_sociale, type_client, prenom, nom, email, password, region } = newClientForm
     if (!raison_sociale || !type_client || !email || !password) {
       setNewClientError("Raison sociale, type, email et mot de passe sont obligatoires.")
       return
@@ -160,7 +188,7 @@ export default function Clients() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
-          body: JSON.stringify({ raison_sociale, type_client, prenom, nom, email, password }),
+          body: JSON.stringify({ raison_sociale, type_client, prenom, nom, email, password, region: region || null }),
         }
       )
       const result = await response.json()
@@ -212,7 +240,7 @@ export default function Clients() {
             setNewClientError("")
             setNewClientSuccess("")
             setNewClientCreds(null)
-            setNewClientForm({ raison_sociale: "", type_client: "entreprise", prenom: "", nom: "", email: "", password: "" })
+            setNewClientForm({ raison_sociale: "", type_client: "entreprise", prenom: "", nom: "", email: "", password: "", region: "" })
           }}>
             <i className="ti ti-user-plus" style={{ fontSize: "14px" }} />
             Nouveau client
@@ -399,7 +427,7 @@ export default function Clients() {
                     <label style={labelStyle}>Raison sociale <span style={{ color: "#B91C1C" }}>*</span></label>
                     <input className="input" value={newClientForm.raison_sociale} onChange={e => setNewClientForm({ ...newClientForm, raison_sociale: e.target.value })} placeholder="Ex : Allianz France" />
                   </div>
-                  <div>
+                <div>
                     <label style={labelStyle}>Type de client <span style={{ color: "#B91C1C" }}>*</span></label>
                     <select className="input" value={newClientForm.type_client} onChange={e => setNewClientForm({ ...newClientForm, type_client: e.target.value })}>
                       <option value="banque">Banque</option>
@@ -407,6 +435,19 @@ export default function Clients() {
                       <option value="entreprise">Entreprise</option>
                       <option value="collectivite">Collectivité</option>
                       <option value="proprietaire">Particulier</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Région</label>
+                    <select className="input" value={newClientForm.region} onChange={e => setNewClientForm({ ...newClientForm, region: e.target.value })}>
+                      <option value="">— Non définie —</option>
+                      <option value="Nord">Nord</option>
+                      <option value="Nord-Est">Nord-Est</option>
+                      <option value="Nord-Ouest">Nord-Ouest</option>
+                      <option value="Ile-de-France">Ile-de-France</option>
+                      <option value="Centre">Centre</option>
+                      <option value="Sud-Est">Sud-Est</option>
+                      <option value="Sud-Ouest">Sud-Ouest</option>
                     </select>
                   </div>
                   <div style={{ paddingTop: "8px", borderTop: "1px solid #E2DDD8" }}>

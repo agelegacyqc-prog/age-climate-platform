@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import { calculerScoreGeorisques } from "../../lib/scoreGeorisques"
 
 const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   en_attente: { label: "En attente", color: "#92400E", bg: "#FFFBEB" },
@@ -14,6 +15,7 @@ export default function MesActifs() {
   const [loading, setLoading]         = useState(true)
   const [filtre, setFiltre]           = useState("tous")
   const [typeClient, setTypeClient]   = useState<string | null>(null)
+  const [scoresAge, setScoresAge]     = useState<Record<string, number>>({})
 
   useEffect(() => { loadActifs() }, [])
 
@@ -53,11 +55,29 @@ export default function MesActifs() {
       query = query.eq("actif", true)
     }
 
-    const { data } = await query
+ const { data } = await query
     setActifs(data || [])
+
+    const actifIds = (data || []).map((a: any) => a.id)
+    if (actifIds.length > 0) {
+      const { data: prediags } = await supabase
+        .from("prediagnostics")
+        .select("actif_id, generated_at, risk_score:risk_score_id(score_global)")
+        .in("actif_id", actifIds)
+        .eq("statut", "generated")
+        .order("generated_at", { ascending: false })
+      const map: Record<string, number> = {}
+      ;(prediags || []).forEach((p: any) => {
+        if (!(p.actif_id in map)) {
+          const s = (p.risk_score as any)?.score_global
+          if (s !== undefined && s !== null) map[p.actif_id] = s
+        }
+      })
+      setScoresAge(map)
+    }
+
     setLoading(false)
   }
-
   function routeNouveau(): string {
     return typeClient === "proprietaire"
       ? "/client/actifs/nouveau-particulier"
@@ -211,14 +231,29 @@ export default function MesActifs() {
                   )}
                 </div>
 
-                {/* Score + actions */}
+               {/* Score + actions */}
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-                  {a.score_climatique && (
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "20px", fontWeight: 600, color: scoreColor, fontFamily: "'DM Mono', monospace" }}>{a.score_climatique}</div>
-                      <div style={{ fontSize: "10px", color: "#94A3B8" }}>/ 100</div>
-                    </div>
-                  )}
+                  {(() => {
+                    const scoreGeorisques = calculerScoreGeorisques(a.exposition_rga, a.georisques_data)
+                    const scoreReglementaire = nbTotal > 0 ? Math.round((nbObligatoires / nbTotal) * 100) : null
+                    const scoreClimatiqueAge = scoresAge[a.id] ?? null
+                    return (
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        {[
+                          { label: "Géorisques", valeur: scoreGeorisques,    couleur: "#0369A1" },
+                          { label: "Rgl.",        valeur: scoreReglementaire, couleur: "#7C3AED" },
+                          { label: "Clim. AGE",   valeur: scoreClimatiqueAge, couleur: "#B91C1C" },
+                        ].map((s, si) => (
+                          <div key={si} title={s.label} style={{ textAlign: "center" as const, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "6px", padding: "4px 8px", minWidth: 50 }}>
+                            <div style={{ fontSize: 8, fontWeight: 600, color: s.couleur, textTransform: "uppercase" as const, letterSpacing: "0.03em", opacity: 0.85 }}>{s.label}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: s.couleur, fontFamily: "'DM Mono', monospace" }}>
+                              {s.valeur === null ? "—" : s.valeur}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       onClick={e => { e.stopPropagation(); desactiverActif(a.id) }}

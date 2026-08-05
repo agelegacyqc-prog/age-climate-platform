@@ -36,18 +36,18 @@ serve(async (req) => {
 
     const { data: profil } = await supabaseUser
       .from("profils")
-      .select("role")
+      .select("role, region")
       .eq("id", caller.id)
       .single()
 
-    if (!profil || !["admin", "admin_national"].includes(profil.role)) {
+    if (!profil || !["admin", "admin_national", "responsable_regional"].includes(profil.role)) {
       return new Response(
         JSON.stringify({ error: "Droits insuffisants" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    const { email, password, prenom, nom, type_client, raison_sociale } = await req.json()
+    const { email, password, prenom, nom, type_client, raison_sociale, region } = await req.json()
 
     if (!email || !password || !type_client || !raison_sociale) {
       return new Response(
@@ -100,10 +100,11 @@ serve(async (req) => {
         prenom: prenom || null,
         nom: nom || null,
         type_client,
-        organisation_id: orgData.id,
+     organisation_id: orgData.id,
         actif: true,
         onboarding_complete: false,
-        role_client: "admin_client",
+      role_client: "admin_client",
+        region: region || null,
       })
 
     if (profilError) {

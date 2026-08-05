@@ -1,34 +1,210 @@
 import React, { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import { genererRecommandationsAuto } from "../../lib/genererRecommandationsAuto"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
+import { calculerScoreGeorisques } from "../../lib/scoreGeorisques"
 import PreDiagDrawer from "./PreDiagDrawer"
 import ScoreHistorique from "./ScoreHistorique"
+import ScoreRepartitionPie from "../../components/ScoreRepartitionPie"
+import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
 const ONGLETS = [
   { id: "synthese",    label: "Synthèse",    icon: "ti-clipboard-list" },
   { id: "climatique",  label: "Climatique",  icon: "ti-leaf" },
+  { id: "mission",     label: "Mission climatique", icon: "ti-target-arrow" },
   { id: "historique",  label: "Historique scores", icon: "ti-chart-line" },
 ]
+
+const ALEA_LABELS: Record<string, string> = {
+  inondation: "Inondation",
+  chaleur: "Vagues de chaleur",
+  secheresse: "Sécheresse",
+  feux_foret: "Feux de forêt",
+  tempetes: "Tempêtes",
+  rga: "RGA",
+  submersion: "Submersion",
+  episodes_froids: "Épisodes froids",
+}
+const ALEA_KEYS = Object.keys(ALEA_LABELS)
+
+function classeRisqueFromScore(score: number): string {
+  if (score >= 75) return "critique"
+  if (score >= 50) return "eleve"
+  if (score >= 25) return "modere"
+  return "faible"
+}
 
 export default function FicheBien() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [actif, setActif]   = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [onglet, setOnglet]   = useState("synthese")
-const [prediagOpen, setPrediagOpen] = useState(false)
+  const [onglet, setOnglet]   = useState((location.state as { ongletInitial?: string } | null)?.ongletInitial || "synthese")
+  const [prediagOpen, setPrediagOpen] = useState(false)
+
+  const [userRegion, setUserRegion]   = useState<string | null>(null)
+  const [demandeAnalyse, setDemandeAnalyse] = useState<any>(null)
+  const [scoreClimatiqueAge, setScoreClimatiqueAge] = useState<number | null>(null)
+  const [scoreReglementaire, setScoreReglementaire] = useState(0)
+  const [missionForm, setMissionForm] = useState({
+    scoreGlobal: "",
+    priorite: "surveillance",
+    aleaScores: Object.fromEntries(ALEA_KEYS.map(k => [k, ""])) as Record<string, string>,
+    aleaActions: Object.fromEntries(ALEA_KEYS.map(k => [k, ""])) as Record<string, string>,
+  })
+  const [savingMission, setSavingMission] = useState(false)
+  const [erreurMission, setErreurMission]  = useState("")
+  const [missionSauvegardee, setMissionSauvegardee] = useState(false)
+  const [genererAuto, setGenererAuto] = useState(false)
+
   useEffect(() => { loadActif() }, [id])
 
   async function loadActif() {
     const { data } = await supabase.from("actifs").select("*").eq("id", id).single()
     setActif(data)
+
+    if (data && !data.georisques_data) {
+      const georisquesData = await fetchAndStoreGeorisques(data)
+      if (georisquesData) setActif((prev: any) => ({ ...prev, georisques_data: georisquesData }))
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profil } = await supabase.from("profils").select("region").eq("id", user.id).maybeSingle()
+      setUserRegion(profil?.region ?? null)
+    }
+
+   const { data: reglementations } = await supabase
+      .from("actifs_reglementaire")
+      .select("statut")
+      .eq("actif_id", id)
+    const nbEligible = (reglementations || []).filter(r => r.statut === "eligible").length
+    const scoreReglementaireCalcule = (reglementations || []).length > 0
+      ? Math.round((nbEligible / reglementations!.length) * 100)
+      : 0
+    setScoreReglementaire(scoreReglementaireCalcule)
+
+    const { data: demande } = await supabase
+      .from("rapports_client")
+      .select("id, statut, client_id")
+      .eq("actif_id", id).eq("type_rapport", "analyse_climatique")
+      .in("statut", ["demande", "en_cours"])
+      .order("created_at", { ascending: false }).limit(1).maybeSingle()
+    setDemandeAnalyse(demande || null)
+
+    const { data: prediagAge } = await supabase
+      .from("prediagnostics")
+      .select("risk_score:risk_score_id(score_global)")
+      .eq("actif_id", id).eq("statut", "generated")
+      .order("generated_at", { ascending: false }).limit(1).maybeSingle()
+    setScoreClimatiqueAge((prediagAge?.risk_score as any)?.score_global ?? null)
+
     setLoading(false)
+  }
+
+  async function enregistrerMissionClimatique() {
+    if (!actif) return
+    const scoreGlobal = parseInt(missionForm.scoreGlobal, 10)
+    if (isNaN(scoreGlobal) || scoreGlobal < 0 || scoreGlobal > 100) {
+      setErreurMission("Le score global doit être un nombre entre 0 et 100.")
+      return
+    }
+    setSavingMission(true)
+    setErreurMission("")
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Session expirée")
+
+    const scoresAleas: Record<string, number> = {}
+      ALEA_KEYS.forEach(k => {
+        const v = parseInt(missionForm.aleaScores[k], 10)
+        if (!isNaN(v)) scoresAleas[k] = v
+      })
+      const aleaPrincipal = Object.entries(scoresAleas).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+      const { count: nbScoresExistants } = await supabase
+        .from("risk_scores").select("id", { count: "exact", head: true }).eq("actif_id", actif.id)
+      const contexte = (nbScoresExistants ?? 0) === 0 ? "initial" : "suivi"
+
+      const { data: riskScore, error: rsError } = await supabase.from("risk_scores").insert({
+        actif_id: actif.id,
+        score_global: scoreGlobal,
+        classe_risque: classeRisqueFromScore(scoreGlobal),
+        alea_principal: aleaPrincipal,
+        scores_aleas: scoresAleas,
+        calcule_par: user.id,
+        region_code: userRegion,
+        source: "manuel",
+        contexte,
+      }).select("id").single()
+      if (rsError) throw rsError
+
+      const recommandations = ALEA_KEYS
+        .filter(k => missionForm.aleaActions[k].trim() !== "")
+        .map(k => ({
+          alea: k,
+          actions: missionForm.aleaActions[k].split("\n").map(a => a.trim()).filter(Boolean),
+        }))
+
+      const { error: prediagError } = await supabase.from("prediagnostics").insert({
+        actif_id: actif.id,
+        risk_score_id: riskScore.id,
+        rapport_client_id: demandeAnalyse?.id ?? null,
+        statut: "generated",
+        recommandations,
+        priorite: missionForm.priorite,
+        generated_by: user.id,
+      })
+      if (prediagError) throw prediagError
+
+      if (demandeAnalyse) {
+        const { error: majError } = await supabase.from("rapports_client")
+          .update({ statut: "disponible" })
+          .eq("id", demandeAnalyse.id)
+        if (majError) throw majError
+      }
+
+      setMissionSauvegardee(true)
+      await loadActif()
+    } catch (err: any) {
+      console.error("Erreur enregistrement mission climatique:", err)
+      setErreurMission(err.message || "Erreur lors de l'enregistrement.")
+    } finally {
+      setSavingMission(false)
+    }
+  }
+
+  async function appliquerRecommandationsAuto() {
+    setGenererAuto(true)
+    try {
+      const scoresAleas: Record<string, number> = {}
+      ALEA_KEYS.forEach(k => {
+        const v = parseInt(missionForm.aleaScores[k], 10)
+        if (!isNaN(v)) scoresAleas[k] = v
+      })
+      const recos = await genererRecommandationsAuto(scoresAleas)
+      setMissionForm(f => ({
+        ...f,
+        aleaActions: {
+          ...f.aleaActions,
+          ...Object.fromEntries(recos.map(r => [r.alea, r.actions.join("\n")])),
+        },
+      }))
+    } catch (err: any) {
+      console.error("Erreur génération recommandations auto:", err)
+      setErreurMission("Erreur lors de la génération automatique : " + (err.message || "inconnue"))
+    } finally {
+      setGenererAuto(false)
+    }
   }
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
   if (!actif)  return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Actif introuvable</div>
 
   const score      = Number(actif.score_climatique) || 0
+  const scoreGeorisques = calculerScoreGeorisques(actif.exposition_rga, actif.georisques_data)
+
   const scoreColor = score >= 70 ? "#991B1B" : score >= 40 ? "#D97706" : "#065F46"
   const scoreBg    = score >= 70 ? "#FEF2F2" : score >= 40 ? "#FFFBEB" : "#ECFDF5"
   const scoreLabel = score >= 70 ? "Risque élevé" : score >= 40 ? "Risque modéré" : "Risque faible"
@@ -54,12 +230,18 @@ const [prediagOpen, setPrediagOpen] = useState(false)
             {actif.type_batiment && <span> · {actif.type_batiment}</span>}
           </div>
         </div>
-       <span style={{ background: scoreBg, color: scoreColor, padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500 }}>
-          {scoreLabel}
-        </span>
-        <span style={{ background: "#F8FAFC", color: scoreColor, padding: "5px 12px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Mono', monospace", border: "1px solid #E2E8F0" }}>
-          {score} / 100
-        </span>
+       {[
+          { label: "Géorisques",       valeur: scoreGeorisques,                    couleur: "#0369A1" },
+          { label: "Rgl.",              valeur: scoreReglementaire,                 couleur: "#7C3AED" },
+          { label: "Clim. AGE",         valeur: scoreClimatiqueAge,                 couleur: "#B91C1C" },
+        ].map((s, i) => (
+          <span key={i} title={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#F8FAFC", color: s.couleur, padding: "4px 10px", borderRadius: "6px", border: "1px solid #E2E8F0", minWidth: 62 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.04em", opacity: 0.8 }}>{s.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>
+              {s.valeur === null ? "—" : `${s.valeur}/100`}
+            </span>
+          </span>
+        ))}
         <button
           onClick={() => setPrediagOpen(true)}
           style={{ display: "flex", alignItems: "center", gap: "6px", background: "#7C3AED", border: "none", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#fff", fontSize: "13px", fontFamily: "inherit", fontWeight: 500 }}>
@@ -124,13 +306,21 @@ const [prediagOpen, setPrediagOpen] = useState(false)
               ["Nb sites",          actif.nb_sites?.toString() || "—"],
               ["SIREN",             actif.siren || "—"],
               ["Code NAF",          actif.code_naf || "—"],
-              ["Valeur marché",     actif.valeur_marche ? `${Number(actif.valeur_marche).toLocaleString("fr-FR")} €` : "—"],
+          ["Valeur marché",     actif.valeur_marche ? `${Number(actif.valeur_marche).toLocaleString("fr-FR")} €` : "—"],
             ].map(([k, v], i) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
                 <span style={{ fontSize: "13px", color: "#64748B" }}>{k}</span>
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{v}</span>
               </div>
             ))}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", marginBottom: 8 }}>Répartition des scores</div>
+              <ScoreRepartitionPie
+                scoreGeorisques={scoreGeorisques}
+                scoreReglementaire={scoreReglementaire}
+                scoreClimatiqueAge={scoreClimatiqueAge}
+              />
+            </div>
           </div>
 
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
@@ -191,7 +381,90 @@ const [prediagOpen, setPrediagOpen] = useState(false)
           </div>
         </div>
       )}
+{/* Mission climatique */}
+      {onglet === "mission" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
+          {demandeAnalyse && (
+            <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1E40AF" }}>
+              <i className="ti ti-bell" style={{ fontSize: 15 }} />
+              Demande client en attente (statut : {demandeAnalyse.statut}) — l'enregistrement ci-dessous la clôturera automatiquement.
+            </div>
+          )}
+
+          {missionSauvegardee && (
+            <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#166534" }}>
+              <i className="ti ti-circle-check" style={{ fontSize: 15 }} />
+              Analyse enregistrée et transmise au client.
+            </div>
+          )}
+
+          {erreurMission && (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "#B91C1C" }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize: 15, marginRight: 6 }} />
+              {erreurMission}
+            </div>
+          )}
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#0F172A", marginBottom: 16 }}>Score global de la mission</div>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Score global (0-100) *</label>
+                <input type="number" min={0} max={100} value={missionForm.scoreGlobal}
+                  onChange={e => setMissionForm(f => ({ ...f, scoreGlobal: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 14, fontFamily: "'DM Mono', monospace" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Priorité</label>
+                <select value={missionForm.priorite} onChange={e => setMissionForm(f => ({ ...f, priorite: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13 }}>
+                  <option value="urgence">Urgence</option>
+                  <option value="surveillance">Surveillance</option>
+                  <option value="veille">Veille</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 20 }}>
+           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: "#0F172A" }}>Décomposition par aléa et recommandations</div>
+              <button onClick={appliquerRecommandationsAuto} disabled={genererAuto} title="Génère des recommandations pour les aléas Inondation, Chaleur, Feux de forêt, Tempêtes, Submersion (score ≥ 40). RGA, Sécheresse et Épisodes froids restent en saisie manuelle." style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "#F5F3FF", border: "1px solid #DDD6FE", padding: "6px 12px", borderRadius: 7,
+                cursor: genererAuto ? "not-allowed" : "pointer", color: "#7C3AED", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+              }}>
+                <i className={`ti ${genererAuto ? "ti-loader-2" : "ti-wand"}`} style={{ fontSize: 14 }} />
+                {genererAuto ? "Génération…" : "Générer automatiquement"}
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {ALEA_KEYS.map(k => (
+                <div key={k} style={{ display: "grid", gridTemplateColumns: "160px 100px 1fr", gap: 12, alignItems: "start" }}>
+                  <span style={{ fontSize: 13, color: "#0F172A", paddingTop: 8 }}>{ALEA_LABELS[k]}</span>
+                  <input type="number" min={0} max={100} placeholder="Score" value={missionForm.aleaScores[k]}
+                    onChange={e => setMissionForm(f => ({ ...f, aleaScores: { ...f.aleaScores, [k]: e.target.value } }))}
+                    style={{ padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, fontFamily: "'DM Mono', monospace" }} />
+                  <textarea placeholder="Recommandations (une action par ligne)" rows={2} value={missionForm.aleaActions[k]}
+                    onChange={e => setMissionForm(f => ({ ...f, aleaActions: { ...f.aleaActions, [k]: e.target.value } }))}
+                    style={{ padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" as const }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={enregistrerMissionClimatique} disabled={savingMission || !missionForm.scoreGlobal} style={{
+            display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start",
+            background: savingMission || !missionForm.scoreGlobal ? "#94A3B8" : "#7C3AED", border: "none",
+            padding: "10px 20px", borderRadius: 8, cursor: savingMission || !missionForm.scoreGlobal ? "not-allowed" : "pointer",
+            color: "#fff", fontSize: 13, fontFamily: "inherit", fontWeight: 500,
+          }}>
+            <i className="ti ti-device-floppy" style={{ fontSize: 15 }} />
+            {savingMission ? "Enregistrement…" : "Enregistrer et transmettre au client"}
+          </button>
+        </div>
+      )}
       {/* Historique scores */}
       {onglet === "historique" && (
         <ScoreHistorique

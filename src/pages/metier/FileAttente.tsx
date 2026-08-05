@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DemandeDispatch {
   id: string
-  type: "campagne" | "mission"
+  type: "campagne" | "mission" | "climatique"
   client_nom: string
   region: string | null
   multi_region: boolean
@@ -43,10 +43,12 @@ const COMPETENCE_LABELS: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function FileAttente() {
-  const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace">("dispatch")
+  const [roleAGE, setRoleAGE] = useState<string>("consultant")
+  const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace" | "climatique">("dispatch")
   const [demandesDispatch, setDemandesDispatch] = useState<DemandeDispatch[]>([])
   const [demandesRdv, setDemandesRdv]         = useState<DemandeRDV[]>([])
   const [demandesMarketplace, setDemandesMarketplace] = useState<any[]>([])
+  const [demandesClimatique, setDemandesClimatique] = useState<DemandeDispatch[]>([])
   const [loading, setLoading]                 = useState(true)
 
   // Drawer assignation
@@ -73,7 +75,18 @@ export default function FileAttente() {
   const [filtreType, setFiltreType]           = useState<"tous" | "campagne" | "mission">("tous")
   const [filtreStatut, setFiltreStatut]       = useState<"tous" | "non_assignee" | "assignee">("tous")
 
-  useEffect(() => { charger() }, [])
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profil } = await supabase.from("profils").select("role").eq("id", user.id).maybeSingle()
+        const role = profil?.role || "consultant"
+        setRoleAGE(role)
+        if (role === "responsable_regional") setOnglet("climatique")
+      }
+    })()
+    charger()
+  }, [])
 
   async function charger() {
     setLoading(true)
@@ -85,10 +98,18 @@ export default function FileAttente() {
   .eq("origine", "client")
   .order("created_at", { ascending: false })
 
-      // Missions soumises
+     // Missions soumises
       const { data: missions } = await supabase
   .from("missions")
   .select("id, societe, statut, region, responsable_id, created_at, client_id")
+  .order("created_at", { ascending: false })
+
+      // Demandes d'analyse climatique
+      const { data: analysesClimatiques } = await supabase
+  .from("rapports_client")
+  .select("id, statut, region, responsable_id, created_at, actif_id, actifs(nom)")
+  .eq("type_rapport", "analyse_climatique")
+  .in("statut", ["demande", "en_cours"])
   .order("created_at", { ascending: false })
 
       // Demandes RDV
@@ -135,7 +156,7 @@ try {
         responsable_id: c.responsable_id,
       }))
 
-      // Mapper missions
+    // Mapper missions
       const missionsMapped: DemandeDispatch[] = (missions || []).map((m: any) => ({
         id: m.id,
         type: "mission",
@@ -146,6 +167,19 @@ try {
         created_at: m.created_at,
         responsable_id: m.responsable_id,
       }))
+
+      // Mapper analyses climatiques (region toujours NULL — pas de filtre régional à l'assignation)
+      const climatiqueMapped: DemandeDispatch[] = (analysesClimatiques || []).map((r: any) => ({
+        id: r.id,
+        type: "climatique",
+        client_nom: r.actifs?.nom || "—",
+        region: r.region,
+        multi_region: false,
+        statut: r.statut,
+        created_at: r.created_at,
+        responsable_id: r.responsable_id,
+      }))
+      setDemandesClimatique(climatiqueMapped)
 
       // Mapper RDV
      const rdvsMapped: DemandeRDV[] = (rdvs || []).map((r: any) => ({
@@ -213,7 +247,10 @@ if (d.region && !d.multi_region) {
   if (!selectedDemande || !selectedResponsable) return
   setAssignLoading(true)
   try {
-    const table = selectedDemande.type === "campagne" ? "campagnes" : "missions"
+    const table =
+      selectedDemande.type === "campagne" ? "campagnes" :
+      selectedDemande.type === "mission"  ? "missions" :
+      "rapports_client"
     const { error } = await supabase
       .from(table)
       .update({ responsable_id: selectedResponsable, statut: "en_cours" })
@@ -360,12 +397,13 @@ async function ouvrirMarketplace(d: any) {
       </div>
 
       {/* Onglets */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
+     <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
         {[
           { id: "dispatch", label: "Campagnes & Missions", count: demandesDispatch.filter(d => !d.responsable_id).length },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
           { id: "marketplace", label: "Marketplace", count: demandesMarketplace.length },
-        ].map(o => (
+          { id: "climatique", label: "Analyses climatiques", count: demandesClimatique.filter(d => !d.responsable_id).length },
+        ].filter(o => roleAGE === "admin_national" || o.id === "climatique").map(o => (
           <button
             key={o.id}
             onClick={() => setOnglet(o.id as any)}
@@ -394,7 +432,7 @@ async function ouvrirMarketplace(d: any) {
       ) : (
         <>
           {/* ── Onglet Campagnes & Missions ── */}
-          {onglet === "dispatch" && (
+          {onglet === "dispatch" && roleAGE === "admin_national" && (
             <>
               {/* Filtres */}
               <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
@@ -486,7 +524,7 @@ async function ouvrirMarketplace(d: any) {
           )}
 
           {/* ── Onglet Demandes RDV ── */}
-          {onglet === "rdv" && (
+          {onglet === "rdv" && roleAGE === "admin_national" && (
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
               {demandesRdv.length === 0 ? (
                 <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
@@ -564,8 +602,63 @@ async function ouvrirMarketplace(d: any) {
           )}
         </>
       )}
+{/* ── Onglet Analyses climatiques ── */}
+      {onglet === "climatique" && (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          {demandesClimatique.length === 0 ? (
+            <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+              <i className="ti ti-thermometer" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
+              Aucune demande d'analyse climatique
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
+                  <th style={thStyle}>Actif</th>
+                  <th style={thStyle}>Date</th>
+                  <th style={thStyle}>Statut</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {demandesClimatique.map(d => (
+                  <tr key={d.id} style={{ borderBottom: "1px solid #E2DDD8", height: "52px" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={tdStyle}><span style={{ fontWeight: 500, color: "#111827" }}>{d.client_nom}</span></td>
+                    <td style={{ ...tdStyle, color: "#6B7280", fontSize: "13px" }}>{formatDate(d.created_at)}</td>
+                    <td style={tdStyle}>
+                      <span className={d.responsable_id ? "badge badge--success" : "badge badge--warning"}>
+                        <i className={`ti ${d.responsable_id ? "ti-circle-check" : "ti-clock"}`} style={{ fontSize: "11px" }} />
+                        {d.responsable_id ? "Assignée" : "En attente"}
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <button
+                        onClick={() => ouvrirAssignation(d)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
+                        {d.responsable_id ? "Réassigner" : "Assigner"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {demandesClimatique.length > 0 && (
+            <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                {demandesClimatique.length} demande{demandesClimatique.length > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 {/* ── Onglet Marketplace ── */}
-{onglet === "marketplace" && (
+{onglet === "marketplace" && roleAGE === "admin_national" && (
   <div className="card" style={{ padding: 0, overflow: "hidden" }}>
     {demandesMarketplace.length === 0 ? (
       <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
@@ -734,7 +827,7 @@ async function ouvrirMarketplace(d: any) {
               <div>
                 <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "4px" }}>Type</p>
                 <span className={selectedDemande.type === "campagne" ? "badge badge--info" : "badge badge--neutral"}>
-                  {selectedDemande.type === "campagne" ? "Campagne" : "Mission"}
+                  {selectedDemande.type === "campagne" ? "Campagne" : selectedDemande.type === "mission" ? "Mission" : "Analyse climatique"}
                 </span>
               </div>
               <div>
