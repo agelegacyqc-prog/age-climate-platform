@@ -49,6 +49,8 @@ interface Props {
   aleaPrincipal?: string
   scoresAleas?: Record<string, number>
   modeClient?: boolean   // true = vue client simplifiée
+  scoreBaseline?: number   // score pré-mission (ex. Géorisques), point de départ du graphique
+  dateBaseline?: string    // date associée au score pré-mission
 }
 
 // ── Config classes ────────────────────────────────────────────────────────────
@@ -60,6 +62,13 @@ const CLASSE_CONFIG: Record<ClasseRisque, {
   modere:   { label: 'Modéré',   couleur: '#D97706', fond: '#FFFBEB', seuil: 50 },
   eleve:    { label: 'Élevé',    couleur: '#B91C1C', fond: '#FEF2F2', seuil: 75 },
   critique: { label: 'Critique', couleur: '#7C3AED', fond: '#F5F3FF', seuil: 100 },
+}
+
+function classeFromScore(score: number): ClasseRisque {
+  if (score >= 75) return 'critique'
+  if (score >= 50) return 'eleve'
+  if (score >= 25) return 'modere'
+  return 'faible'
 }
 
 const COULEUR_SCORE = (score: number): string => {
@@ -126,10 +135,12 @@ function TooltipScore({ active, payload, label }: any) {
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export default function ScoreHistorique({
-  bienId, actifId, scoreActuel, classeActuelle, aleaPrincipal, scoresAleas, modeClient = false
+  bienId, actifId, scoreActuel, classeActuelle, aleaPrincipal, scoresAleas, modeClient = false,
+  scoreBaseline, dateBaseline
 }: Props) {
   const [historique, setHistorique] = useState<RiskScore[]>([])
   const [alertes, setAlertes] = useState<AlerteScore[]>([])
+  const [missionScoreIds, setMissionScoreIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [note, setNote] = useState('')
@@ -156,8 +167,23 @@ export default function ScoreHistorique({
         .limit(5)
     ])
 
-    setHistorique(scores ?? [])
+setHistorique(scores ?? [])
     setAlertes(alerts ?? [])
+
+    if (actifId) {
+      const { data: prediags } = await supabase
+        .from('prediagnostics')
+        .select('risk_score_id')
+        .eq('actif_id', actifId)
+        .eq('statut', 'generated')
+        .not('risk_score_id', 'is', null)
+      const ids = new Set<string>()
+      ;(prediags ?? []).forEach((p: any) => { if (p.risk_score_id) ids.add(p.risk_score_id) })
+      setMissionScoreIds(ids)
+    } else {
+      setMissionScoreIds(new Set())
+    }
+
     setLoading(false)
   }
 
@@ -191,11 +217,12 @@ export default function ScoreHistorique({
 
     if (error) { setSaving(false); showToast('err', 'Erreur lors de la sauvegarde'); return }
 
-    // Détecter alertes
-    const dernier = historique[historique.length - 1]
-    if (dernier && saved) {
-      const delta = scoreActuel - dernier.score_global
-      const classeChange = dernier.classe_risque !== classeActuelle
+   // Détecter alertes — comparaison uniquement vs dernier score de mission AGE
+    // (aucune alerte tant qu'il n'existe pas de mission précédente à comparer)
+    const referenceOfficielle: RiskScore | null = dernierScoreMission
+    if (referenceOfficielle && saved) {
+      const delta = scoreActuel - referenceOfficielle.score_global
+      const classeChange = referenceOfficielle.classe_risque !== classeActuelle
 
       const alertesAInserer: any[] = []
 
@@ -205,9 +232,9 @@ export default function ScoreHistorique({
           actif_id: actifId ?? null,
           risk_score_id: saved.id,
           type_alerte: 'changement_classe',
-          classe_avant: dernier.classe_risque,
+          classe_avant: referenceOfficielle.classe_risque,
           classe_apres: classeActuelle,
-          score_avant: dernier.score_global,
+          score_avant: referenceOfficielle.score_global,
           score_apres: scoreActuel,
           delta_points: delta,
           region_code: profil?.region ?? null,
@@ -221,7 +248,7 @@ export default function ScoreHistorique({
           actif_id: actifId ?? null,
           risk_score_id: saved.id,
           type_alerte: 'variation_points',
-          score_avant: dernier.score_global,
+        score_avant: referenceOfficielle.score_global,
           score_apres: scoreActuel,
           delta_points: delta,
           region_code: profil?.region ?? null,
@@ -248,26 +275,39 @@ export default function ScoreHistorique({
     setAlertes(prev => prev.filter(a => a.id !== id))
   }
 
-  // Préparer données graphique
-  const dataGraphique = historique.map((s, i) => ({
+const dernierScore = historique[historique.length - 1]
+  const avantDernierScore = historique[historique.length - 2]
+  const dernierScoreMission = [...historique].reverse().find(s => missionScoreIds.has(s.id)) ?? null
+
+  // Séquence officielle : uniquement les scores liés à une mission AGE
+  // (exclut les sauvegardes manuelles isolées ET toute estimation pré-mission type Géorisques,
+  // dont la méthode de calcul n'est pas comparable à une évaluation consultant)
+  const sequenceEvolution: RiskScore[] = historique.filter(s => missionScoreIds.has(s.id))
+
+  const dernierScoreEvolution = sequenceEvolution[sequenceEvolution.length - 1]
+  const avantDernierScoreEvolution = sequenceEvolution[sequenceEvolution.length - 2]
+  const deltaEvolution = dernierScoreEvolution && avantDernierScoreEvolution
+    ? dernierScoreEvolution.score_global - avantDernierScoreEvolution.score_global
+    : null
+
+  // Préparer données graphique — séquence officielle (baseline pré-mission + missions AGE)
+  const dataGraphique = sequenceEvolution.map((s, i) => ({
     date_iso: s.created_at,
     date: new Date(s.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
     score_global: s.score_global,
     classe_risque: s.classe_risque,
     alea_principal: s.alea_principal,
     note: s.note,
-    delta: i > 0 ? s.score_global - historique[i - 1].score_global : null,
+    delta: i > 0 ? s.score_global - sequenceEvolution[i - 1].score_global : null,
   }))
 
-  const dernierScore = historique[historique.length - 1]
-  const avantDernierScore = historique[historique.length - 2]
-  const delta = dernierScore && avantDernierScore
-    ? dernierScore.score_global - avantDernierScore.score_global
-    : null
   const scoreAChange = dernierScore?.score_global !== scoreActuel
 
-  // Vue client simplifiée
+ // Vue client simplifiée
   if (modeClient) {
+    const scorePrincipal = dernierScoreMission ?? dernierScore
+    const afficherSecondaire = dernierScore && scorePrincipal && dernierScore.id !== scorePrincipal.id
+
     return (
       <div style={{
         background: '#fff', border: '1px solid #E5E1DA', borderRadius: 12,
@@ -276,28 +316,46 @@ export default function ScoreHistorique({
         <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#78716C', letterSpacing: '0.05em' }}>
           SCORE CLIMATIQUE
         </p>
-        {dernierScore ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{
-              fontFamily: 'JetBrains Mono, monospace', fontSize: 32, fontWeight: 700,
-              color: COULEUR_SCORE(dernierScore.score_global)
-            }}>
-              {dernierScore.score_global}
-            </span>
-            <div>
+        {scorePrincipal ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{
-                fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
-                background: CLASSE_CONFIG[dernierScore.classe_risque]?.fond,
-                color: CLASSE_CONFIG[dernierScore.classe_risque]?.couleur,
-                display: 'block', marginBottom: 4
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 32, fontWeight: 700,
+                color: COULEUR_SCORE(scorePrincipal.score_global)
               }}>
-                {CLASSE_CONFIG[dernierScore.classe_risque]?.label}
+                {scorePrincipal.score_global}
               </span>
-              <span style={{ fontSize: 11, color: '#78716C' }}>
-                Mis à jour le {new Date(dernierScore.created_at).toLocaleDateString('fr-FR')}
-              </span>
+              <div>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+                  background: CLASSE_CONFIG[scorePrincipal.classe_risque]?.fond,
+                  color: CLASSE_CONFIG[scorePrincipal.classe_risque]?.couleur,
+                  display: 'block', marginBottom: 4
+                }}>
+                  {CLASSE_CONFIG[scorePrincipal.classe_risque]?.label}
+                </span>
+                <span style={{ fontSize: 11, color: '#78716C' }}>
+                  {dernierScoreMission
+                    ? `Mission AGE — ${new Date(scorePrincipal.created_at).toLocaleDateString('fr-FR')}`
+                    : `Mis à jour le ${new Date(scorePrincipal.created_at).toLocaleDateString('fr-FR')}`}
+                </span>
+              </div>
             </div>
-          </div>
+
+            {afficherSecondaire && dernierScore && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 600,
+                  color: COULEUR_SCORE(dernierScore.score_global)
+                }}>
+                  {dernierScore.score_global}
+                </span>
+                <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                  Suivi interne — {new Date(dernierScore.created_at).toLocaleDateString('fr-FR')}
+                </span>
+              </div>
+            )}
+          </>
         ) : (
           <p style={{ fontSize: 13, color: '#78716C' }}>Score non encore calculé.</p>
         )}
@@ -403,19 +461,19 @@ export default function ScoreHistorique({
             </div>
           )}
 
-          {/* Delta */}
-          {delta !== null && (
+       {/* Delta — variation officielle vs référence pré-mission */}
+          {deltaEvolution !== null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {delta > 0 ? <TrendingUp size={20} color="#B91C1C" /> :
-               delta < 0 ? <TrendingDown size={20} color="#0F6E56" /> :
+              {deltaEvolution > 0 ? <TrendingUp size={20} color="#B91C1C" /> :
+               deltaEvolution < 0 ? <TrendingDown size={20} color="#0F6E56" /> :
                <Minus size={20} color="#78716C" />}
               <div>
-                <p style={{ margin: 0, fontSize: 11, color: '#78716C', fontWeight: 600 }}>VS PRÉCÉDENT</p>
+                <p style={{ margin: 0, fontSize: 11, color: '#78716C', fontWeight: 600 }}>VS MISSION PRÉCÉDENTE</p>
                 <span style={{
                   fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700,
-                  color: delta > 0 ? '#B91C1C' : delta < 0 ? '#0F6E56' : '#78716C'
+                  color: deltaEvolution > 0 ? '#B91C1C' : deltaEvolution < 0 ? '#0F6E56' : '#78716C'
                 }}>
-                  {delta > 0 ? '+' : ''}{delta} pts
+                  {deltaEvolution > 0 ? '+' : ''}{deltaEvolution} pts
                 </span>
               </div>
             </div>

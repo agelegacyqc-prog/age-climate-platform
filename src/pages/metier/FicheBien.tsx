@@ -4,16 +4,33 @@ import { supabase } from "../../lib/supabase"
 import { genererRecommandationsAuto } from "../../lib/genererRecommandationsAuto"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
 import { calculerScoreGeorisques } from "../../lib/scoreGeorisques"
+import { detecterAleas } from "../../lib/aleasGeorisques"
 import PreDiagDrawer from "./PreDiagDrawer"
 import ScoreHistorique from "./ScoreHistorique"
-import ScoreRepartitionPie from "../../components/ScoreRepartitionPie"
 import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
 const ONGLETS = [
   { id: "synthese",    label: "Synthèse",    icon: "ti-clipboard-list" },
   { id: "climatique",  label: "Climatique",  icon: "ti-leaf" },
   { id: "mission",     label: "Mission climatique", icon: "ti-target-arrow" },
+  { id: "actions",     label: "Actions d'adaptation", icon: "ti-list-check" },
   { id: "historique",  label: "Historique scores", icon: "ti-chart-line" },
 ]
+
+const NIVEAU_REDUCTION_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  faible: { label: "Faible",  color: "#0369A1", bg: "#EFF6FF" },
+  moyen:  { label: "Moyen",   color: "#D97706", bg: "#FFFBEB" },
+  fort:   { label: "Fort",    color: "#065F46", bg: "#ECFDF5" },
+}
+
+const STATUT_ACTION_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  planifiee:  { label: "Planifiée",  color: "#64748B", bg: "#F1F5F9" },
+  en_cours:   { label: "En cours",   color: "#92400E", bg: "#FFFBEB" },
+  realisee:   { label: "Réalisée",   color: "#065F46", bg: "#ECFDF5" },
+  abandonnee: { label: "Abandonnée", color: "#991B1B", bg: "#FEF2F2" },
+}
+
+const ALEAS_AVEC_CATALOGUE = ["chaleur", "inondation", "submersion", "feux_foret", "tempetes"] as const
+
 
 const ALEA_LABELS: Record<string, string> = {
   inondation: "Inondation",
@@ -58,7 +75,73 @@ export default function FicheBien() {
   const [missionSauvegardee, setMissionSauvegardee] = useState(false)
   const [genererAuto, setGenererAuto] = useState(false)
 
+  const [catalogueActions, setCatalogueActions] = useState<any[]>([])
+  const [choixActions, setChoixActions] = useState<Record<string, any>>({})
+  const [loadingActions, setLoadingActions] = useState(false)
+  const [savingActionKey, setSavingActionKey] = useState<string | null>(null)
+  const [actionOuverte, setActionOuverte] = useState<string | null>(null)
+
   useEffect(() => { loadActif() }, [id])
+  useEffect(() => { if (onglet === "actions" && catalogueActions.length === 0) loadActionsAdaptation() }, [onglet])
+
+  async function loadActionsAdaptation() {
+    setLoadingActions(true)
+    const { data: catalogue } = await supabase
+      .from("bat_adapt_actions")
+      .select("id, intitule, aleas, niveau_competence")
+      .order("intitule")
+    setCatalogueActions(catalogue || [])
+
+    const { data: choix } = await supabase
+      .from("actions_adaptation_choisies")
+      .select("*")
+      .eq("actif_id", id)
+    const map: Record<string, any> = {}
+    ;(choix || []).forEach((c: any) => { map[`${c.alea}__${c.action_id}`] = c })
+    setChoixActions(map)
+    setLoadingActions(false)
+  }
+
+  async function upsertActionAdaptation(actionId: string, alea: string, champ: "niveau_reduction" | "statut", valeur: string) {
+    if (!id) return
+    const key = `${alea}__${actionId}`
+    const existant = choixActions[key]
+    setSavingActionKey(key)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (champ === "niveau_reduction" && valeur === "") {
+        if (existant?.id) {
+          await supabase.from("actions_adaptation_choisies").delete().eq("id", existant.id)
+        }
+        setChoixActions(prev => { const n = { ...prev }; delete n[key]; return n })
+        return
+      }
+
+      const payload: any = {
+        actif_id: id,
+        action_id: actionId,
+        alea,
+        niveau_reduction: champ === "niveau_reduction" ? valeur : (existant?.niveau_reduction ?? "faible"),
+        statut: champ === "statut" ? valeur : (existant?.statut ?? "planifiee"),
+      }
+
+      if (existant?.id) {
+        const { data } = await supabase.from("actions_adaptation_choisies")
+          .update({ [champ]: valeur, updated_at: new Date().toISOString() })
+          .eq("id", existant.id).select().single()
+        setChoixActions(prev => ({ ...prev, [key]: data }))
+      } else {
+        const { data } = await supabase.from("actions_adaptation_choisies")
+          .insert({ ...payload, created_by: user?.id }).select().single()
+        setChoixActions(prev => ({ ...prev, [key]: data }))
+      }
+    } catch (err) {
+      console.error("Erreur sauvegarde action adaptation:", err)
+    } finally {
+      setSavingActionKey(null)
+    }
+  }
 
   async function loadActif() {
     const { data } = await supabase.from("actifs").select("*").eq("id", id).single()
@@ -202,8 +285,9 @@ export default function FicheBien() {
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
   if (!actif)  return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Actif introuvable</div>
 
-  const score      = Number(actif.score_climatique) || 0
+  const score      = scoreClimatiqueAge ?? (Number(actif.score_climatique) || 0)
   const scoreGeorisques = calculerScoreGeorisques(actif.exposition_rga, actif.georisques_data)
+  const aleasDetectes = detecterAleas(actif.georisques_data, actif.exposition_rga)
 
   const scoreColor = score >= 70 ? "#991B1B" : score >= 40 ? "#D97706" : "#065F46"
   const scoreBg    = score >= 70 ? "#FEF2F2" : score >= 40 ? "#FFFBEB" : "#ECFDF5"
@@ -230,18 +314,6 @@ export default function FicheBien() {
             {actif.type_batiment && <span> · {actif.type_batiment}</span>}
           </div>
         </div>
-       {[
-          { label: "Géorisques",       valeur: scoreGeorisques,                    couleur: "#0369A1" },
-          { label: "Rgl.",              valeur: scoreReglementaire,                 couleur: "#7C3AED" },
-          { label: "Clim. AGE",         valeur: scoreClimatiqueAge,                 couleur: "#B91C1C" },
-        ].map((s, i) => (
-          <span key={i} title={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#F8FAFC", color: s.couleur, padding: "4px 10px", borderRadius: "6px", border: "1px solid #E2E8F0", minWidth: 62 }}>
-            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.04em", opacity: 0.8 }}>{s.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>
-              {s.valeur === null ? "—" : `${s.valeur}/100`}
-            </span>
-          </span>
-        ))}
         <button
           onClick={() => setPrediagOpen(true)}
           style={{ display: "flex", alignItems: "center", gap: "6px", background: "#7C3AED", border: "none", padding: "7px 14px", borderRadius: "7px", cursor: "pointer", color: "#fff", fontSize: "13px", fontFamily: "inherit", fontWeight: 500 }}>
@@ -314,12 +386,34 @@ export default function FicheBien() {
               </div>
             ))}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", marginBottom: 8 }}>Répartition des scores</div>
-              <ScoreRepartitionPie
-                scoreGeorisques={scoreGeorisques}
-                scoreReglementaire={scoreReglementaire}
-                scoreClimatiqueAge={scoreClimatiqueAge}
-              />
+              <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", marginBottom: 10 }}>Aléas climatiques identifiés</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {aleasDetectes.map((a, i) => {
+                  let badge: { label: string; bg: string; color: string }
+                  if (a.alea === "rga") {
+                    badge = a.niveau
+                      ? { label: `RGA ${a.niveau}`, bg: a.niveau==="forte"?"#FEF2F2":a.niveau==="moyenne"?"#FFFBEB":"#F0FDF4", color: a.niveau==="forte"?"#B91C1C":a.niveau==="moyenne"?"#D97706":"#2F7D5C" }
+                      : { label: "Non renseigné", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (!a.automatise) {
+                    badge = { label: "À évaluer", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (a.present === null) {
+                    badge = { label: "Non disponible", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (a.present) {
+                    badge = { label: "Présent", bg: "#FEF2F2", color: "#B91C1C" }
+                  } else {
+                    badge = { label: "Non détecté", bg: "#F0FDF4", color: "#2F7D5C" }
+                  }
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "#F8FAFC", borderRadius: "7px" }}>
+                      <span style={{ fontSize: "12px", color: "#0F172A" }}>{ALEA_LABELS[a.alea] || a.label}</span>
+                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "5px", background: badge.bg, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 10 }}>Détection basée sur la localisation — présence/absence uniquement, hors gravité.</p>
             </div>
           </div>
 
@@ -465,9 +559,105 @@ export default function FicheBien() {
           </button>
         </div>
       )}
+      {/* Actions d'adaptation */}
+      {onglet === "actions" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: "#F0F9FF", border: "1px solid #BAE6FD", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "#0369A1", display: "flex", alignItems: "center", gap: 8 }}>
+            <i className="ti ti-info-circle" style={{ fontSize: 15, flexShrink: 0 }} />
+            Catalogue d'actions issu du guide OID Bat-ADAPT. Le niveau de réduction est une estimation qualitative du consultant, à titre indicatif — sans impact sur le score officiel de mission.
+          </div>
+
+          {loadingActions ? (
+            <div style={{ padding: 24, color: "#64748B", fontSize: 13 }}>Chargement…</div>
+          ) : (
+            ALEAS_AVEC_CATALOGUE.map(alea => {
+              const actionsAlea = catalogueActions.filter(a => (a.aleas || []).includes(alea))
+              if (actionsAlea.length === 0) return null
+              return (
+                <div key={alea} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 20 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "#0F172A", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="ti ti-leaf" style={{ fontSize: 16, color: "#7C3AED" }} />
+                    {ALEA_LABELS[alea]}
+                    <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 400 }}>({actionsAlea.length} action{actionsAlea.length > 1 ? "s" : ""})</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+       {actionsAlea.map(action => {
+                      const key = `${alea}__${action.id}`
+                      const choix = choixActions[key]
+                      const saving = savingActionKey === key
+                      const ouverte = actionOuverte === key
+                      return (
+                        <div key={action.id} style={{ border: `1px solid ${choix ? "#E2E8F0" : "#F1F5F9"}`, borderRadius: 8, overflow: "hidden", background: choix ? "#F8FAFC" : "transparent" }}>
+                          <button
+                            onClick={() => setActionOuverte(ouverte ? null : key)}
+                            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                          >
+                            <i className={`ti ${ouverte ? "ti-chevron-down" : "ti-chevron-right"}`} style={{ fontSize: 14, color: "#94A3B8", flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: 13, color: "#0F172A" }}>{action.intitule}</span>
+                            {choix?.niveau_reduction && (
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: NIVEAU_REDUCTION_CONFIG[choix.niveau_reduction]?.bg, color: NIVEAU_REDUCTION_CONFIG[choix.niveau_reduction]?.color }}>
+                                {NIVEAU_REDUCTION_CONFIG[choix.niveau_reduction]?.label}
+                              </span>
+                            )}
+                            {choix && (
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: STATUT_ACTION_CONFIG[choix.statut]?.bg, color: STATUT_ACTION_CONFIG[choix.statut]?.color }}>
+                                {STATUT_ACTION_CONFIG[choix.statut]?.label}
+                              </span>
+                            )}
+                          </button>
+
+                          {ouverte && (
+                            <div style={{ padding: "0 12px 14px 36px", display: "flex", flexDirection: "column", gap: 10 }}>
+                              {action.niveau_competence && (
+                                <div style={{ fontSize: 11, color: "#94A3B8" }}>Compétence requise : {action.niveau_competence}</div>
+                              )}
+                              <div style={{ display: "flex", gap: 10 }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 4 }}>Niveau de réduction estimé</label>
+                                  <select
+                                    value={choix?.niveau_reduction || ""}
+                                    disabled={saving}
+                                    onChange={e => upsertActionAdaptation(action.id, alea, "niveau_reduction", e.target.value)}
+                                    style={{ width: "100%", padding: "6px 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, background: choix ? NIVEAU_REDUCTION_CONFIG[choix.niveau_reduction]?.bg : "white", color: choix ? NIVEAU_REDUCTION_CONFIG[choix.niveau_reduction]?.color : "#64748B" }}
+                                  >
+                                    <option value="">— Non retenue —</option>
+                                    <option value="faible">Faible</option>
+                                    <option value="moyen">Moyen</option>
+                                    <option value="fort">Fort</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 4 }}>Statut</label>
+                                  <select
+                                    value={choix?.statut || "planifiee"}
+                                    disabled={saving || !choix}
+                                    onChange={e => upsertActionAdaptation(action.id, alea, "statut", e.target.value)}
+                                    style={{ width: "100%", padding: "6px 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, background: choix ? STATUT_ACTION_CONFIG[choix.statut]?.bg : "#F8FAFC", color: choix ? STATUT_ACTION_CONFIG[choix.statut]?.color : "#94A3B8", opacity: choix ? 1 : 0.6 }}
+                                  >
+                                    <option value="planifiee">Planifiée</option>
+                                    <option value="en_cours">En cours</option>
+                                    <option value="realisee">Réalisée</option>
+                                    <option value="abandonnee">Abandonnée</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+
       {/* Historique scores */}
-      {onglet === "historique" && (
-        <ScoreHistorique
+ {onglet === "historique" && (
+       <ScoreHistorique
            actifId={actif.id}
           scoreActuel={score}
           classeActuelle={score >= 75 ? 'critique' : score >= 50 ? 'eleve' : score >= 25 ? 'modere' : 'faible'}

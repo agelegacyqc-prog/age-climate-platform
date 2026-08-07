@@ -75,13 +75,16 @@ export default function FileAttente() {
   const [filtreType, setFiltreType]           = useState<"tous" | "campagne" | "mission">("tous")
   const [filtreStatut, setFiltreStatut]       = useState<"tous" | "non_assignee" | "assignee">("tous")
 
+  const [maRegion, setMaRegion] = useState<string | null>(null)
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data: profil } = await supabase.from("profils").select("role").eq("id", user.id).maybeSingle()
+        const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).maybeSingle()
         const role = profil?.role || "consultant"
         setRoleAGE(role)
+        setMaRegion(profil?.region || null)
         if (role === "responsable_regional") setOnglet("climatique")
       }
     })()
@@ -223,27 +226,30 @@ if (marketplaceData && marketplaceData.length > 0) {
     }
   }
 
-  async function ouvrirAssignation(d: DemandeDispatch) {
+async function ouvrirAssignation(d: DemandeDispatch) {
     setSelectedDemande(d)
     setSelectedResponsable("")
     setAssignSuccess(false)
 
-    // Charger les responsables de la région
-   let query = supabase
-  .from("profils")
-  .select("id, prenom, nom, region")
-  .eq("role", "responsable_regional")
+    const cibleConsultant = d.type === "climatique" && roleAGE === "responsable_regional"
 
-if (d.region && !d.multi_region) {
-  query = query.eq("region", d.region)
-}
+    let query = supabase
+      .from("profils")
+      .select("id, prenom, nom, region")
+      .eq("role", cibleConsultant ? "consultant" : "responsable_regional")
+
+    if (cibleConsultant) {
+      if (maRegion) query = query.eq("region", maRegion)
+    } else if (d.region && !d.multi_region) {
+      query = query.eq("region", d.region)
+    }
 
     const { data } = await query
     setResponsables(data || [])
     setDrawerOpen(true)
   }
 
-  async function handleAssigner() {
+async function handleAssigner() {
   if (!selectedDemande || !selectedResponsable) return
   setAssignLoading(true)
   try {
@@ -251,11 +257,23 @@ if (d.region && !d.multi_region) {
       selectedDemande.type === "campagne" ? "campagnes" :
       selectedDemande.type === "mission"  ? "missions" :
       "rapports_client"
-    const { error } = await supabase
+
+    const cibleConsultant = selectedDemande.type === "climatique" && roleAGE === "responsable_regional"
+    const payload = cibleConsultant
+      ? { consultant_id: selectedResponsable, statut: "en_cours" }
+      : { responsable_id: selectedResponsable, statut: "en_cours" }
+
+const { error } = await supabase
       .from(table)
-      .update({ responsable_id: selectedResponsable, statut: "en_cours" })
+      .update(payload)
       .eq("id", selectedDemande.id)
-    console.log("assignation error:", error)
+
+    if (error) {
+      console.error("Erreur assignation:", error)
+      alert("Échec de l'assignation : " + error.message)
+      setAssignLoading(false)
+      return
+    }
 
       setAssignSuccess(true)
       charger()
@@ -276,41 +294,71 @@ async function ouvrirMarketplace(d: any) {
     setDrawerMarketplaceOpen(true)
   }
 
- async function chargerResponsablesMarketplace() {
-    const { data } = await supabase
+async function chargerResponsablesMarketplace() {
+    const roleCible = roleAGE === "responsable_regional" ? "consultant" : "responsable_regional"
+    let query = supabase
       .from("profils")
       .select("id, prenom, nom, region")
-      .eq("role", "responsable_regional")
+      .eq("role", roleCible)
+    if (roleCible === "consultant" && maRegion) {
+      query = query.eq("region", maRegion)
+    }
+    const { data } = await query
     setMarketplaceResponsables(data || [])
   }
 
-  async function handleMarketplaceValider() {
+async function handleMarketplaceValider() {
     if (!selectedMarketplace || !marketplaceResponsable) return
     setMarketplaceActionLoading(true)
     try {
-      // Récupérer la région du responsable sélectionné
-      const responsable = marketplaceResponsables.find(r => r.id === marketplaceResponsable)
+      const { data: { user } } = await supabase.auth.getUser()
 
-      // Mettre à jour la demande marketplace
-      await supabase.from("demandes_marketplace").update({
-        statut: "validee",
-        region: responsable?.region || null,
-        consultant_id: marketplaceResponsable,
-      }).eq("id", selectedMarketplace.id)
+      if (roleAGE === "responsable_regional") {
+        // Délégation à un consultant par le responsable région déjà affecté
+        const consultant = marketplaceResponsables.find(r => r.id === marketplaceResponsable)
 
-      // Créer la mission correspondante
-      await supabase.from("missions").insert({
-        societe: selectedMarketplace.client_nom || "Client marketplace",
-        type_manager: selectedMarketplace.type_prestation || null,
-        description: selectedMarketplace.description || null,
-        origine: "marketplace",
-        statut: "nouvelle",
-        phase: 1,
-        region: responsable?.region || null,
-        responsable_id: marketplaceResponsable,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+        await supabase.from("demandes_marketplace").update({
+          statut: "dispatchee",
+          consultant_id: marketplaceResponsable,
+        }).eq("id", selectedMarketplace.id)
+
+        await supabase.from("missions").insert({
+          societe: selectedMarketplace.client_nom || "Client marketplace",
+          type_manager: selectedMarketplace.type_prestation || null,
+          description: selectedMarketplace.description || null,
+          origine: "marketplace",
+          statut: "nouvelle",
+          phase: 1,
+          region: consultant?.region || null,
+          responsable_id: user?.id || null,
+          consultant_id: marketplaceResponsable,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      } else {
+        // Récupérer la région du responsable sélectionné
+        const responsable = marketplaceResponsables.find(r => r.id === marketplaceResponsable)
+
+        await supabase.from("demandes_marketplace").update({
+          statut: "validee",
+          region: responsable?.region || null,
+          responsable_id: marketplaceResponsable,
+        }).eq("id", selectedMarketplace.id)
+
+        await supabase.from("missions").insert({
+          societe: selectedMarketplace.client_nom || "Client marketplace",
+          type_manager: selectedMarketplace.type_prestation || null,
+          description: selectedMarketplace.description || null,
+          origine: "marketplace",
+          statut: "nouvelle",
+          phase: 1,
+          region: responsable?.region || null,
+          responsable_id: marketplaceResponsable,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      }
+
       setMarketplaceSuccess(true)
       charger()
       setTimeout(() => {
@@ -402,8 +450,8 @@ async function ouvrirMarketplace(d: any) {
           { id: "dispatch", label: "Campagnes & Missions", count: demandesDispatch.filter(d => !d.responsable_id).length },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
           { id: "marketplace", label: "Marketplace", count: demandesMarketplace.length },
-          { id: "climatique", label: "Analyses climatiques", count: demandesClimatique.filter(d => !d.responsable_id).length },
-        ].filter(o => roleAGE === "admin_national" || o.id === "climatique").map(o => (
+          { id: "climatique", label: "Analyses climatiques", count: demandesClimatique.filter(d => d.statut === "demande").length },
+        ].filter(o => roleAGE === "admin_national" || o.id === "climatique" || (o.id === "marketplace" && roleAGE === "responsable_regional")).map(o => (
           <button
             key={o.id}
             onClick={() => setOnglet(o.id as any)}
@@ -658,7 +706,7 @@ async function ouvrirMarketplace(d: any) {
         </div>
       )}
 {/* ── Onglet Marketplace ── */}
-{onglet === "marketplace" && roleAGE === "admin_national" && (
+{onglet === "marketplace" && (roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
   <div className="card" style={{ padding: 0, overflow: "hidden" }}>
     {demandesMarketplace.length === 0 ? (
       <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
@@ -763,8 +811,8 @@ async function ouvrirMarketplace(d: any) {
                  
               {/* Responsables */}
                   <div>
-                    <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
-                      Assigner à un responsable régional
+                   <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
+                      {roleAGE === "responsable_regional" ? "Déléguer à un consultant" : "Assigner à un responsable régional"}
                     </p>
                     {marketplaceResponsables.length === 0 ? (
                       <p style={{ fontSize: "13px", color: "#9CA3AF" }}>Aucun responsable régional disponible.</p>
@@ -801,7 +849,7 @@ async function ouvrirMarketplace(d: any) {
                   disabled={!marketplaceResponsable || marketplaceActionLoading}
                   style={{ flex: 2, padding: "10px", background: !marketplaceResponsable ? "#E5E1DA" : "#B25C2A", color: !marketplaceResponsable ? "#78716C" : "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: !marketplaceResponsable ? "not-allowed" : "pointer", fontFamily: "inherit" }}
                 >
-                  <i className="ti ti-user-check" style={{ fontSize: "14px" }} /> Valider & Assigner
+                  <i className="ti ti-user-check" style={{ fontSize: "14px" }} /> {roleAGE === "responsable_regional" ? "Valider & Déléguer" : "Valider & Assigner"}
                 </button>
               </div>
             )}
@@ -844,8 +892,10 @@ async function ouvrirMarketplace(d: any) {
                 </div>
               ) : (
                 <div>
-                  <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "10px" }}>
-                    Responsables disponibles — {selectedDemande.region || "toutes régions"}
+              <p style={{ fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "10px" }}>
+                    {selectedDemande.type === "climatique" && roleAGE === "responsable_regional"
+                      ? `Consultants disponibles — ${maRegion || "ma région"}`
+                      : `Responsables disponibles — ${selectedDemande.region || "toutes régions"}`}
                   </p>
                   {responsables.length === 0 ? (
                     <p style={{ fontSize: "13px", color: "#9CA3AF" }}>Aucun responsable trouvé pour cette région.</p>

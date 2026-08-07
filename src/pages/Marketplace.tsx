@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "../lib/supabase"
+import { resolveAffectationClient } from "../lib/resolveAffectationClient"
 
 // -- Types rôle / statut partenaire
 type UserRole = "admin" | "client" | "partenaire" | "consultant"
@@ -190,10 +191,11 @@ const role: UserRole | null = profilAGE?.role
     if (o === "demandes") await loadDemandes()
   }
 
-  async function handleEnvoyerDemande(partenaire: any) {
+ async function handleEnvoyerDemande(partenaire: any) {
     if (!formDemande.type_prestation) return
     setLoadingDemande(true)
     const { data: { user } } = await supabase.auth.getUser()
+    const affectation = user ? await resolveAffectationClient(user.id) : null
     await supabase.from("demandes_marketplace").insert({
       type_prestation: formDemande.type_prestation,
       description: formDemande.description,
@@ -201,6 +203,8 @@ const role: UserRole | null = profilAGE?.role
       statut: "soumise",
       client_id: user?.id || null,
       note_age: `Partenaire demandé : ${partenaire.nom}`,
+      responsable_id: affectation?.responsable_region_id ?? null,
+      consultant_id: affectation?.consultant_id ?? null,
     })
     setSuccesDemande(partenaire.id)
     setLoadingDemande(false)
@@ -208,16 +212,19 @@ const role: UserRole | null = profilAGE?.role
     setTimeout(() => { setSuccesDemande(null); setDemandeOuverte(null); setFormDemande({ type_prestation: "", actif_id: "", description: "" }) }, 3000)
   }
 
-  async function handleEnvoyerDemandeConsultant(consultant: typeof consultantsAGE[0]) {
+ async function handleEnvoyerDemandeConsultant(consultant: typeof consultantsAGE[0]) {
     if (!formDemande.type_prestation) return
     setLoadingDemande(true)
     const { data: { user } } = await supabase.auth.getUser()
+    const affectation = user ? await resolveAffectationClient(user.id) : null
     await supabase.from("demandes_marketplace").insert({
       type_prestation: formDemande.type_prestation,
       description: formDemande.description,
       statut: "soumise",
       client_id: user?.id || null,
       note_age: `Consultant AGE demandé : ${consultant.type}`,
+      responsable_id: affectation?.responsable_region_id ?? null,
+      consultant_id: affectation?.consultant_id ?? null,
     })
     setSuccesDemande(consultant.id)
     setLoadingDemande(false)

@@ -228,14 +228,11 @@ async function loadConsultants() {
       const dedup = new Map<string, any>()
       ;[...(assignees || []), ...parRegion].forEach(r => dedup.set(r.id, r))
       raps = Array.from(dedup.values())
-    } else if (role === "consultant" && uid) {
-      const { data: clientsAssignes } = await supabase
-        .from("profils_client")
-        .select("id")
-        .or(`responsable_commercial_id.is.null,responsable_commercial_id.eq.${uid}`)
-      const clientIdsFiltre = (clientsAssignes || []).map(c => c.id)
-      if (clientIdsFiltre.length === 0) { setRapports([]); return }
-      const { data } = await supabase.from("rapports_client").select("*").in("client_id", clientIdsFiltre)
+  } else if (role === "consultant" && uid) {
+      const { data } = await supabase
+        .from("rapports_client")
+        .select("*")
+        .eq("consultant_id", uid)
       raps = data || []
     } else {
       const { data } = await supabase.from("rapports_client").select("*")

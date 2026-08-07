@@ -305,6 +305,7 @@ export default function Layout() {
   const [nbMessagesClient, setNbMessagesClient] = useState(0)
   const [detailMessagesClient, setDetailMessagesClient] = useState({ demandes: 0, campagnes: 0, actifs: 0 })
   const [nbRapportsDispo, setNbRapportsDispo] = useState(0)
+  const [nbMissionsConsultant, setNbMissionsConsultant] = useState(0)
   const [detailFileAttente, setDetailFileAttente] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -443,11 +444,22 @@ export default function Layout() {
             .select("id", { count: "exact", head: true })
             .eq("statut", "demande")
             .eq("type_rapport", "analyse_climatique")
-          setNbFileAttente(prev => prev + (countRapportsRegion || 0))
-          setNbRapportsAttente(countRapportsRegion || 0)
-          setDetailFileAttente({ climatique: countRapportsRegion || 0 })
 
-          supabase
+          // Demandes marketplace routées vers ce responsable région (chaîne d'affectation)
+          const { count: countDemandesRespMarketplace } = await supabase
+            .from("demandes_marketplace")
+            .select("id", { count: "exact", head: true })
+            .eq("responsable_id", user.id)
+            .eq("statut", "soumise")
+
+          setNbFileAttente(prev => prev + (countRapportsRegion || 0) + (countDemandesRespMarketplace || 0))
+          setNbRapportsAttente(countRapportsRegion || 0)
+          setDetailFileAttente({
+            climatique: countRapportsRegion || 0,
+            marketplace: countDemandesRespMarketplace || 0,
+          })
+
+    supabase
             .channel(`rapports-demande-region-${Date.now()}`)
             .on("postgres_changes", {
               event: "INSERT", schema: "public", table: "rapports_client",
@@ -456,6 +468,88 @@ export default function Layout() {
                 setNbFileAttente(prev => prev + 1)
                 setNbRapportsAttente(prev => prev + 1)
                 setDetailFileAttente(prev => ({ ...prev, climatique: (prev.climatique || 0) + 1 }))
+              }
+            })
+            .on("postgres_changes", {
+              event: "UPDATE", schema: "public", table: "rapports_client",
+            }, (payload: any) => {
+              if (
+                payload.new?.responsable_id === user.id &&
+                payload.new?.type_rapport === "analyse_climatique" &&
+                payload.old?.statut === "demande" &&
+                payload.new?.statut !== "demande"
+              ) {
+                setNbFileAttente(prev => Math.max(0, prev - 1))
+                setNbRapportsAttente(prev => Math.max(0, prev - 1))
+                setDetailFileAttente(prev => ({ ...prev, climatique: Math.max(0, (prev.climatique || 0) - 1) }))
+              }
+            })
+            .subscribe()
+
+          supabase
+            .channel(`missions-region-${Date.now()}`)
+            .on("postgres_changes", {
+              event: "INSERT", schema: "public", table: "missions",
+            }, (payload: any) => {
+              if (payload.new?.region === profilAGE.region && !payload.new?.consultant_id) {
+                setNbMissions(prev => prev + 1)
+              }
+            })
+            .on("postgres_changes", {
+              event: "UPDATE", schema: "public", table: "missions",
+            }, (payload: any) => {
+              if (payload.new?.region === profilAGE.region && payload.old?.consultant_id == null && payload.new?.consultant_id) {
+                setNbMissions(prev => Math.max(0, prev - 1))
+              }
+            })
+            .subscribe()
+
+          supabase
+            .channel(`demandes-marketplace-region-${Date.now()}`)
+            .on("postgres_changes", {
+              event: "INSERT", schema: "public", table: "demandes_marketplace",
+            }, (payload: any) => {
+              if (payload.new?.responsable_id === user.id && payload.new?.statut === "soumise") {
+                setNbFileAttente(prev => prev + 1)
+                setDetailFileAttente(prev => ({ ...prev, marketplace: (prev.marketplace || 0) + 1 }))
+              }
+            })
+            .on("postgres_changes", {
+              event: "UPDATE", schema: "public", table: "demandes_marketplace",
+            }, (payload: any) => {
+              if (payload.new?.responsable_id === user.id && payload.old?.statut === "soumise" && payload.new?.statut !== "soumise") {
+                setNbFileAttente(prev => Math.max(0, prev - 1))
+                setDetailFileAttente(prev => ({ ...prev, marketplace: Math.max(0, (prev.marketplace || 0) - 1) }))
+              }
+            })
+            .subscribe()
+        }
+
+    if (role === "consultant") {
+          const { count: countMissionsConsultant } = await supabase
+            .from("missions")
+            .select("id", { count: "exact", head: true })
+            .eq("consultant_id", user.id)
+            .eq("statut", "nouvelle")
+          setNbMissionsConsultant(countMissionsConsultant || 0)
+
+          supabase
+            .channel(`missions-consultant-${Date.now()}`)
+            .on("postgres_changes", {
+              event: "INSERT", schema: "public", table: "missions",
+            }, (payload: any) => {
+              if (payload.new?.consultant_id === user.id && payload.new?.statut === "nouvelle") {
+                setNbMissionsConsultant(prev => prev + 1)
+              }
+            })
+            .on("postgres_changes", {
+              event: "UPDATE", schema: "public", table: "missions",
+            }, (payload: any) => {
+              if (payload.new?.consultant_id === user.id && payload.old?.statut === "nouvelle" && payload.new?.statut !== "nouvelle") {
+                setNbMissionsConsultant(prev => Math.max(0, prev - 1))
+              }
+              if (payload.new?.consultant_id === user.id && payload.old?.consultant_id !== user.id && payload.new?.statut === "nouvelle") {
+                setNbMissionsConsultant(prev => prev + 1)
               }
             })
             .subscribe()
@@ -609,7 +703,7 @@ export default function Layout() {
           <NavItem to="/" icon="ti-home" label="Accueil" end />
           <NavItem to="/sensibilisation" icon="ti-plant-2" label="Sensibilisation" />
 
-          {(espace === "client" || roleAGE === "admin_national") && (
+        {(espace === "client" || roleAGE === "admin_national") && (
             <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />
           )}
 
@@ -690,8 +784,8 @@ export default function Layout() {
                   badge={roleAGE === "responsable_regional" ? nbMissions + nbRapportsAttente : nbRapportsAttente}
                 />
               )}
-              {roleAGE === "consultant" && (
-                <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" />
+            {roleAGE === "consultant" && (
+                <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" badge={nbMissionsConsultant} />
               )}
 
               {/* Mon équipe */}
@@ -704,8 +798,8 @@ export default function Layout() {
                 <NavItem to="/metier/portefeuille" icon="ti-building" label="Portefeuille" />
               )}
 
-              {/* Clients */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+            {/* Clients */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
               )}
 

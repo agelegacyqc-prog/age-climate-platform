@@ -3,9 +3,10 @@ import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ScoreGeorisques from "../../components/ScoreGeorisques"
 import { calculerScoreGeorisques } from "../../lib/scoreGeorisques"
+import { detecterAleas } from "../../lib/aleasGeorisques"
 import ScoreHistorique from "../metier/ScoreHistorique"
-import ScoreRepartitionPie from "../../components/ScoreRepartitionPie"
 import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
+import { resolveAffectationClient } from "../../lib/resolveAffectationClient"
 
 const statutReglColor:any = {
   eligible:    { bg:"#F0FDF4", color:"#2F7D5C", label:"Obligatoire",  icone:"ti-circle-check" },
@@ -127,13 +128,16 @@ async function demanderAnalyseClimatique() {
     if (!actif) return
     setEnvoiDemandeAnalyse(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Session expirée")
+      const affectation = await resolveAffectationClient(user.id)
       const { data, error } = await supabase.from("rapports_client").insert({
         client_id: user.id,
         actif_id: actif.id,
         type_rapport: "analyse_climatique",
         statut: "demande",
+        responsable_id: affectation.responsable_region_id,
+        consultant_id: affectation.consultant_id,
       }).select("id, statut").single()
       if (error) throw error
       setDemandeAnalyse(data)
@@ -255,6 +259,7 @@ async function demanderAnalyseClimatique() {
 const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
   const scoreColor = (actif.score_climatique||0) >= 70 ? "#b91c1c" : (actif.score_climatique||0) >= 40 ? "#d97706" : "#2d6a4f"
   const scoreGeorisques = calculerScoreGeorisques(actif.exposition_rga, actif.georisques_data)
+  const aleasDetectes = detecterAleas(actif.georisques_data, actif.exposition_rga)
   const nbEligibleScore = reglementations.filter(r => r.statut === "eligible").length
   const scoreReglementaire = reglementations.length > 0
     ? Math.round((nbEligibleScore / reglementations.length) * 100)
@@ -323,19 +328,7 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                     {actif.adresse} — {actif.ville} {actif.code_postal}
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                  {[
-                    { label: "Géorisques", valeur: scoreGeorisques,    couleur: "#0369A1" },
-                    { label: "Rgl.",        valeur: scoreReglementaire, couleur: "#7C3AED" },
-                    { label: "Clim. AGE",   valeur: scoreClimatiqueAge, couleur: "#B91C1C" },
-                  ].map((s, i) => (
-                    <span key={i} title={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#FAFAF9", color: s.couleur, padding: "4px 10px", borderRadius: "8px", border: "1px solid #E2DDD8", minWidth: 58 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", opacity: 0.85 }}>{s.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "JetBrains Mono, monospace" }}>
-                        {s.valeur === null ? "—" : `${s.valeur}/100`}
-                      </span>
-                    </span>
-                  ))}
+               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                   {prediagnostic ? (
                     <span style={{ background: "#F0FDF4", color: "#2F7D5C", padding: "6px 12px", borderRadius: "999px", fontWeight: 500, fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
                       <i className="ti ti-circle-check" style={{ fontSize: "12px" }} />
@@ -429,12 +422,34 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
               </div>
             ))}
             <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #f0f0f0" }}>
-              <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>Répartition des scores</div>
-              <ScoreRepartitionPie
-                scoreGeorisques={scoreGeorisques}
-                scoreReglementaire={scoreReglementaire}
-                scoreClimatiqueAge={scoreClimatiqueAge}
-              />
+              <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827", marginBottom: "0.75rem" }}>Aléas climatiques identifiés</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
+                {aleasDetectes.map((a,i) => {
+                  let badge: { label: string; bg: string; color: string }
+                  if (a.alea === "rga") {
+                    badge = a.niveau
+                      ? { label: `RGA ${a.niveau}`, bg: a.niveau==="forte"?"#FEF2F2":a.niveau==="moyenne"?"#FFFBEB":"#F0FDF4", color: a.niveau==="forte"?"#B91C1C":a.niveau==="moyenne"?"#D97706":"#2F7D5C" }
+                      : { label: "Non renseigné", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (!a.automatise) {
+                    badge = { label: "À évaluer", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (a.present === null) {
+                    badge = { label: "Non disponible", bg: "#F4F3F0", color: "#78716C" }
+                  } else if (a.present) {
+                    badge = { label: "Présent", bg: "#FEF2F2", color: "#B91C1C" }
+                  } else {
+                    badge = { label: "Non détecté", bg: "#F0FDF4", color: "#2F7D5C" }
+                  }
+                  return (
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0.75rem",background:"#f8f7f4",borderRadius:"8px"}}>
+                      <span style={{fontSize:"0.85rem",color:"#111827"}}>{a.label}</span>
+                      <span style={{fontSize:"0.7rem",fontWeight:700,padding:"3px 8px",borderRadius:"6px",background:badge.bg,color:badge.color}}>
+                        {badge.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p style={{fontSize:"0.75rem",color:"#94A3B8",marginTop:"0.75rem"}}>Détection basée sur la localisation — score climatique définitif établi lors d'une mission AGE.</p>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
@@ -457,7 +472,7 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                 ))
               )}
             </div>
-            <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+      <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
               <h3 style={{color:"#111827",marginBottom:"1rem"}}>Score climatique</h3>
               <ScoreHistorique
                 actifId={actif.id}

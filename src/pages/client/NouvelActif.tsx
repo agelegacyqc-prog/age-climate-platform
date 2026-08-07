@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import ConsultantsRecommandes from "../../components/ConsultantsRecommandes"
+import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
+import { detecterAleas, type AleaDetecte } from "../../lib/aleasGeorisques"
 
 const etapes = [
   {num:1,label:"Informations"},
@@ -180,6 +182,8 @@ export default function NouvelActif() {
   const searchRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [sitesSupp, setSitesSupp] = useState<SiteSupplementaire[]>([])
+  const [aleasDetectes, setAleasDetectes] = useState<AleaDetecte[]>([])
+  const [chargementGeorisques, setChargementGeorisques] = useState(false)
   const [infos, setInfos] = useState<Infos>({
     nom:"", raison_sociale:"", siren:"", siret:"", code_naf:"",
     classification:"", adresse:"", ville:"", code_postal:"",
@@ -266,6 +270,15 @@ export default function NouvelActif() {
 
     if (data && data[0]) {
       setActifId(data[0].id)
+
+      // Détection des aléas Géorisques — présence/absence uniquement,
+      // aucun score chiffré calculé (décision PO : le score climatique
+      // définitif ne peut être établi qu'après mission AGE).
+      setChargementGeorisques(true)
+      const georisquesData = await fetchAndStoreGeorisques(data[0])
+      setAleasDetectes(detecterAleas(georisquesData, data[0].exposition_rga ?? null))
+      setChargementGeorisques(false)
+
       if (sitesSupp.length > 0) {
         const sitesValides = sitesSupp.filter(s => s.nom && s.adresse && s.ville)
         if (sitesValides.length > 0) {
@@ -773,37 +786,43 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
         </div>
       )}
 
-      {/* Étape 4 — Score climatique */}
+      {/* Étape 4 — Aléas climatiques */}
       {etape===4 && (
         <div style={{background:"white",padding:"2rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-          <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>🌡️ Score climatique</h3>
-          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Analyse préliminaire basée sur la localisation et les données du site</p>
-          <div style={{textAlign:"center",padding:"2rem"}}>
-            <div style={{fontSize:"5rem",fontWeight:"800",color:"#d97706"}}>72</div>
-            <div style={{color:"#666",marginBottom:"1.5rem"}}>Score climatique global</div>
-            <div style={{background:"#f0f0f0",borderRadius:"999px",height:"16px",overflow:"hidden",marginBottom:"2rem"}}>
-              <div style={{background:"linear-gradient(90deg,#2d6a4f,#d97706,#b91c1c)",width:"72%",height:"100%",borderRadius:"999px"}}></div>
-            </div>
+          <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem"}}>🌡️ Aléas climatiques identifiés</h3>
+          <p style={{color:"#666",fontSize:"0.9rem",marginBottom:"1.5rem"}}>Détection préliminaire basée sur la localisation du site — aucun score climatique n'est calculé avant mission AGE</p>
+          {chargementGeorisques ? (
+            <div style={{textAlign:"center",padding:"2rem",color:"#666"}}>Récupération des données Géorisques…</div>
+          ) : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
-              {[
-                {label:"Inondation",score:45,color:"#0369a1"},
-                {label:"Sécheresse",score:72,color:"#d97706"},
-                {label:"Canicule",score:68,color:"#b91c1c"},
-                {label:"Tempête",score:35,color:"#7c3aed"},
-                {label:"RGA",score:80,color:"#b91c1c"},
-                {label:"Feux",score:25,color:"#d97706"},
-                {label:"Submersion",score:30,color:"#0369a1"},
-                {label:"Grêle",score:40,color:"#2d6a4f"}
-              ].map((s,i) => (
-                <div key={i} style={{background:"#f8f7f4",padding:"0.875rem",borderRadius:"8px"}}>
-                  <div style={{fontSize:"1.25rem",fontWeight:"800",color:s.color}}>{s.score}</div>
-                  <div style={{fontSize:"0.75rem",color:"#666",marginTop:"0.25rem"}}>{s.label}</div>
-                </div>
-              ))}
+              {aleasDetectes.map((a,i) => {
+                let badge: { label: string; bg: string; color: string }
+                if (a.alea === "rga") {
+                  badge = a.niveau
+                    ? { label: `RGA ${a.niveau}`, bg: a.niveau==="forte"?"#FEF2F2":a.niveau==="moyenne"?"#FFFBEB":"#F0FDF4", color: a.niveau==="forte"?"#B91C1C":a.niveau==="moyenne"?"#D97706":"#2F7D5C" }
+                    : { label: "Non renseigné", bg: "#F4F3F0", color: "#78716C" }
+                } else if (!a.automatise) {
+                  badge = { label: "À évaluer", bg: "#F4F3F0", color: "#78716C" }
+                } else if (a.present === null) {
+                  badge = { label: "Non disponible", bg: "#F4F3F0", color: "#78716C" }
+                } else if (a.present) {
+                  badge = { label: "Présent", bg: "#FEF2F2", color: "#B91C1C" }
+                } else {
+                  badge = { label: "Non détecté", bg: "#F0FDF4", color: "#2F7D5C" }
+                }
+                return (
+                  <div key={i} style={{background:"#f8f7f4",padding:"0.875rem",borderRadius:"8px"}}>
+                    <div style={{fontSize:"0.8rem",fontWeight:700,color:"#1a3a2a",marginBottom:"0.4rem"}}>{a.label}</div>
+                    <span style={{display:"inline-block",fontSize:"0.7rem",fontWeight:700,padding:"3px 8px",borderRadius:"6px",background:badge.bg,color:badge.color}}>
+                      {badge.label}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
-            <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1",textAlign:"left"}}>
-              💡 L'analyse complète avec IA sera disponible après traitement de vos documents.
-            </div>
+          )}
+          <div style={{background:"#e0f2fe",padding:"1rem",borderRadius:"8px",fontSize:"0.85rem",color:"#0369a1",textAlign:"left"}}>
+            💡 Chaleur, sécheresse et épisodes froids ne sont pas détectables automatiquement — évaluation complète lors d'une mission AGE. Le score climatique définitif sera établi par un consultant.
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
             <button onClick={() => setEtape(3)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
@@ -845,12 +864,11 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
                   ["Surface",infos.surface+"m²"],
                   ["Effectifs",infos.effectifs+" salariés"],
                   ["Documents uploadés",documentsUploades.length.toString()],
-                  ["Réglementations obligatoires",reglementations.filter(r=>r.statut==="eligible").length.toString()],
-                  ["Score climatique","72 / 100"]
+                  ["Réglementations obligatoires",reglementations.filter(r=>r.statut==="eligible").length.toString()]
                 ].map(([k,v],i) => (
                   <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
                     <span style={{color:"#666"}}>{k}</span>
-                    <span style={{fontWeight:"600",color:k==="Score climatique"?"#d97706":"#1a3a2a"}}>{v}</span>
+                    <span style={{fontWeight:"600",color:"#1a3a2a"}}>{v}</span>
                   </div>
                 ))}
               </div>

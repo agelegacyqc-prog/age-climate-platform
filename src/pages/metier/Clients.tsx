@@ -17,6 +17,9 @@ interface Client {
   nb_actifs: number
   nb_campagnes: number
   derniere_activite: string | null
+  organisation_id: string | null
+  responsable_region_id: string | null
+  consultant_id: string | null
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -62,6 +65,7 @@ const labelStyle: React.CSSProperties = {
 export default function Clients() {
   const navigate = useNavigate()
 
+  const [userId, setUserId]             = useState("")
   const [userRole, setUserRole]         = useState("")
   const [userRegion, setUserRegion]     = useState("")
   const [clients, setClients]           = useState<Client[]>([])
@@ -70,7 +74,8 @@ export default function Clients() {
   const [filtreType, setFiltreType]     = useState("tous")
   const [filtreStatut, setFiltreStatut] = useState("tous")
 
-  const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string }[]>([])
+  const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string; region: string | null }[]>([])
+  const [consultants, setConsultants]   = useState<{ id: string; prenom: string; nom: string; region: string | null }[]>([])
 
   const [newClientOpen, setNewClientOpen]     = useState(false)
  const [newClientForm, setNewClientForm]     = useState({
@@ -82,6 +87,13 @@ export default function Clients() {
   const [newClientLoading, setNewClientLoading] = useState(false)
   const [newClientCreds, setNewClientCreds]   = useState<{ email: string; password: string } | null>(null)
 
+  // ── Affectation resp. région / consultant ──
+  const [affectationOpen, setAffectationOpen]     = useState(false)
+  const [clientAffectation, setClientAffectation] = useState<Client | null>(null)
+  const [formAffectation, setFormAffectation]     = useState({ responsable_region_id: "", consultant_id: "" })
+  const [savingAffectation, setSavingAffectation] = useState(false)
+  const [erreurAffectation, setErreurAffectation] = useState("")
+
 useEffect(() => { charger() }, [])
 
   async function charger() {
@@ -91,6 +103,7 @@ useEffect(() => { charger() }, [])
       let roleCourant = ""
       let regionCourante = ""
       if (user) {
+        setUserId(user.id)
         const { data: monProfil } = await supabase
           .from("profils")
           .select("role, region")
@@ -102,16 +115,10 @@ useEffect(() => { charger() }, [])
         setUserRegion(regionCourante)
       }
 
-      let requete = supabase
+      const { data: profilsData } = await supabase
         .from("profils_client")
-        .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, region, prenom, nom")
+        .select("id, type_client, sous_profil, actif, onboarding_complete, created_at, responsable_commercial_id, region, prenom, nom, organisation_id, responsable_region_id, consultant_id")
         .order("created_at", { ascending: false })
-
-      if (roleCourant === "responsable_regional") {
-        requete = requete.or(`region.is.null,region.eq.${regionCourante}`)
-      }
-
-      const { data: profilsData } = await requete
 
       if (!profilsData) { setLoading(false); return }
 
@@ -132,25 +139,47 @@ useEffect(() => { charger() }, [])
       ;(actifsCount || []).forEach((a: any) => { actifsMap[a.user_id] = (actifsMap[a.user_id] || 0) + 1 })
       ;(campagnesCount || []).forEach((c: any) => { campagnesMap[c.client_id] = (campagnesMap[c.client_id] || 0) + 1 })
 
-      const mapped: Client[] = profilsData.map(p => ({
-        id: p.id, email: emailsMap[p.id] || "—",
-        prenom: p.prenom, nom: p.nom, type_client: p.type_client,
-        sous_profil: p.sous_profil, actif: p.actif !== false,
-        onboarding_complete: p.onboarding_complete || false,
-        created_at: p.created_at,
-        responsable_commercial_id: p.responsable_commercial_id,
-        region: p.region || null,
-        nb_actifs: actifsMap[p.id] || 0,
-        nb_campagnes: campagnesMap[p.id] || 0,
-        derniere_activite: null,
-      }))
+      // Affectation B2B : lue sur organisations, prioritaire sur les colonnes profils_client
+      const orgIds = Array.from(new Set(profilsData.map(p => p.organisation_id).filter(Boolean))) as string[]
+      let orgsMap: Record<string, { responsable_region_id: string | null; consultant_id: string | null }> = {}
+      if (orgIds.length > 0) {
+        const { data: orgsData } = await supabase
+          .from("organisations")
+          .select("id, responsable_region_id, consultant_id")
+          .in("id", orgIds)
+        ;(orgsData || []).forEach((o: any) => { orgsMap[o.id] = { responsable_region_id: o.responsable_region_id, consultant_id: o.consultant_id } })
+      }
+
+      const mapped: Client[] = profilsData.map(p => {
+        const org = p.organisation_id ? orgsMap[p.organisation_id] : null
+        return {
+          id: p.id, email: emailsMap[p.id] || "—",
+          prenom: p.prenom, nom: p.nom, type_client: p.type_client,
+          sous_profil: p.sous_profil, actif: p.actif !== false,
+          onboarding_complete: p.onboarding_complete || false,
+          created_at: p.created_at,
+          responsable_commercial_id: p.responsable_commercial_id,
+          region: p.region || null,
+          nb_actifs: actifsMap[p.id] || 0,
+          nb_campagnes: campagnesMap[p.id] || 0,
+          derniere_activite: null,
+          organisation_id: p.organisation_id,
+          responsable_region_id: org ? org.responsable_region_id : p.responsable_region_id,
+          consultant_id: org ? org.consultant_id : p.consultant_id,
+        }
+      })
 
       setClients(mapped)
 
       const { data: resps } = await supabase
         .from("profils").select("id, prenom, nom, role, region")
         .in("role", ["admin", "admin_national", "responsable_regional"])
-      setResponsables(resps || [])
+      setResponsables((resps || []).filter(r => r.role !== "admin" && r.role !== "admin_national" || true).map(r => ({ id: r.id, prenom: r.prenom, nom: r.nom, region: r.region })))
+
+      const { data: consData } = await supabase
+        .from("profils").select("id, prenom, nom, role, region")
+        .eq("role", "consultant")
+      setConsultants((consData || []).map(c => ({ id: c.id, prenom: c.prenom, nom: c.nom, region: c.region })))
     } finally {
       setLoading(false)
     }
@@ -203,6 +232,49 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
     }
   }
 
+  function ouvrirAffectation(client: Client) {
+    setClientAffectation(client)
+    setFormAffectation({
+      responsable_region_id: client.responsable_region_id || "",
+      consultant_id: client.consultant_id || "",
+    })
+    setErreurAffectation("")
+    setAffectationOpen(true)
+  }
+
+  const peutModifierResponsable = userRole === "admin" || userRole === "admin_national"
+  const peutModifierConsultant = peutModifierResponsable ||
+    (userRole === "responsable_regional" && clientAffectation?.responsable_region_id === userId)
+
+  async function enregistrerAffectation() {
+    if (!clientAffectation) return
+    setSavingAffectation(true)
+    setErreurAffectation("")
+    try {
+      const payload: Record<string, string | null> = {}
+      if (peutModifierResponsable) payload.responsable_region_id = formAffectation.responsable_region_id || null
+      if (peutModifierConsultant) payload.consultant_id = formAffectation.consultant_id || null
+
+      const table = clientAffectation.organisation_id ? "organisations" : "profils_client"
+      const targetId = clientAffectation.organisation_id ? clientAffectation.organisation_id : clientAffectation.id
+
+      const { error } = await supabase.from(table).update(payload).eq("id", targetId)
+      if (error) throw error
+
+      setClients(prev => prev.map(c => c.id === clientAffectation.id ? {
+        ...c,
+        responsable_region_id: payload.responsable_region_id !== undefined ? payload.responsable_region_id : c.responsable_region_id,
+        consultant_id: payload.consultant_id !== undefined ? payload.consultant_id : c.consultant_id,
+      } : c))
+      setAffectationOpen(false)
+    } catch (err: any) {
+      console.error("Erreur affectation:", err)
+      setErreurAffectation(err.message || "Erreur lors de l'enregistrement.")
+    } finally {
+      setSavingAffectation(false)
+    }
+  }
+
   const clientsFiltres = clients.filter(c => {
     const matchSearch = search === "" ||
       `${c.prenom || ""} ${c.nom || ""}`.toLowerCase().includes(search.toLowerCase()) ||
@@ -220,6 +292,11 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
     if (!id) return null
     const r = responsables.find(r => r.id === id)
     return r ? `${r.prenom} ${r.nom}` : null
+  }
+  function consultantNom(id: string | null) {
+    if (!id) return null
+    const c = consultants.find(c => c.id === id)
+    return c ? `${c.prenom} ${c.nom}` : null
   }
 
   return (
@@ -290,7 +367,7 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Actifs</th>
                 <th style={thStyle}>Campagnes actives</th>
-                <th style={thStyle}>Responsable</th>
+                <th style={thStyle}>Resp. région / Consultant</th>
                 <th style={thStyle}>Statut</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
               </tr>
@@ -327,12 +404,39 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
                     <td style={{ ...tdStyle, fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: c.nb_campagnes > 0 ? "#B25C2A" : "#9CA3AF" }}>
                       {c.nb_campagnes}
                     </td>
-                    <td style={{ ...tdStyle, fontSize: "12px", color: "#6B7280" }}>
-                      {responsableNom(c.responsable_commercial_id) || (
-                        <span style={{ color: "#D97706", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
-                          <i className="ti ti-alert-triangle" style={{ fontSize: "11px" }} />
-                          Non assigné
-                        </span>
+                  <td style={{ ...tdStyle, fontSize: "12px" }}>
+                      {userRole === "consultant" ? (
+                        <div>
+                          {c.consultant_id ? (
+                            <>
+                              <div style={{ color: "#111827", fontWeight: 500 }}>{consultantNom(c.consultant_id) || "—"}</div>
+                              <div style={{ color: "#9CA3AF", fontSize: "10px" }}>via {responsableNom(c.responsable_region_id) || "—"}</div>
+                            </>
+                          ) : c.responsable_region_id ? (
+                            <div style={{ color: "#0369A1" }}>{responsableNom(c.responsable_region_id) || "—"}</div>
+                          ) : (
+                            <span style={{ color: "#D97706", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                              <i className="ti ti-alert-triangle" style={{ fontSize: "11px" }} />
+                              Non affecté
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <button onClick={() => ouvrirAffectation(c)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                          {c.consultant_id ? (
+                            <div>
+                              <div style={{ color: "#111827", fontWeight: 500 }}>{consultantNom(c.consultant_id) || "—"}</div>
+                              <div style={{ color: "#9CA3AF", fontSize: "10px" }}>via {responsableNom(c.responsable_region_id) || "—"}</div>
+                            </div>
+                          ) : c.responsable_region_id ? (
+                            <div style={{ color: "#0369A1" }}>{responsableNom(c.responsable_region_id) || "—"}</div>
+                          ) : (
+                            <span style={{ color: "#D97706", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                              <i className="ti ti-alert-triangle" style={{ fontSize: "11px" }} />
+                              Non affecté
+                            </span>
+                          )}
+                        </button>
                       )}
                     </td>
                     <td style={tdStyle}>
@@ -343,6 +447,11 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "flex-end" }}>
+                        {userRole !== "consultant" && (
+                          <button onClick={() => ouvrirAffectation(c)} style={actionBtnStyle} title="Affecter responsable / consultant">
+                            <i className="ti ti-user-cog" style={{ fontSize: "14px" }} />
+                          </button>
+                        )}
                         <button onClick={() => navigate(`/metier/clients/${c.id}`)} style={actionBtnStyle} title="Voir la fiche">
                           <i className="ti ti-eye" style={{ fontSize: "14px" }} />
                         </button>
@@ -490,6 +599,80 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Drawer affectation resp. région / consultant ── */}
+      {affectationOpen && clientAffectation && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setAffectationOpen(false)} />
+          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "420px", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div>
+                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Affecter {clientAffectation.organisation_id ? "l'organisation" : "le client"}</h2>
+                <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
+                  {clientAffectation.prenom && clientAffectation.nom ? `${clientAffectation.prenom} ${clientAffectation.nom}` : clientAffectation.email}
+                  {clientAffectation.organisation_id && <span style={{ display: "block", marginTop: "2px", color: "#B25C2A" }}>Affectation partagée par tous les utilisateurs de l'organisation</span>}
+                </p>
+              </div>
+              <button onClick={() => setAffectationOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                <i className="ti ti-x" style={{ fontSize: "14px" }} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              {erreurAffectation && (
+                <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "13px", color: "#B91C1C", display: "flex", gap: "8px", alignItems: "center" }}>
+                  <i className="ti ti-alert-triangle" style={{ fontSize: "14px", flexShrink: 0 }} />{erreurAffectation}
+                </div>
+              )}
+
+              <div>
+                <label style={labelStyle}>Responsable région {!peutModifierResponsable && <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(admin uniquement)</span>}</label>
+                <select
+                  className="input"
+                  value={formAffectation.responsable_region_id}
+                  disabled={!peutModifierResponsable}
+                  onChange={e => setFormAffectation({ ...formAffectation, responsable_region_id: e.target.value, consultant_id: "" })}
+                >
+                  <option value="">— Non affecté (visible admin) —</option>
+                  {responsables.map(r => (
+                    <option key={r.id} value={r.id}>{r.prenom} {r.nom}{r.region ? ` — ${r.region}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Consultant {!formAffectation.responsable_region_id && <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(affecter d'abord un responsable)</span>}
+                  {!peutModifierConsultant && formAffectation.responsable_region_id && <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(réservé au responsable affecté ou à l'admin)</span>}
+                </label>
+                <select
+                  className="input"
+                  value={formAffectation.consultant_id}
+                  disabled={!formAffectation.responsable_region_id || !peutModifierConsultant}
+                  onChange={e => setFormAffectation({ ...formAffectation, consultant_id: e.target.value })}
+                >
+                  <option value="">— Non délégué (visible responsable) —</option>
+                  {consultants.map(c => (
+                    <option key={c.id} value={c.id}>{c.prenom} {c.nom}{c.region ? ` — ${c.region}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "12px 14px", fontSize: "12px", color: "#64748B", lineHeight: 1.6 }}>
+                Dès qu'un responsable est affecté, l'admin ne voit plus les nouvelles demandes de ce client. Dès qu'un consultant est délégué, seul lui les reçoit directement.
+              </div>
+            </div>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", display: "flex", gap: "8px", flexShrink: 0 }}>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setAffectationOpen(false)}>Annuler</button>
+              <button className="btn-primary" style={{ flex: 2 }} onClick={enregistrerAffectation} disabled={savingAffectation}>
+                {savingAffectation
+                  ? <><i className="ti ti-loader" style={{ fontSize: "14px" }} /> Enregistrement…</>
+                  : <><i className="ti ti-check" style={{ fontSize: "14px" }} /> Enregistrer</>
+                }
+              </button>
             </div>
           </div>
         </>
