@@ -156,10 +156,15 @@ export default function Messagerie() {
         if (!msg.lu && msg.expediteur_id !== userId) map.get(key)!.nbNonLus++
       }
 
-      // Enrichir avec raison sociale client
+// Enrichir avec raison sociale client + vérifier l'affectation (responsable/consultant)
       const clientIds = [...new Set(Array.from(map.values()).map(c => c.clientId).filter(Boolean))] as string[]
+      let clientsAutorises: Set<string> | null = null // null = pas de restriction (admin)
+
       if (clientIds.length > 0) {
-        const { data: pcs } = await supabase.from("profils_client").select("id, organisation_id").in("id", clientIds)
+        const { data: pcs } = await supabase
+          .from("profils_client")
+          .select("id, organisation_id, responsable_region_id, consultant_id")
+          .in("id", clientIds)
         const orgIds = [...new Set((pcs || []).map(p => p.organisation_id).filter(Boolean))]
         const { data: orgs } = await supabase.from("organisations").select("id, raison_sociale").in("id", orgIds)
         const orgMap: Record<string, string> = {}
@@ -169,9 +174,29 @@ export default function Messagerie() {
         map.forEach((conv, key) => {
           if (conv.clientId && pcMap[conv.clientId]) map.set(key, { ...conv, clientNom: pcMap[conv.clientId] })
         })
+
+        if (monRole === "responsable_regional" || monRole === "consultant") {
+          const { data: orgsAffectees } = await supabase.rpc("organisations_affectees_a", {
+            uid: userId,
+            colonne: monRole === "responsable_regional" ? "responsable" : "consultant",
+          })
+          const orgsAffecteesSet = new Set((orgsAffectees || []) as string[])
+          clientsAutorises = new Set(
+            (pcs || [])
+              .filter(p =>
+                (monRole === "responsable_regional" && p.responsable_region_id === userId) ||
+                (monRole === "consultant" && p.consultant_id === userId) ||
+                (p.organisation_id && orgsAffecteesSet.has(p.organisation_id))
+              )
+              .map(p => p.id)
+          )
+        }
       }
 
-      const convs = Array.from(map.values())
+      let convs = Array.from(map.values())
+      if (clientsAutorises) {
+        convs = convs.filter(c => c.clientId && clientsAutorises!.has(c.clientId))
+      }
       setConversations(convs)
       if (convs.length > 0 && !selected) setSelected(convs[0])
     }

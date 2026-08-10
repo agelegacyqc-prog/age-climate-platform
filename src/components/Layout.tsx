@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { Home } from "lucide-react"
@@ -172,7 +172,7 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
             <i className="ti ti-file-analytics nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">Reporting</span>
           </NavLink>
-    {(roleAGE === 'admin_national' || roleAGE === 'consultant') && (
+{(roleAGE === 'admin_national' || roleAGE === 'responsable_regional') && (
             <NavLink
               to="/metier/factures"
               className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
@@ -308,6 +308,12 @@ export default function Layout() {
   const [nbMissionsConsultant, setNbMissionsConsultant] = useState(0)
   const [detailFileAttente, setDetailFileAttente] = useState<Record<string, number>>({})
 
+  const debounceBadgesRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function declencherRecalculBadges(fn: () => void) {
+    if (debounceBadgesRef.current) clearTimeout(debounceBadgesRef.current)
+    debounceBadgesRef.current = setTimeout(fn, 300)
+  }
+
   useEffect(() => {
     async function chargerProfil() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -345,7 +351,7 @@ export default function Layout() {
         setEspace("metier")
 
         // ── Badges selon rôle ────────────────────────────────────────────
-        if (role === "admin_national") {
+        async function chargerBadgesAdmin() {
           const { count: countFile } = await supabase
             .from("demandes_marketplace")
             .select("id", { count: "exact", head: true })
@@ -375,9 +381,15 @@ export default function Layout() {
             .select("id", { count: "exact", head: true })
             .eq("statut", "demande")
 
-        setNbFileAttente(
+          const { count: countAlertesAdmin } = await supabase
+            .from("alertes_scores")
+            .select("id", { count: "exact", head: true })
+            .eq("lu", false)
+
+          setNbFileAttente(
             (countFile || 0) + (countCampagnesAttente || 0) +
-            (countRdv || 0) + (countMissionsAttente || 0) + (countRapportsAttente || 0)
+            (countRdv || 0) + (countMissionsAttente || 0) +
+            (countRapportsAttente || 0) + (countAlertesAdmin || 0)
           )
           setNbRapportsAttente(countRapportsAttente || 0)
           setDetailFileAttente({
@@ -386,19 +398,8 @@ export default function Layout() {
             rdv:         countRdv || 0,
             missions:    countMissionsAttente || 0,
             climatique:  countRapportsAttente || 0,
+            alertes:     countAlertesAdmin || 0,
           })
-
-          supabase
-            .channel(`rapports-demande-${Date.now()}`)
-            .on("postgres_changes", {
-              event: "INSERT", schema: "public", table: "rapports_client",
-            }, (payload: any) => {
-              if (payload.new?.statut === "demande") {
-                setNbFileAttente(prev => prev + 1)
-                setNbRapportsAttente(prev => prev + 1)
-              }
-            })
-            .subscribe()
 
           const { count: countCamp } = await supabase
             .from("campagnes")
@@ -406,154 +407,111 @@ export default function Layout() {
             .eq("origine", "client")
             .eq("statut", "soumise")
           setNbCampagnes(countCamp || 0)
-          // Alertes scores non lues toutes régions
-          const { count: countAlertesAdmin } = await supabase
-            .from('alertes_scores')
-            .select('id', { count: 'exact', head: true })
-            .eq('lu', false)
-          setNbFileAttente(prev => prev + (countAlertesAdmin || 0))
         }
+
+        if (role === "admin_national") {
+          await chargerBadgesAdmin()
+
+          supabase
+            .channel(`file-attente-admin-${Date.now()}`)
+            .on("postgres_changes", { event: "*", schema: "public", table: "rapports_client" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "campagnes" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "demandes_rdv" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "missions" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "demandes_marketplace" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "alertes_scores" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .subscribe()
+        }
+
+    async function chargerBadgesRespRegional(userId: string, region: string) {
+      const { count: countCampRegion } = await supabase
+        .from("campagnes")
+        .select("id", { count: "exact", head: true })
+        .eq("responsable_id", userId)
+      setNbCampagnes(countCampRegion || 0)
+
+      const { count: countAlertes } = await supabase
+        .from("alertes_scores")
+        .select("id", { count: "exact", head: true })
+        .eq("lu", false)
+        .eq("region_code", region)
+
+      const { count: countMissRegion } = await supabase
+        .from("missions")
+        .select("id", { count: "exact", head: true })
+        .eq("region", region)
+        .is("consultant_id", null)
+      setNbMissions(countMissRegion || 0)
+
+      // Demandes d'analyse climatique non assignées — visible par tous les
+      // responsables régionaux, sans filtre région (rapports_client.region
+      // reste toujours NULL, décision PO 05/08/2026)
+      const { count: countRapportsRegion } = await supabase
+        .from("rapports_client")
+        .select("id", { count: "exact", head: true })
+        .eq("statut", "demande")
+        .eq("type_rapport", "analyse_climatique")
+
+      // Demandes marketplace routées vers ce responsable région (chaîne d'affectation)
+      const { count: countDemandesRespMarketplace } = await supabase
+        .from("demandes_marketplace")
+        .select("id", { count: "exact", head: true })
+        .eq("responsable_id", userId)
+        .eq("statut", "soumise")
+
+      setNbFileAttente(
+        (countAlertes || 0) + (countRapportsRegion || 0) + (countDemandesRespMarketplace || 0)
+      )
+      setNbRapportsAttente(countRapportsRegion || 0)
+      setDetailFileAttente({
+        climatique: countRapportsRegion || 0,
+        marketplace: countDemandesRespMarketplace || 0,
+        alertes: countAlertes || 0,
+      })
+    }
 
     if (role === "responsable_regional") {
-          const { count: countCampRegion } = await supabase
-            .from("campagnes")
-            .select("id", { count: "exact", head: true })
-            .eq("responsable_id", user.id)
-          setNbCampagnes(countCampRegion || 0)
-// Alertes scores non lues
-          const { count: countAlertes } = await supabase
-            .from('alertes_scores')
-            .select('id', { count: 'exact', head: true })
-            .eq('lu', false)
-            .eq('region_code', profilAGE.region)
-          setNbFileAttente(prev => prev + (countAlertes || 0))
+      await chargerBadgesRespRegional(user.id, profilAGE.region)
 
-        // Missions de la région non assignées
-          const { count: countMissRegion } = await supabase
-            .from("missions")
-            .select("id", { count: "exact", head: true })
-            .eq("region", profilAGE.region)
-            .is("consultant_id", null)
-          setNbMissions(countMissRegion || 0)
+      supabase
+        .channel(`file-attente-region-${Date.now()}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "rapports_client" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "missions" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "demandes_marketplace" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "alertes_scores" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "campagnes" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .subscribe()
+    }
 
-          // Demandes d'analyse climatique non assignées — visible par tous les
-          // responsables régionaux, sans filtre région (rapports_client.region
-          // reste toujours NULL, décision PO 05/08/2026)
-          const { count: countRapportsRegion } = await supabase
-            .from("rapports_client")
-            .select("id", { count: "exact", head: true })
-            .eq("statut", "demande")
-            .eq("type_rapport", "analyse_climatique")
-
-          // Demandes marketplace routées vers ce responsable région (chaîne d'affectation)
-          const { count: countDemandesRespMarketplace } = await supabase
-            .from("demandes_marketplace")
-            .select("id", { count: "exact", head: true })
-            .eq("responsable_id", user.id)
-            .eq("statut", "soumise")
-
-          setNbFileAttente(prev => prev + (countRapportsRegion || 0) + (countDemandesRespMarketplace || 0))
-          setNbRapportsAttente(countRapportsRegion || 0)
-          setDetailFileAttente({
-            climatique: countRapportsRegion || 0,
-            marketplace: countDemandesRespMarketplace || 0,
-          })
-
-    supabase
-            .channel(`rapports-demande-region-${Date.now()}`)
-            .on("postgres_changes", {
-              event: "INSERT", schema: "public", table: "rapports_client",
-            }, (payload: any) => {
-              if (payload.new?.statut === "demande" && payload.new?.type_rapport === "analyse_climatique") {
-                setNbFileAttente(prev => prev + 1)
-                setNbRapportsAttente(prev => prev + 1)
-                setDetailFileAttente(prev => ({ ...prev, climatique: (prev.climatique || 0) + 1 }))
-              }
-            })
-            .on("postgres_changes", {
-              event: "UPDATE", schema: "public", table: "rapports_client",
-            }, (payload: any) => {
-              if (
-                payload.new?.responsable_id === user.id &&
-                payload.new?.type_rapport === "analyse_climatique" &&
-                payload.old?.statut === "demande" &&
-                payload.new?.statut !== "demande"
-              ) {
-                setNbFileAttente(prev => Math.max(0, prev - 1))
-                setNbRapportsAttente(prev => Math.max(0, prev - 1))
-                setDetailFileAttente(prev => ({ ...prev, climatique: Math.max(0, (prev.climatique || 0) - 1) }))
-              }
-            })
-            .subscribe()
-
-          supabase
-            .channel(`missions-region-${Date.now()}`)
-            .on("postgres_changes", {
-              event: "INSERT", schema: "public", table: "missions",
-            }, (payload: any) => {
-              if (payload.new?.region === profilAGE.region && !payload.new?.consultant_id) {
-                setNbMissions(prev => prev + 1)
-              }
-            })
-            .on("postgres_changes", {
-              event: "UPDATE", schema: "public", table: "missions",
-            }, (payload: any) => {
-              if (payload.new?.region === profilAGE.region && payload.old?.consultant_id == null && payload.new?.consultant_id) {
-                setNbMissions(prev => Math.max(0, prev - 1))
-              }
-            })
-            .subscribe()
-
-          supabase
-            .channel(`demandes-marketplace-region-${Date.now()}`)
-            .on("postgres_changes", {
-              event: "INSERT", schema: "public", table: "demandes_marketplace",
-            }, (payload: any) => {
-              if (payload.new?.responsable_id === user.id && payload.new?.statut === "soumise") {
-                setNbFileAttente(prev => prev + 1)
-                setDetailFileAttente(prev => ({ ...prev, marketplace: (prev.marketplace || 0) + 1 }))
-              }
-            })
-            .on("postgres_changes", {
-              event: "UPDATE", schema: "public", table: "demandes_marketplace",
-            }, (payload: any) => {
-              if (payload.new?.responsable_id === user.id && payload.old?.statut === "soumise" && payload.new?.statut !== "soumise") {
-                setNbFileAttente(prev => Math.max(0, prev - 1))
-                setDetailFileAttente(prev => ({ ...prev, marketplace: Math.max(0, (prev.marketplace || 0) - 1) }))
-              }
-            })
-            .subscribe()
-        }
+    async function chargerBadgeConsultant(userId: string) {
+      const { count: countMissionsConsultant } = await supabase
+        .from("missions")
+        .select("id", { count: "exact", head: true })
+        .eq("consultant_id", userId)
+        .eq("statut", "nouvelle")
+      setNbMissionsConsultant(countMissionsConsultant || 0)
+    }
 
     if (role === "consultant") {
-          const { count: countMissionsConsultant } = await supabase
-            .from("missions")
-            .select("id", { count: "exact", head: true })
-            .eq("consultant_id", user.id)
-            .eq("statut", "nouvelle")
-          setNbMissionsConsultant(countMissionsConsultant || 0)
+      await chargerBadgeConsultant(user.id)
 
-          supabase
-            .channel(`missions-consultant-${Date.now()}`)
-            .on("postgres_changes", {
-              event: "INSERT", schema: "public", table: "missions",
-            }, (payload: any) => {
-              if (payload.new?.consultant_id === user.id && payload.new?.statut === "nouvelle") {
-                setNbMissionsConsultant(prev => prev + 1)
-              }
-            })
-            .on("postgres_changes", {
-              event: "UPDATE", schema: "public", table: "missions",
-            }, (payload: any) => {
-              if (payload.new?.consultant_id === user.id && payload.old?.statut === "nouvelle" && payload.new?.statut !== "nouvelle") {
-                setNbMissionsConsultant(prev => Math.max(0, prev - 1))
-              }
-              if (payload.new?.consultant_id === user.id && payload.old?.consultant_id !== user.id && payload.new?.statut === "nouvelle") {
-                setNbMissionsConsultant(prev => prev + 1)
-              }
-            })
-            .subscribe()
-        }
+      supabase
+        .channel(`missions-consultant-${Date.now()}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "missions" },
+          () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
+        .subscribe()
+    }
 
         // Messages non lus (tous rôles AGE)
         const { count: countMsg } = await supabase
@@ -769,8 +727,8 @@ export default function Layout() {
                   badge={roleAGE === "admin_national" ? nbFileAttente + nbCampagnes : nbFileAttente}
                   title={
                     roleAGE === "admin_national"
-                      ? `${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.campagnes || 0} campagnes · ${detailFileAttente.rdv || 0} RDV · ${detailFileAttente.missions || 0} missions · ${detailFileAttente.climatique || 0} analyses climatiques`
-                      : `${detailFileAttente.climatique || 0} analyse${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} climatique${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} en attente`
+                      ? `${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.campagnes || 0} campagnes · ${detailFileAttente.rdv || 0} RDV · ${detailFileAttente.missions || 0} missions · ${detailFileAttente.climatique || 0} analyses climatiques · ${detailFileAttente.alertes || 0} alertes score`
+                      : `${detailFileAttente.climatique || 0} analyse${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} climatique${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} · ${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.alertes || 0} alerte${(detailFileAttente.alertes || 0) > 1 ? "s" : ""} score`
                   }
                 />
               )}

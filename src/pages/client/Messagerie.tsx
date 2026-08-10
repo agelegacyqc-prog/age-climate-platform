@@ -178,7 +178,7 @@ let query = supabase.from("messages").select("*")
     setNbNonLus(counts)
   }
 
-  async function handleEnvoyer() {
+async function handleEnvoyer() {
     if (!contenu.trim() || !selected || !userId) return
     setSending(true)
     const payload: any = {
@@ -187,33 +187,12 @@ let query = supabase.from("messages").select("*")
       contenu:           contenu.trim(),
       lu:                false,
       type_conversation: "client",
+      destinataire_id:   null,
     }
     if (onglet === "demandes")  payload.demande_id  = selected.id
     if (onglet === "campagnes") payload.campagne_id = selected.id
     if (onglet === "actifs")    payload.actif_id    = selected.id
-   await supabase.from("messages").insert(payload)
-
-    // Copie au responsable commercial + admin
-    const { data: pcData } = await supabase
-      .from("profils_client")
-      .select("responsable_commercial_id")
-      .eq("id", userId)
-      .maybeSingle()
-   const respId = pcData?.responsable_commercial_id
-    if (respId) {
-      await supabase.from("messages").insert({ ...payload, destinataire_id: respId, lu: false })
-    }
-
-    // Copie au consultant assigné
-    const { data: pcDataConsultant } = await supabase
-      .from("profils_client")
-      .select("consultant_id")
-      .eq("id", userId)
-      .maybeSingle()
-    const consultantId = pcDataConsultant?.consultant_id
-    if (consultantId && consultantId !== respId) {
-      await supabase.from("messages").insert({ ...payload, destinataire_id: consultantId, lu: false })
-    }
+    await supabase.from("messages").insert(payload)
 
     setContenu("")
     await loadMessages()

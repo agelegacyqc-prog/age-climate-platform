@@ -26,6 +26,22 @@ interface DemandeRDV {
   created_at: string
 }
 
+interface AlerteScore {
+  id: string
+  actif_id: string
+  nom_actif: string
+  type_alerte: string
+  classe_avant: string | null
+  classe_apres: string | null
+  score_avant: number
+  score_apres: number
+  delta_points: number
+  consultant_id: string | null
+  consultant_nom: string
+  region_code: string | null
+  created_at: string
+}
+
 interface Responsable {
   id: string
   prenom: string
@@ -44,11 +60,13 @@ const COMPETENCE_LABELS: Record<string, string> = {
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function FileAttente() {
   const [roleAGE, setRoleAGE] = useState<string>("consultant")
-  const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace" | "climatique">("dispatch")
+  const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace" | "climatique" | "alertes">("dispatch")
   const [demandesDispatch, setDemandesDispatch] = useState<DemandeDispatch[]>([])
   const [demandesRdv, setDemandesRdv]         = useState<DemandeRDV[]>([])
   const [demandesMarketplace, setDemandesMarketplace] = useState<any[]>([])
   const [demandesClimatique, setDemandesClimatique] = useState<DemandeDispatch[]>([])
+  const [demandesAlertes, setDemandesAlertes] = useState<AlerteScore[]>([])
+  const [alerteActionLoading, setAlerteActionLoading] = useState(false)
   const [loading, setLoading]                 = useState(true)
 
   // Drawer assignation
@@ -82,7 +100,8 @@ export default function FileAttente() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).maybeSingle()
-        const role = profil?.role || "consultant"
+        const roleBrut = profil?.role || "consultant"
+        const role = roleBrut === "admin" ? "admin_national" : roleBrut
         setRoleAGE(role)
         setMaRegion(profil?.region || null)
         if (role === "responsable_regional") setOnglet("climatique")
@@ -221,6 +240,40 @@ if (marketplaceData && marketplaceData.length > 0) {
 } else {
   setDemandesMarketplace([])
 }
+
+      // Alertes de score non lues — scope géré par RLS (admin voit tout,
+      // responsable régional voit sa région)
+      const { data: alertesData } = await supabase
+        .from("alertes_scores")
+        .select("id, actif_id, type_alerte, classe_avant, classe_apres, score_avant, score_apres, delta_points, consultant_id, region_code, created_at, actifs(nom)")
+        .eq("lu", false)
+        .order("created_at", { ascending: false })
+
+      const consultantAlerteIds = [...new Set((alertesData || []).map((a: any) => a.consultant_id).filter(Boolean))]
+      const { data: consultantsAlerteData } = await supabase
+        .from("profils")
+        .select("id, prenom, nom")
+        .in("id", consultantAlerteIds)
+      const consultantsAlerteMap: Record<string, string> = {}
+      ;(consultantsAlerteData || []).forEach((c: any) => {
+        consultantsAlerteMap[c.id] = `${c.prenom} ${c.nom}`
+      })
+
+      setDemandesAlertes((alertesData || []).map((a: any) => ({
+        id: a.id,
+        actif_id: a.actif_id,
+        nom_actif: a.actifs?.nom || "—",
+        type_alerte: a.type_alerte,
+        classe_avant: a.classe_avant,
+        classe_apres: a.classe_apres,
+        score_avant: a.score_avant,
+        score_apres: a.score_apres,
+        delta_points: a.delta_points,
+        consultant_id: a.consultant_id,
+        consultant_nom: consultantsAlerteMap[a.consultant_id] || "—",
+        region_code: a.region_code,
+        created_at: a.created_at,
+      })))
     } finally {
       setLoading(false)
     }
@@ -381,6 +434,26 @@ async function handleMarketplaceValider() {
       setMarketplaceActionLoading(false)
     }
   }
+
+  async function marquerAlerteLue(id: string) {
+    setAlerteActionLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase
+        .from("alertes_scores")
+        .update({ lu: true, lu_at: new Date().toISOString(), lu_par: user?.id || null })
+        .eq("id", id)
+      if (error) {
+        console.error("Erreur marquage alerte:", error)
+        alert("Échec du marquage : " + error.message)
+        return
+      }
+      setDemandesAlertes(prev => prev.filter(a => a.id !== id))
+    } finally {
+      setAlerteActionLoading(false)
+    }
+  }
+
   async function ouvrirRdv(rdv: DemandeRDV) {
     setSelectedRdv(rdv)
     setDrawerRdvOpen(true)
@@ -445,13 +518,17 @@ async function handleMarketplaceValider() {
       </div>
 
       {/* Onglets */}
-     <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
+   <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
         {[
           { id: "dispatch", label: "Campagnes & Missions", count: demandesDispatch.filter(d => !d.responsable_id).length },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
           { id: "marketplace", label: "Marketplace", count: demandesMarketplace.length },
           { id: "climatique", label: "Analyses climatiques", count: demandesClimatique.filter(d => d.statut === "demande").length },
-        ].filter(o => roleAGE === "admin_national" || o.id === "climatique" || (o.id === "marketplace" && roleAGE === "responsable_regional")).map(o => (
+          { id: "alertes", label: "Alertes score", count: demandesAlertes.length },
+      ].filter(o =>
+          roleAGE === "admin_national" ||
+          (roleAGE === "responsable_regional" && (o.id === "climatique" || o.id === "marketplace" || o.id === "alertes"))
+        ).map(o => (
           <button
             key={o.id}
             onClick={() => setOnglet(o.id as any)}
@@ -696,7 +773,7 @@ async function handleMarketplaceValider() {
               </tbody>
             </table>
           )}
-          {demandesClimatique.length > 0 && (
+       {demandesClimatique.length > 0 && (
             <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
               <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
                 {demandesClimatique.length} demande{demandesClimatique.length > 1 ? "s" : ""}
@@ -705,6 +782,74 @@ async function handleMarketplaceValider() {
           )}
         </div>
       )}
+{/* ── Onglet Alertes score ── */}
+{onglet === "alertes" && (
+  <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+    {demandesAlertes.length === 0 ? (
+      <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+        <i className="ti ti-bell-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
+        Aucune alerte de score
+      </div>
+    ) : (
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
+            <th style={thStyle}>Actif</th>
+            <th style={thStyle}>Type</th>
+            <th style={thStyle}>Évolution</th>
+            <th style={thStyle}>Consultant</th>
+            <th style={thStyle}>Date</th>
+            <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {demandesAlertes.map(a => (
+            <tr key={a.id} style={{ borderBottom: "1px solid #E2DDD8", height: "52px" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <td style={tdStyle}><span style={{ fontWeight: 500, color: "#111827" }}>{a.nom_actif}</span></td>
+              <td style={tdStyle}>
+                <span className={a.type_alerte === "changement_classe" ? "badge badge--warning" : "badge badge--neutral"}>
+                  {a.type_alerte === "changement_classe" ? "Changement de classe" : "Variation de points"}
+                </span>
+              </td>
+              <td style={tdStyle}>
+                <span style={{ fontSize: "13px", color: a.delta_points >= 0 ? "#B91C1C" : "#2F7D5C", fontWeight: 500 }}>
+                  {a.score_avant} → {a.score_apres} ({a.delta_points >= 0 ? "+" : ""}{a.delta_points})
+                </span>
+                {a.classe_avant && a.classe_apres && (
+                  <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "2px" }}>
+                    {a.classe_avant} → {a.classe_apres}
+                  </div>
+                )}
+              </td>
+              <td style={{ ...tdStyle, color: "#6B7280", fontSize: "13px" }}>{a.consultant_nom}</td>
+              <td style={{ ...tdStyle, color: "#6B7280", fontSize: "13px" }}>{formatDate(a.created_at)}</td>
+              <td style={{ ...tdStyle, textAlign: "right" }}>
+                <button
+                  onClick={() => marquerAlerteLue(a.id)}
+                  disabled={alerteActionLoading}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <i className="ti ti-check" style={{ fontSize: "13px" }} />
+                  Marquer comme lu
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+    {demandesAlertes.length > 0 && (
+      <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
+        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+          {demandesAlertes.length} alerte{demandesAlertes.length > 1 ? "s" : ""}
+        </span>
+      </div>
+    )}
+  </div>
+)}
 {/* ── Onglet Marketplace ── */}
 {onglet === "marketplace" && (roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
   <div className="card" style={{ padding: 0, overflow: "hidden" }}>

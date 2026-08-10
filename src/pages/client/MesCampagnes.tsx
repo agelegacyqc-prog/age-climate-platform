@@ -197,12 +197,12 @@ async function load() {
         const { _erreur, ...actifData } = actif
         const { data: nouvelActif, error: errActif } = await supabase
           .from("actifs")
-          .insert({
+        .insert({
             ...actifData,
             user_id:        user.id,
             client_id:      user.id,
             statut_analyse: "en_attente",
-            categorie:      "import_csv",
+            categorie:      "patrimoine_propre",
           })
           .select("id")
           .single()

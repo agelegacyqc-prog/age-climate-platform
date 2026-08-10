@@ -9,6 +9,7 @@ const SCORE_CONFIG = (score: number) => {
 }
 
 const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  en_attente:  { label: "En attente",  color: "#92400E", bg: "#FFFBEB" },
   a_analyser:  { label: "À analyser",  color: "#92400E", bg: "#FFFBEB" },
   en_cours:    { label: "En cours",    color: "#1E40AF", bg: "#EFF6FF" },
   analyse:     { label: "Analysé",     color: "#065F46", bg: "#ECFDF5" },
@@ -93,23 +94,20 @@ const actifsOnglet = actifs.filter(a =>
       const q = recherche.toLowerCase()
       if (!`${a.nom} ${a.adresse} ${a.ville} ${a.nom_client}`.toLowerCase().includes(q)) return false
     }
-    if (onglet === "patrimoine_client") {
-  if (filtreCampagne !== "toutes") {
-    const campagneIds = (a.campagnes_actifs || []).map((ca: any) => ca.campagne?.id)
-    if (!campagneIds.includes(filtreCampagne)) return false
-  }
-  if (filtreDept !== "tous") {
-    const dept = String(a.code_postal || "").substring(0, 2)
-    if (dept !== filtreDept) return false
-  }
-}
+   if (filtreCampagne !== "toutes") {
+      const campagneIds = (a.campagnes_actifs || []).map((ca: any) => ca.campagne?.id)
+      if (!campagneIds.includes(filtreCampagne)) return false
+    }
+    if (onglet === "patrimoine_client" && filtreDept !== "tous") {
+      const dept = String(a.code_postal || "").substring(0, 2)
+      if (dept !== filtreDept) return false
+    }
     return true
   })
-// Campagnes disponibles pour les biens tiers
+// Campagnes disponibles pour l'onglet actif
 const campagnesDisponibles = Array.from(
   new Map(
-    actifs
-      .filter(a => a.categorie === "biens_assures" || a.categorie === "biens_finances")
+    actifsOnglet
       .flatMap((a: any) => a.campagnes_actifs || [])
       .filter((ca: any) => ca.campagne)
       .map((ca: any) => [ca.campagne.id, ca.campagne])
@@ -156,7 +154,7 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
       {/* Onglets */}
       <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
         {([
-          { key: "patrimoine_propre", label: "Mon Patrimoine",     count: countPropre,  icon: "ti-building" },
+         { key: "patrimoine_propre", label: "Biens exploités",    count: countPropre,  icon: "ti-building" },
           { key: "patrimoine_client", label: "Biens assurés & financés", count: countClients, icon: "ti-building-bank" },
         ] as const).map(o => (
           <button key={o.key} onClick={() => setOnglet(o.key)} style={{
@@ -196,36 +194,34 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
             />
           </div>
 
+<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campagne</span>
+        <select
+          value={filtreCampagne}
+          onChange={e => setFiltreCampagne(e.target.value)}
+          style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+        >
+          <option value="toutes">Toutes</option>
+          {campagnesDisponibles.map((c: any) => (
+            <option key={c.id} value={c.id}>{c.nom}</option>
+          ))}
+        </select>
+      </div>
       {onglet === "patrimoine_client" && (
-  <>
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campagne</span>
-      <select
-        value={filtreCampagne}
-        onChange={e => setFiltreCampagne(e.target.value)}
-        style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
-      >
-        <option value="toutes">Toutes</option>
-        {campagnesDisponibles.map((c: any) => (
-          <option key={c.id} value={c.id}>{c.nom}</option>
-        ))}
-      </select>
-    </div>
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Département</span>
-      <select
-        value={filtreDept}
-        onChange={e => setFiltreDept(e.target.value)}
-        style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
-      >
-        <option value="tous">Tous</option>
-        {departementsDisponibles.map(d => (
-          <option key={d} value={d}>{d}</option>
-        ))}
-      </select>
-    </div>
-  </>
-)}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Département</span>
+          <select
+            value={filtreDept}
+            onChange={e => setFiltreDept(e.target.value)}
+            style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+          >
+            <option value="tous">Tous</option>
+            {departementsDisponibles.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Risque</span>

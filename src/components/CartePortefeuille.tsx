@@ -2,19 +2,20 @@
  * CartePortefeuille.tsx
  * Carte Leaflet + OpenStreetMap des biens du portefeuille
  * Géocodage automatique via api-adresse.data.gouv.fr
- * Marqueurs colorés par niveau de risque climatique
+ * Marqueurs colorés par classe_risque (risk_scores)
  */
 
 import React, { useEffect, useRef, useState } from "react"
 import { supabase } from "../lib/supabase"
 
-
-// Couleurs par niveau de risque
+// Couleurs par niveau de risque (classe_risque)
 const COULEURS_RISQUE: Record<string, string> = {
   eleve:  "#B91C1C",
   moyen:  "#D97706",
   faible: "#2F7D5C",
 }
+
+const COULEUR_NON_ANALYSE = "#94A3B8" // gris neutre — pas de faux score
 
 const LABELS_RISQUE: Record<string, string> = {
   eleve:  "Risque élevé",
@@ -28,10 +29,11 @@ interface Bien {
   adresse: string
   ville: string
   code_postal: string
-  score_climatique: number | null
   latitude: number | null
   longitude: number | null
   categorie: string
+  score_global: number | null    // depuis risk_scores, pas actifs.score_climatique
+  classe_risque: string | null   // depuis risk_scores
 }
 
 // Géocodage d'un bien via api-adresse.data.gouv.fr
@@ -54,7 +56,7 @@ export default function CartePortefeuille() {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const osmLayerRef = useRef<any>(null)
-const satelliteLayerRef = useRef<any>(null)
+  const satelliteLayerRef = useRef<any>(null)
   const [biens, setBiens] = useState<Bien[]>([])
   const [loading, setLoading] = useState(true)
   const [geocoding, setGeocoding] = useState(false)
@@ -64,186 +66,222 @@ const satelliteLayerRef = useRef<any>(null)
   // Chargement des biens
   useEffect(() => {
     async function charger() {
-     const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
 
-const { data: profilClient } = await supabase
-  .from("profils_client")
-  .select("type_client")
-  .eq("id", user?.id)
-  .maybeSingle()
+      const { data: profilClient } = await supabase
+        .from("profils_client")
+        .select("type_client")
+        .eq("id", user?.id)
+        .maybeSingle()
 
-const typeClient = profilClient?.type_client
+      const typeClient = profilClient?.type_client
 
-// Filtrer sur les biens de campagne selon le profil
-const categories = typeClient === "banque"
-  ? ["biens_finances"]
-  : typeClient === "assurance"
-  ? ["biens_assures"]
-  : ["patrimoine_propre"]
+      const categories = typeClient === "banque"
+        ? ["biens_finances"]
+        : typeClient === "assurance"
+        ? ["biens_assures"]
+        : ["patrimoine_propre"]
 
-const { data } = await supabase
-  .from("actifs")
-  .select("id, adresse, ville, code_postal, score_climatique, latitude, longitude, categorie, nom")
-  .eq("user_id", user?.id)
-  .in("categorie", categories)
-  .order("created_at", { ascending: false })
+      const { data } = await supabase
+        .from("actifs")
+        .select("id, adresse, ville, code_postal, latitude, longitude, categorie, nom")
+        .eq("user_id", user?.id)
+        .eq("actif", true) // ← fix : exclut les actifs inactifs/archivés
+        .in("categorie", categories)
+        .order("created_at", { ascending: false })
 
-      if (data) {
-        setBiens(data)
-       setStats({
-  total: data.length,
-  geocodes: data.filter((b: any) => b.latitude !== null).length,
-})
+      if (!data) {
+        setLoading(false)
+        return
+      }
 
-        // Géocoder les biens sans coordonnées
-       const aGeocoer = data.filter((b: any) => b.latitude === null && b.adresse)
-        if (aGeocoer.length > 0) {
-          setGeocoding(true)
-          for (const bien of aGeocoer) {
-            const coords = await geocoderBien(bien)
-            if (coords) {
-              await supabase.from("actifs").update({
-  latitude: coords.lat,
-  longitude: coords.lng,
-}).eq("id", bien.id)
-            
-              await supabase.from("actifs").update({
-  latitude: coords.lat,
-  longitude: coords.lng,
-}).eq("id", bien.id)
+      // Récupération du dernier score climatique réel par actif (risk_scores, pas actifs.score_climatique)
+      const ids = data.map((b: any) => b.id)
+      let scoresParActif: Record<string, { score_global: number | null; classe_risque: string | null }> = {}
+
+      if (ids.length > 0) {
+        const { data: scores } = await supabase
+          .from("risk_scores")
+          .select("actif_id, score_global, classe_risque, created_at")
+          .in("actif_id", ids)
+          .order("created_at", { ascending: false })
+
+        if (scores) {
+          for (const s of scores) {
+            // le premier rencontré par actif_id est le plus récent (tri desc)
+            if (!scoresParActif[s.actif_id]) {
+              scoresParActif[s.actif_id] = {
+                score_global: s.score_global,
+                classe_risque: s.classe_risque,
+              }
             }
           }
-          setGeocoding(false)
-          setBiens([...data])
-          setStats({
-            total: data.length,
-            geocodes: data.filter(b => b.latitude !== null).length,
-          })
         }
       }
+
+      let biensEnrichis: Bien[] = data.map((b: any) => ({
+        ...b,
+        score_global: scoresParActif[b.id]?.score_global ?? null,
+        classe_risque: scoresParActif[b.id]?.classe_risque ?? null,
+      }))
+
+      setBiens(biensEnrichis)
+      setStats({
+        total: biensEnrichis.length,
+        geocodes: biensEnrichis.filter((b) => b.latitude !== null).length,
+      })
+
+      // Géocoder les biens sans coordonnées
+      const aGeocoder = biensEnrichis.filter((b) => b.latitude === null && b.adresse)
+      if (aGeocoder.length > 0) {
+        setGeocoding(true)
+        for (const bien of aGeocoder) {
+          const coords = await geocoderBien(bien)
+          if (coords) {
+            await supabase.from("actifs").update({
+              latitude: coords.lat,
+              longitude: coords.lng,
+            }).eq("id", bien.id)
+
+            // mutation locale pour affichage immédiat sans reload
+            bien.latitude = coords.lat
+            bien.longitude = coords.lng
+          }
+        }
+        setGeocoding(false)
+        setBiens([...biensEnrichis])
+        setStats({
+          total: biensEnrichis.length,
+          geocodes: biensEnrichis.filter((b) => b.latitude !== null).length,
+        })
+      }
+
       setLoading(false)
     }
     charger()
   }, [])
 
-// Initialisation Leaflet — une seule fois
-useEffect(() => {
-  if (loading || !mapRef.current) return
+  // Initialisation Leaflet — une seule fois
+  useEffect(() => {
+    if (loading || !mapRef.current) return
 
-  async function initMap() {
-    const L = (await import("leaflet")).default
-    await import("leaflet/dist/leaflet.css")
+    async function initMap() {
+      const L = (await import("leaflet")).default
+      await import("leaflet/dist/leaflet.css")
 
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove()
-      mapInstanceRef.current = null
-    }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
 
-    const map = L.map(mapRef.current!, {
-      center: [46.8, 2.3],
-      zoom: 5,
-      zoomControl: true,
-      scrollWheelZoom: true,
-    })
-
-    osmLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    })
-
-    satelliteLayerRef.current = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-      attribution: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
-      maxZoom: 19,
-    })
-
-    satelliteLayerRef.current.addTo(map)
-
-    // Marqueurs
-    const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
-    const bounds: [number, number][] = []
-
-    biensCoordonnes.forEach(bien => {
-      const score = Number(bien.score_climatique) || 0
-const couleur = score >= 70 ? "#B91C1C" : score >= 40 ? "#D97706" : "#2F7D5C"
-      const lat = bien.latitude as number
-      const lng = bien.longitude as number
-
-      const svgIcon = L.divIcon({
-        className: "",
-        html: `
-          <div style="
-            width: 28px; height: 28px;
-            background: ${couleur};
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 10px; font-weight: 700; color: white;
-            font-family: Inter, sans-serif;
-          ">${bien.score_climatique || "?"}</div>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+      const map = L.map(mapRef.current!, {
+        center: [46.8, 2.3],
+        zoom: 5,
+        zoomControl: true,
+        scrollWheelZoom: true,
       })
 
-      const marker = L.marker([lat, lng], { icon: svgIcon })
-      marker.bindPopup(`
-        <div style="font-family: Inter, sans-serif; min-width: 180px;">
-          <div style="font-weight: 600; font-size: 13px; color: #1F2937; margin-bottom: 4px;">
-            ${bien.adresse}
-          </div>
-          <div style="font-size: 12px; color: #78716C; margin-bottom: 8px;">
-            ${bien.code_postal} ${bien.ville}
-          </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${couleur};"></div>
-            <span style="font-size: 11px; font-weight: 600; color: ${couleur};">
-              ${bien.nom || bien.adresse}
-            </span>
-            <span style="margin-left: auto; font-size: 11px; color: #78716C;">
-              Score ${bien.score_climatique || "—"}/100
-            </span>
-          </div>
-        </div>
-      `, { maxWidth: 240 })
+      osmLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      })
 
-      marker.addTo(map)
-      bounds.push([lat, lng])
-    })
+      satelliteLayerRef.current = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: '© Esri — Source: Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+      })
 
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+      satelliteLayerRef.current.addTo(map)
+
+      // Marqueurs
+      const biensCoordonnes = biens.filter(b => b.latitude && b.longitude)
+      const bounds: [number, number][] = []
+
+      biensCoordonnes.forEach(bien => {
+        const couleur = bien.classe_risque
+          ? COULEURS_RISQUE[bien.classe_risque] ?? COULEUR_NON_ANALYSE
+          : COULEUR_NON_ANALYSE
+        const label = bien.classe_risque && bien.score_global !== null
+          ? String(bien.score_global)
+          : "?"
+        const lat = bien.latitude as number
+        const lng = bien.longitude as number
+
+        const svgIcon = L.divIcon({
+          className: "",
+          html: `
+            <div style="
+              width: 28px; height: 28px;
+              background: ${couleur};
+              border: 2px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+              display: flex; align-items: center; justify-content: center;
+              font-size: 10px; font-weight: 700; color: white;
+              font-family: Inter, sans-serif;
+            ">${label}</div>
+          `,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        })
+
+        const marker = L.marker([lat, lng], { icon: svgIcon })
+        marker.bindPopup(`
+          <div style="font-family: Inter, sans-serif; min-width: 180px;">
+            <div style="font-weight: 600; font-size: 13px; color: #1F2937; margin-bottom: 4px;">
+              ${bien.adresse}
+            </div>
+            <div style="font-size: 12px; color: #78716C; margin-bottom: 8px;">
+              ${bien.code_postal} ${bien.ville}
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: ${couleur};"></div>
+              <span style="font-size: 11px; font-weight: 600; color: ${couleur};">
+                ${bien.nom || bien.adresse}
+              </span>
+              <span style="margin-left: auto; font-size: 11px; color: #78716C;">
+                ${bien.classe_risque ? `Score ${bien.score_global}/100 — ${LABELS_RISQUE[bien.classe_risque]}` : "Non analysé"}
+              </span>
+            </div>
+          </div>
+        `, { maxWidth: 240 })
+
+        marker.addTo(map)
+        bounds.push([lat, lng])
+      })
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+      }
+
+      mapInstanceRef.current = map
     }
 
-    mapInstanceRef.current = map
-  }
+    initMap()
 
-  initMap()
-
-  return () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove()
-      mapInstanceRef.current = null
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
     }
-  }
-}, [loading, biens]) // -- vueSatellite retiré des dépendances
+  }, [loading, biens])
 
-// Permutation des layers sans recréer la carte
-useEffect(() => {
-  if (!mapInstanceRef.current || !osmLayerRef.current || !satelliteLayerRef.current) return
-  if (vueSatellite) {
-    mapInstanceRef.current.removeLayer(osmLayerRef.current)
-    satelliteLayerRef.current.addTo(mapInstanceRef.current)
-  } else {
-    mapInstanceRef.current.removeLayer(satelliteLayerRef.current)
-    osmLayerRef.current.addTo(mapInstanceRef.current)
-  }
-}, [vueSatellite])
+  // Permutation des layers sans recréer la carte
+  useEffect(() => {
+    if (!mapInstanceRef.current || !osmLayerRef.current || !satelliteLayerRef.current) return
+    if (vueSatellite) {
+      mapInstanceRef.current.removeLayer(osmLayerRef.current)
+      satelliteLayerRef.current.addTo(mapInstanceRef.current)
+    } else {
+      mapInstanceRef.current.removeLayer(satelliteLayerRef.current)
+      osmLayerRef.current.addTo(mapInstanceRef.current)
+    }
+  }, [vueSatellite])
 
   return (
     <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", overflow: "hidden", border: "1px solid #E5E1DA" }}>
 
-      {/* En-tête */}
       <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E1DA", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: "15px", color: "#1F2937" }}>
@@ -254,7 +292,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Légende */}
         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
           {Object.entries(COULEURS_RISQUE).map(([niveau, couleur]) => (
             <div key={niveau} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -262,24 +299,28 @@ useEffect(() => {
               <span style={{ fontSize: "12px", color: "#78716C" }}>{LABELS_RISQUE[niveau]}</span>
             </div>
           ))}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: COULEUR_NON_ANALYSE, flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#78716C" }}>Non analysé</span>
+          </div>
         </div>
       </div>
-      <button
-  onClick={() => setVueSatellite(!vueSatellite)}
-  style={{
-    display: "flex", alignItems: "center", gap: "6px",
-    padding: "5px 12px", borderRadius: "6px",
-    border: "1px solid #E2E8F0",
-    background: vueSatellite ? "#0F172A" : "white",
-    color: vueSatellite ? "white" : "#64748B",
-    fontSize: "12px", fontWeight: 500,
-    cursor: "pointer", fontFamily: "inherit",
-  }}>
-  <i className="ti ti-satellite" style={{ fontSize: "14px" }} aria-hidden="true" />
-  {vueSatellite ? "Vue carte" : "Vue satellite"}
-</button>
 
-      {/* Carte */}
+      <button
+        onClick={() => setVueSatellite(!vueSatellite)}
+        style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          padding: "5px 12px", borderRadius: "6px",
+          border: "1px solid #E2E8F0",
+          background: vueSatellite ? "#0F172A" : "white",
+          color: vueSatellite ? "white" : "#64748B",
+          fontSize: "12px", fontWeight: 500,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
+        <i className="ti ti-satellite" style={{ fontSize: "14px" }} aria-hidden="true" />
+        {vueSatellite ? "Vue carte" : "Vue satellite"}
+      </button>
+
       {loading ? (
         <div style={{ height: "380px", display: "flex", alignItems: "center", justifyContent: "center", color: "#78716C", fontSize: "14px" }}>
           Chargement de la carte…
@@ -294,7 +335,6 @@ useEffect(() => {
         <div ref={mapRef} style={{ height: "380px", width: "100%" }} />
       )}
 
-      {/* Indicateur géocodage */}
       {geocoding && (
         <div style={{ padding: "10px 20px", background: "#e0f2fe", borderTop: "1px solid #bae6fd", fontSize: "12px", color: "#0369a1", display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0369a1", animation: "pulse 1s infinite" }} />

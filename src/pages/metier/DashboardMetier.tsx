@@ -158,13 +158,13 @@ export default function DashboardMetier() {
       .select("id, prenom, nom, region, role")
       .in("role", ["consultant", "responsable_regional"])
 
-    if (profs) {
+   if (profs) {
       const charges = await Promise.all(profs.map(async (p: any) => {
         const { count } = await supabase
           .from("missions")
           .select("id", { count: "exact", head: true })
           .eq("consultant_id", p.id)
-          .eq("statut", "en_cours")
+          .in("statut", ["nouvelle", "en_cours"])
         return { ...p, missions: count || 0 }
       }))
       setConsultants(charges)
@@ -204,13 +204,13 @@ export default function DashboardMetier() {
     if (userRegion) consultsQuery = consultsQuery.eq("region", userRegion)
     const { data: profs } = await consultsQuery
 
-    if (profs) {
+  if (profs) {
       const charges = await Promise.all(profs.map(async (p: any) => {
         const { count } = await supabase
           .from("missions")
           .select("id", { count: "exact", head: true })
           .eq("consultant_id", p.id)
-          .eq("statut", "en_cours")
+          .in("statut", ["nouvelle", "en_cours"])
         return { ...p, missions: count || 0 }
       }))
       setConsultants(charges)
