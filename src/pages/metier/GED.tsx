@@ -227,6 +227,7 @@ export default function GED() {
         actif_id: uploadActifId || null,
         client_id: clientIdDerive,
         visible_client: uploadActifId ? uploadVisibleClient : false,
+        vu_client: false,
         version,
         document_parent_id: uploadParentId,
         est_version_courante: true,

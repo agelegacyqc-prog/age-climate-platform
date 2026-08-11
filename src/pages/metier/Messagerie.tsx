@@ -23,6 +23,17 @@ interface ProfilCache {
   role: string
 }
 
+interface ClientNM {
+  id: string
+  nom: string
+}
+
+interface ObjetNM {
+  contexte: ContexteType
+  refId: string
+  titre: string
+}
+
 const ROLE_CONFIG: Record<string, { label: string; bg: string; color: string; initBg: string; initColor: string }> = {
   admin_national:       { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
   admin:                { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
@@ -67,6 +78,19 @@ export default function Messagerie() {
   const [interlocuteurs, setInterlocuteurs]   = useState<ProfilCache[]>([])
   const [nbNonLus, setNbNonLus]               = useState<Record<OngletPrincipal, number>>({ interne: 0, clients: 0 })
   const bottomRef                             = useRef<HTMLDivElement>(null)
+
+  // ── Nouveau message (sélection client + objet à rattacher) ──
+  const [showNouveauMessage, setShowNouveauMessage]     = useState(false)
+  const [etapeNM, setEtapeNM]                           = useState<1 | 2>(1)
+  const [clientsNM, setClientsNM]                       = useState<ClientNM[]>([])
+  const [rechercheClientNM, setRechercheClientNM]       = useState("")
+  const [chargementClientsNM, setChargementClientsNM]   = useState(false)
+  const [clientSelectionneNM, setClientSelectionneNM]   = useState<ClientNM | null>(null)
+  const [objetsNM, setObjetsNM]                         = useState<ObjetNM[]>([])
+  const [chargementObjetsNM, setChargementObjetsNM]     = useState(false)
+  const [objetSelectionneNM, setObjetSelectionneNM]     = useState<ObjetNM | null>(null)
+  const [contenuNM, setContenuNM]                       = useState("")
+  const [envoiNM, setEnvoiNM]                           = useState(false)
 
   useEffect(() => { init() }, [])
   useEffect(() => { if (userId) loadConversations() }, [onglet, userId])
@@ -334,6 +358,134 @@ export default function Messagerie() {
     setSending(false)
   }
 
+  // ── Nouveau message : ouverture / fermeture ──
+  function ouvrirNouveauMessage() {
+    setShowNouveauMessage(true)
+    setEtapeNM(1)
+    setClientSelectionneNM(null)
+    setObjetSelectionneNM(null)
+    setObjetsNM([])
+    setContenuNM("")
+    setRechercheClientNM("")
+    chargerClientsNM()
+  }
+
+  function fermerNouveauMessage() {
+    setShowNouveauMessage(false)
+  }
+
+  // ── Nouveau message : étape 1, liste des clients autorisés ──
+  async function chargerClientsNM() {
+    setChargementClientsNM(true)
+
+    const { data: pcs } = await supabase
+      .from("profils_client")
+      .select("id, organisation_id, type_client, responsable_region_id, consultant_id")
+
+    let liste = pcs || []
+
+    if (monRole === "responsable_regional" || monRole === "consultant") {
+      const { data: orgsAffectees } = await supabase.rpc("organisations_affectees_a", {
+        uid: userId,
+        colonne: monRole === "responsable_regional" ? "responsable" : "consultant",
+      })
+      const orgsAffecteesSet = new Set((orgsAffectees || []) as string[])
+      liste = liste.filter(p =>
+        (monRole === "responsable_regional" && p.responsable_region_id === userId) ||
+        (monRole === "consultant" && p.consultant_id === userId) ||
+        (p.organisation_id && orgsAffecteesSet.has(p.organisation_id))
+      )
+    }
+    // admin / admin_national : aucune restriction (vue globale déjà en place ailleurs)
+
+    const orgIds = [...new Set(liste.map(p => p.organisation_id).filter(Boolean))]
+    const { data: orgs } = orgIds.length > 0
+      ? await supabase.from("organisations").select("id, raison_sociale").in("id", orgIds)
+      : { data: [] }
+    const orgMap: Record<string, string> = {}
+    orgs?.forEach((o: any) => { orgMap[o.id] = o.raison_sociale })
+
+    const clients: ClientNM[] = liste
+      .map(p => ({
+        id: p.id,
+        nom: (p.organisation_id ? orgMap[p.organisation_id] : null) || p.type_client || "Client",
+      }))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+
+    setClientsNM(clients)
+    setChargementClientsNM(false)
+  }
+
+  // ── Nouveau message : étape 2, objets rattachables pour le client choisi ──
+  async function selectionnerClientNM(client: ClientNM) {
+    setClientSelectionneNM(client)
+    setEtapeNM(2)
+    setObjetSelectionneNM(null)
+    setChargementObjetsNM(true)
+
+    const [actifsR, missionsR, demandesR, campagnesR] = await Promise.all([
+      supabase.from("actifs").select("id, nom").eq("user_id", client.id),
+      supabase.from("missions").select("id, societe").eq("client_id", client.id),
+      supabase.from("demandes_marketplace").select("id, type_prestation").eq("client_id", client.id),
+      supabase.from("campagnes").select("id, nom").eq("client_id", client.id),
+    ])
+
+    const objets: ObjetNM[] = [
+      ...(actifsR.data || []).map((a: any) => ({ contexte: "actif" as ContexteType, refId: a.id, titre: a.nom || "Actif" })),
+      ...(missionsR.data || []).map((m: any) => ({ contexte: "mission" as ContexteType, refId: m.id, titre: m.societe || "Mission" })),
+      ...(demandesR.data || []).map((d: any) => ({ contexte: "demande" as ContexteType, refId: d.id, titre: d.type_prestation || "Demande" })),
+      ...(campagnesR.data || []).map((c: any) => ({ contexte: "campagne" as ContexteType, refId: c.id, titre: c.nom || "Campagne" })),
+    ]
+
+    setObjetsNM(objets)
+    setChargementObjetsNM(false)
+  }
+
+  // ── Nouveau message : envoi ──
+  async function envoyerNouveauMessage() {
+    if (!clientSelectionneNM || !objetSelectionneNM || !contenuNM.trim() || !userId) return
+    setEnvoiNM(true)
+
+    const payload: any = {
+      expediteur_id:     userId,
+      contenu:           contenuNM.trim(),
+      lu:                false,
+      type_conversation: "client",
+      client_id:         clientSelectionneNM.id,
+      destinataire_id:   clientSelectionneNM.id,
+    }
+    if (objetSelectionneNM.contexte === "campagne") payload.campagne_id = objetSelectionneNM.refId
+    if (objetSelectionneNM.contexte === "mission")  payload.mission_id  = objetSelectionneNM.refId
+    if (objetSelectionneNM.contexte === "demande")  payload.demande_id  = objetSelectionneNM.refId
+    if (objetSelectionneNM.contexte === "actif")    payload.actif_id    = objetSelectionneNM.refId
+
+    const { error } = await supabase.from("messages").insert(payload)
+
+    if (error) {
+      console.error("Erreur envoi nouveau message :", error)
+      alert("Échec de l'envoi : " + error.message)
+      setEnvoiNM(false)
+      return
+    }
+
+    const nouvelleConv: Conversation = {
+      id:        `${objetSelectionneNM.contexte}_${objetSelectionneNM.refId}`,
+      titre:     objetSelectionneNM.titre,
+      sousTitre: CONTEXTE_CONFIG[objetSelectionneNM.contexte].label,
+      contexte:  objetSelectionneNM.contexte,
+      refId:     objetSelectionneNM.refId,
+      nbNonLus:  0,
+      clientId:  clientSelectionneNM.id,
+      clientNom: clientSelectionneNM.nom,
+    }
+
+    setEnvoiNM(false)
+    setShowNouveauMessage(false)
+    setOnglet("clients")
+    setSelected(nouvelleConv)
+    await loadConversations()
+  }
+
   // Grouper conversations par contexte
   const groupes: Record<ContexteType, Conversation[]> = {
     campagne: conversations.filter(c => c.contexte === "campagne"),
@@ -343,6 +495,7 @@ export default function Messagerie() {
   }
 
   const nbNonLusTotal = nbNonLus.interne + nbNonLus.clients
+  const clientsNMFiltres = clientsNM.filter(c => c.nom.toLowerCase().includes(rechercheClientNM.toLowerCase()))
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF", fontSize: "14px" }}>
@@ -351,6 +504,7 @@ export default function Messagerie() {
   )
 
   return (
+    <>
     <div style={{ display: "flex", gap: "0", height: "calc(100vh - 120px)", background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "12px", overflow: "hidden" }}>
 
       {/* ── Sidebar gauche ── */}
@@ -390,6 +544,21 @@ export default function Messagerie() {
               </button>
             ))}
           </div>
+
+          {onglet === "clients" && (
+            <button
+              onClick={ouvrirNouveauMessage}
+              style={{
+                marginTop: "10px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                background: "#B25C2A", color: "white", border: "none", padding: "8px 12px", borderRadius: "8px",
+                fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+              }}
+              aria-label="Nouveau message"
+            >
+              <i className="ti ti-plus" style={{ fontSize: "13px" }} />
+              Nouveau message
+            </button>
+          )}
         </div>
 
         {/* Liste conversations */}
@@ -560,5 +729,131 @@ export default function Messagerie() {
         </div>
       )}
     </div>
+
+    {/* ── Modale Nouveau message ── */}
+    {showNouveauMessage && (
+      <div
+        onClick={fermerNouveauMessage}
+        style={{ position: "fixed", inset: 0, background: "rgba(17,24,39,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background: "#FFFFFF", borderRadius: "12px", width: "480px", maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}
+        >
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>
+              {etapeNM === 1 ? "Nouveau message — choisir un client" : "Nouveau message — choisir l'objet"}
+            </span>
+            <button onClick={fermerNouveauMessage} aria-label="Fermer" style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "18px", lineHeight: 1, padding: "4px" }}>
+              <i className="ti ti-x" />
+            </button>
+          </div>
+
+          {etapeNM === 1 ? (
+            <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
+              <input
+                value={rechercheClientNM}
+                onChange={e => setRechercheClientNM(e.target.value)}
+                placeholder="Rechercher un client…"
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", marginBottom: "12px", outline: "none", boxSizing: "border-box" }}
+              />
+              {chargementClientsNM ? (
+                <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>Chargement…</div>
+              ) : clientsNMFiltres.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>Aucun client trouvé</div>
+              ) : clientsNMFiltres.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => selectionnerClientNM(c)}
+                  style={{ padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#111827", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#F9F7F4" }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}
+                >
+                  {c.nom}
+                  <i className="ti ti-chevron-right" style={{ fontSize: "14px", color: "#9CA3AF" }} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div>
+                  <button
+                    onClick={() => setEtapeNM(1)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px", padding: 0, fontFamily: "inherit" }}
+                  >
+                    <i className="ti ti-arrow-left" /> Changer de client
+                  </button>
+                </div>
+                <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                  Client : <strong style={{ color: "#111827" }}>{clientSelectionneNM?.nom}</strong>
+                </div>
+
+                {chargementObjetsNM ? (
+                  <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>Chargement…</div>
+                ) : objetsNM.length === 0 ? (
+                  <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>
+                    Aucun élément disponible pour ce client
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {objetsNM.map(o => {
+                      const cfg = CONTEXTE_CONFIG[o.contexte]
+                      const actif = objetSelectionneNM?.contexte === o.contexte && objetSelectionneNM?.refId === o.refId
+                      return (
+                        <div
+                          key={`${o.contexte}_${o.refId}`}
+                          onClick={() => setObjetSelectionneNM(o)}
+                          style={{
+                            padding: "10px 12px", borderRadius: "8px", cursor: "pointer",
+                            border: `1px solid ${actif ? "#B25C2A" : "#E2DDD8"}`,
+                            background: actif ? "#F9F0EA" : "transparent",
+                            display: "flex", alignItems: "center", gap: "8px",
+                          }}
+                        >
+                          <span style={{ background: cfg.bg, color: cfg.color, fontSize: "9px", padding: "1px 6px", borderRadius: "8px", fontWeight: 500, flexShrink: 0 }}>
+                            {cfg.label}
+                          </span>
+                          <span style={{ fontSize: "13px", color: "#111827" }}>{o.titre}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {objetSelectionneNM && (
+                  <textarea
+                    value={contenuNM}
+                    onChange={e => setContenuNM(e.target.value)}
+                    placeholder="Écrire le message…"
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }}
+                  />
+                )}
+              </div>
+
+              <div style={{ padding: "12px 20px", borderTop: "1px solid #E2DDD8", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+                <button
+                  onClick={envoyerNouveauMessage}
+                  disabled={!objetSelectionneNM || !contenuNM.trim() || envoiNM}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    background: objetSelectionneNM && contenuNM.trim() ? "#B25C2A" : "#E2DDD8",
+                    color: objetSelectionneNM && contenuNM.trim() ? "white" : "#9CA3AF",
+                    border: "none", padding: "9px 16px", borderRadius: "8px",
+                    cursor: objetSelectionneNM && contenuNM.trim() ? "pointer" : "not-allowed",
+                    fontSize: "13px", fontWeight: 500, fontFamily: "inherit", opacity: envoiNM ? 0.7 : 1,
+                  }}
+                >
+                  <i className="ti ti-send" style={{ fontSize: "14px" }} />
+                  {envoiNM ? "Envoi…" : "Envoyer"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

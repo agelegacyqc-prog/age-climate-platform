@@ -40,6 +40,20 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/admin":               "Administration",
 }
 
+// ─── Libellés catégories documents (pop-up client) ────────────────────────────
+const CATEGORIE_LABELS_POPUP: Record<string, string> = {
+  contrat:        "Contrat",
+  mandat:         "Mandat",
+  rapport:        "Rapport",
+  donnees:        "Données",
+  facture:        "Facture",
+  photo:          "Photo",
+  diagnostic:     "Diagnostic",
+  plan_action:    "Plan d'action",
+  correspondance: "Correspondance",
+  autre:          "Document",
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 type EspaceType = "metier" | "client" | "public"
 type RoleAGE = "admin_national" | "responsable_regional" | "consultant"
@@ -51,6 +65,14 @@ interface NavItemProps {
   badge?: number
   end?: boolean
   title?: string
+}
+
+interface DocumentNonVu {
+  id: string
+  nom: string
+  categorie: string
+  actif_id: string
+  actif_nom: string
 }
 
 // ─── Menus collapsibles ───────────────────────────────────────────────────────
@@ -308,10 +330,34 @@ export default function Layout() {
   const [nbMissionsConsultant, setNbMissionsConsultant] = useState(0)
   const [detailFileAttente, setDetailFileAttente] = useState<Record<string, number>>({})
 
+  // Pop-up "Nouveau document" (client)
+  const [popupDocuments, setPopupDocuments]     = useState<DocumentNonVu[]>([])
+
   const debounceBadgesRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   function declencherRecalculBadges(fn: () => void) {
     if (debounceBadgesRef.current) clearTimeout(debounceBadgesRef.current)
     debounceBadgesRef.current = setTimeout(fn, 300)
+  }
+
+  async function chargerDocumentsNonVus(uid: string) {
+    const { data } = await supabase
+      .from("documents")
+      .select("id, nom, categorie, actif_id, actif:actif_id(nom)")
+      .eq("client_id", uid)
+      .eq("visible_client", true)
+      .eq("vu_client", false)
+      .eq("est_version_courante", true)
+      .order("created_at", { ascending: true })
+
+    setPopupDocuments(
+      (data || []).map((d: any) => ({
+        id: d.id,
+        nom: d.nom,
+        categorie: d.categorie,
+        actif_id: d.actif_id,
+        actif_nom: d.actif?.nom || "votre bien",
+      }))
+    )
   }
 
   useEffect(() => {
@@ -494,21 +540,31 @@ export default function Layout() {
         .subscribe()
     }
 
-    async function chargerBadgeConsultant(userId: string) {
+ async function chargerBadgeConsultant(userId: string) {
       const { count: countMissionsConsultant } = await supabase
         .from("missions")
         .select("id", { count: "exact", head: true })
         .eq("consultant_id", userId)
         .eq("statut", "nouvelle")
-      setNbMissionsConsultant(countMissionsConsultant || 0)
+
+      const { count: countRapportsConsultant } = await supabase
+        .from("rapports_client")
+        .select("id", { count: "exact", head: true })
+        .eq("consultant_id", userId)
+        .eq("statut", "demande")
+        .eq("type_rapport", "analyse_climatique")
+
+      setNbMissionsConsultant((countMissionsConsultant || 0) + (countRapportsConsultant || 0))
     }
 
-    if (role === "consultant") {
+if (role === "consultant") {
       await chargerBadgeConsultant(user.id)
 
       supabase
         .channel(`missions-consultant-${Date.now()}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "missions" },
+          () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "rapports_client" },
           () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
         .subscribe()
     }
@@ -608,6 +664,19 @@ export default function Layout() {
             filter: `destinataire_id=eq.${user.id}`,
           }, () => {
             setNbMessagesClient(prev => prev + 1)
+          })
+          .subscribe()
+
+        // Documents envoyés par l'équipe AGE — pop-up temps réel
+        await chargerDocumentsNonVus(user.id)
+
+        supabase
+          .channel(`documents-client-${Date.now()}`)
+          .on("postgres_changes", {
+            event: "*", schema: "public", table: "documents",
+            filter: `client_id=eq.${user.id}`,
+          }, () => {
+            declencherRecalculBadges(() => chargerDocumentsNonVus(user.id))
           })
           .subscribe()
 
@@ -836,6 +905,83 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {/* ── Pop-up "Nouveau document" (client) ──────────────────────────── */}
+      {espace === "client" && popupDocuments.length > 0 && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(17,24,39,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000,
+        }}>
+          <div style={{
+            background: "#FFFFFF", borderRadius: "12px", width: "420px", maxWidth: "90vw",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.15)", padding: "24px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: "10px", background: "#F0FDF4",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                <i className="ti ti-file-text" style={{ fontSize: "20px", color: "#2F7D5C" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>
+                  Nouveau document disponible
+                </div>
+                <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                  {popupDocuments.length > 1
+                    ? `${popupDocuments.length} documents en attente`
+                    : "Envoyé par votre consultant AGE"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: "#F8F7F4", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
+                {popupDocuments[0].nom}
+              </div>
+              <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                {CATEGORIE_LABELS_POPUP[popupDocuments[0].categorie] || "Document"} · concerne {popupDocuments[0].actif_nom}
+              </div>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", lineHeight: 1.5 }}>
+              Pour y accéder : ouvrez la fiche du bien{" "}
+              <strong style={{ color: "#111827" }}>{popupDocuments[0].actif_nom}</strong>, onglet{" "}
+              <strong style={{ color: "#111827" }}>Documents</strong>.
+            </p>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setPopupDocuments(prev => prev.slice(1))}
+                style={{
+                  padding: "9px 16px", border: "1px solid #E2DDD8", borderRadius: "8px",
+                  background: "#FFFFFF", color: "#6B7280", fontSize: "13px", fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Plus tard
+              </button>
+              <button
+                onClick={() => {
+                  const doc = popupDocuments[0]
+                  setPopupDocuments(prev => prev.slice(1))
+                  navigate(`/client/actifs/${doc.actif_id}`, {
+                    state: { ongletInitial: "documents", from: location.pathname },
+                  })
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px",
+                  border: "none", borderRadius: "8px", background: "#2F7D5C", color: "white",
+                  fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <i className="ti ti-arrow-right" style={{ fontSize: "14px" }} />
+                Voir maintenant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

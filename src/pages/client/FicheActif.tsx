@@ -65,7 +65,7 @@ export default function FicheActif() {
   const [demandeAnalyse, setDemandeAnalyse]     = useState<any>(null)
   const [envoiDemandeAnalyse, setEnvoiDemandeAnalyse] = useState(false)
   const [loading, setLoading]                   = useState(true)
-  const [onglet, setOnglet]                     = useState("synthese")
+  const [onglet, setOnglet]                     = useState((location.state as any)?.ongletInitial || "synthese")
   const [ajoutDoc, setAjoutDoc]                 = useState(false)
   const [typeDocSelectionne, setTypeDocSelectionne] = useState("")
   const [uploadingDoc, setUploadingDoc]         = useState(false)
@@ -113,8 +113,8 @@ export default function FicheActif() {
     }
 
     setReglementations(reglData || [])
-    const docsGedFormates = (gedData || []).map((g:any) => ({
-      nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged"
+   const docsGedFormates = (gedData || []).map((g:any) => ({
+      id: g.id, nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged"
     }))
     setDocuments([...(docData || []), ...docsGedFormates])
  setRapports(rapportsData || [])
@@ -706,10 +706,15 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                       <div style={{fontSize:"0.8rem",color:"#666"}}>{d.type_document}</div>
                     </div>
                   </div>
-                  {d.url && (
+                {d.url && (
                     <button onClick={async () => {
                       const { data } = await supabase.storage.from("documents-clients").createSignedUrl(d.url, 3600)
                       if (data?.signedUrl) window.open(data.signedUrl, "_blank")
+                      if (d.source === "ged" && d.id) {
+                        await supabase.from("documents")
+                          .update({ vu_client: true, vu_client_at: new Date().toISOString() })
+                          .eq("id", d.id)
+                      }
                     }} style={{background:"white",color:"#111827",border:"1px solid #e5e1da",padding:"0.4rem 1rem",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem",fontWeight:"600"}}>
                       Voir
                     </button>
