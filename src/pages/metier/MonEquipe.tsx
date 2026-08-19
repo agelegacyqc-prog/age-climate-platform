@@ -34,9 +34,9 @@ export default function MonEquipe() {
   const [loading, setLoading]                 = useState(true)
   const [region, setRegion]                   = useState<string | null>(null)
 
-  // Drawer
-  const [drawerOpen, setDrawerOpen]           = useState(false)
-  const [selected, setSelected]               = useState<Consultant | null>(null)
+     // Repli / dépli
+  const [listeOuverte, setListeOuverte]       = useState(false)
+  const [expandedId, setExpandedId]           = useState<string | null>(null)
   const [assignMissionId, setAssignMissionId] = useState("")
   const [assignLoading, setAssignLoading]     = useState(false)
   const [assignSuccess, setAssignSuccess]     = useState(false)
@@ -107,36 +107,25 @@ console.log("consultsData:", consultsData)
       setLoading(false)
     }
   }
-
-  function ouvrirDrawer(c: Consultant) {
-    setSelected(c)
-    setAssignMissionId("")
-    setAssignSuccess(false)
-    setDrawerOpen(true)
-  }
-
-  async function handleAssigner() {
-    if (!selected || !assignMissionId) return
+  async function handleAssigner(c: Consultant) {
+    if (!assignMissionId) return
     setAssignLoading(true)
     try {
       await supabase
         .from("missions")
-        .update({ consultant_id: selected.id })
+        .update({ consultant_id: c.id })
         .eq("id", assignMissionId)
 
       setAssignSuccess(true)
       setMissionsDisponibles(prev => prev.filter(m => m.id !== assignMissionId))
 
-      // Recharger les missions du consultant
       const { data: missions } = await supabase
         .from("missions")
         .select("id, societe, statut, phase")
-        .eq("consultant_id", selected.id)
+        .eq("consultant_id", c.id)
         .in("statut", ["nouvelle", "en_cours"])
 
-      const updatedConsultant = { ...selected, missions: missions || [] }
-      setSelected(updatedConsultant)
-      setConsultants(prev => prev.map(c => c.id === selected.id ? updatedConsultant : c))
+      setConsultants(prev => prev.map(cons => cons.id === c.id ? { ...cons, missions: missions || [] } : cons))
       setAssignMissionId("")
 
       setTimeout(() => setAssignSuccess(false), 2000)
@@ -183,250 +172,212 @@ console.log("consultsData:", consultsData)
         </span>
       </div>
 
-      {/* KPIs */}
-      <div className="grid-kpi" style={{ marginBottom: "24px" }}>
+         {/* KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
         {[
-          { label: "Consultants actifs",   value: consultants.filter(c => c.is_active).length, icon: "ti-users",      color: "#111827" },
-          { label: "Missions actives",     value: totalMissionsActives,                         icon: "ti-briefcase",  color: "#B25C2A" },
-          { label: "Occupation moyenne",   value: `${occupationMoyenne} %`,                     icon: "ti-chart-bar",  color: occupationColor(occupationMoyenne) },
-          { label: "Missions disponibles", value: missionsDisponibles.length,                   icon: "ti-inbox",      color: missionsDisponibles.length > 0 ? "#D97706" : "#6B7280" },
+          { label: "Consultants actifs", value: consultants.filter(c => c.is_active).length, icon: "ti-users",     color: "#5DCAA5" },
+          { label: "Missions actives",   value: totalMissionsActives,                         icon: "ti-briefcase", color: "#85B7EB" },
+          { label: "Occupation moyenne", value: `${occupationMoyenne} %`,                     icon: "ti-chart-bar", color: occupationMoyenne >= 90 ? "#F09595" : occupationMoyenne >= 60 ? "#FAC775" : "#5DCAA5" },
         ].map((k, i) => (
-          <div key={i} className="card" style={{ padding: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
-              <span className="label-section">{k.label}</span>
+          <div
+            key={i}
+            style={{ background: "#111C2E", borderLeft: `3px solid ${k.color}`, borderRadius: "12px", padding: "20px", transition: "background 0.15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "#16233A" }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "#111C2E" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: `${k.color}2A`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</span>
             </div>
-            <div className="metric" style={{ fontSize: "24px", color: k.color }}>{k.value}</div>
+            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "24px", fontWeight: 700, color: "#FFFFFF" }}>{k.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Tableau */}
+            {/* Liste consultants — dépliante */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {loading ? (
-          <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
-            <i className="ti ti-loader" style={{ fontSize: "20px", display: "block", marginBottom: "8px" }} />
-            Chargement…
+        <button
+          onClick={() => setListeOuverte(o => !o)}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+          aria-expanded={listeOuverte}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <i className="ti ti-users" style={{ fontSize: "15px", color: "#B25C2A" }} aria-hidden="true" />
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Consultants</span>
+            <span style={{ fontSize: "12px", color: "#9CA3AF" }}>· {consultants.length} au total</span>
           </div>
-        ) : consultants.length === 0 ? (
-          <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
-            <i className="ti ti-users-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
-            Aucun consultant dans votre région
-          </div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
-                <th style={thStyle}>Consultant</th>
-                <th style={thStyle}>Missions actives</th>
-                <th style={thStyle}>Occupation</th>
-                <th style={thStyle}>Statut</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {consultants.map(c => {
-                const pct = occupation(c)
-                const color = occupationColor(pct)
-                return (
-                  <tr
-                    key={c.id}
-                    style={{ borderBottom: "1px solid #E2DDD8", height: "56px" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                  >
-                    {/* Consultant */}
-                    <td style={tdStyle}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: "#F9F0EA", border: "1px solid #F0DDD0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, color: "#B25C2A", flexShrink: 0 }}>
-                          {(c.prenom[0] || "").toUpperCase()}{(c.nom[0] || "").toUpperCase()}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 500, color: "#111827", fontSize: "13px" }}>{c.prenom} {c.nom}</div>
-                          <div style={{ fontSize: "11px", color: "#9CA3AF" }}>
-  {(c as any).role === "responsable_regional" ? "Resp. régional" : "Consultant"} · {c.region}
-</div>
-                        </div>
+          <i className={`ti ti-chevron-${listeOuverte ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} aria-hidden="true" />
+        </button>
+        {listeOuverte && (
+        <div style={{ borderTop: "1px solid #E2DDD8", padding: "16px 20px" }}>
+      {loading ? (
+        <div className="card" style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+          <i className="ti ti-loader" style={{ fontSize: "20px", display: "block", marginBottom: "8px" }} />
+          Chargement…
+        </div>
+      ) : consultants.length === 0 ? (
+        <div className="card" style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+          <i className="ti ti-users-off" style={{ fontSize: "24px", display: "block", marginBottom: "8px" }} />
+          Aucun consultant dans votre région
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {consultants.map(c => {
+            const pct     = occupation(c)
+            const color   = occupationColor(pct)
+            const isOpen  = expandedId === c.id
+            return (
+              <div key={c.id} style={{ background: "#FFFFFF", border: `1px solid ${isOpen ? "#B25C2A" : "#E2DDD8"}`, borderRadius: "10px", overflow: "hidden", transition: "border-color 0.12s" }}>
+
+                {/* En-tête consultant */}
+                <div
+                  onClick={() => setExpandedId(isOpen ? null : c.id)}
+                  style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: "#F9F0EA", border: "1px solid #F0DDD0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, color: "#B25C2A", flexShrink: 0 }}>
+                      {(c.prenom[0] || "").toUpperCase()}{(c.nom[0] || "").toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 500, color: "#111827", fontSize: "13px" }}>{c.prenom} {c.nom}</div>
+                      <div style={{ fontSize: "11px", color: "#9CA3AF" }}>
+                        {(c as any).role === "responsable_regional" ? "Resp. régional" : "Consultant"} · {c.region}
                       </div>
-                    </td>
-
-                    {/* Missions */}
-                    <td style={{ ...tdStyle, fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
-                      <span style={{ color: c.missions.length >= MAX_MISSIONS ? "#B91C1C" : "#111827" }}>
-                        {c.missions.length}
-                      </span>
-                      <span style={{ color: "#9CA3AF" }}>/{MAX_MISSIONS}</span>
-                    </td>
-
-                    {/* Occupation */}
-                    <td style={{ ...tdStyle, minWidth: "140px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ flex: 1, background: "#E2DDD8", borderRadius: "3px", height: "6px", overflow: "hidden" }}>
-                          <div style={{ background: color, width: `${pct}%`, height: "100%", borderRadius: "3px", transition: "width 0.3s" }} />
-                        </div>
-                        <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color, fontWeight: 600, minWidth: "34px" }}>
-                          {pct} %
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Statut */}
-                    <td style={tdStyle}>
-                      <span className={c.is_active ? "badge badge--success" : "badge badge--neutral"}>
-                        <i className={`ti ${c.is_active ? "ti-circle-check" : "ti-circle-x"}`} style={{ fontSize: "11px" }} />
-                        {c.is_active ? "Actif" : "Inactif"}
-                      </span>
-                    </td>
-
-                    {/* Action */}
-                    <td style={{ ...tdStyle, textAlign: "right" }}>
-                      <button
-                        onClick={() => ouvrirDrawer(c)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                      >
-                        <i className="ti ti-eye" style={{ fontSize: "13px" }} />
-                        Voir
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* ── Drawer fiche consultant ── */}
-      {drawerOpen && selected && (
-        <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setDrawerOpen(false)} />
-          <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "400px", maxWidth: "100vw", background: "#FFFFFF", zIndex: 400, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
-
-            {/* Header */}
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#F9F0EA", border: "1px solid #F0DDD0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: "#B25C2A" }}>
-                  {(selected.prenom[0] || "").toUpperCase()}{(selected.nom[0] || "").toUpperCase()}
-                </div>
-                <div>
-                  <h2 style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>{selected.prenom} {selected.nom}</h2>
-                  <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
-  {(selected as any).role === "responsable_regional" ? "Resp. régional" : "Consultant"} · {selected.region}
-</p>
-                </div>
-              </div>
-              <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
-                <i className="ti ti-x" style={{ fontSize: "14px" }} />
-              </button>
-            </div>
-
-            {/* Corps */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-
-              {/* Occupation */}
-              <div style={{ padding: "14px", background: "#F9F0EA", borderRadius: "8px", border: "1px solid #F0DDD0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 500, color: "#6B7280" }}>Taux d'occupation</span>
-                  <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "14px", fontWeight: 600, color: occupationColor(occupation(selected)) }}>
-                    {occupation(selected)} %
-                  </span>
-                </div>
-                <div style={{ background: "#E2DDD8", borderRadius: "3px", height: "8px", overflow: "hidden" }}>
-                  <div style={{ background: occupationColor(occupation(selected)), width: `${occupation(selected)}%`, height: "100%", borderRadius: "3px" }} />
-                </div>
-                <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "4px" }}>
-                  {selected.missions.length} mission{selected.missions.length > 1 ? "s" : ""} active{selected.missions.length > 1 ? "s" : ""} sur {MAX_MISSIONS} max
-                </div>
-              </div>
-
-              {/* Missions actives */}
-              <div>
-                <div style={{ fontSize: "11px", fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
-                  Missions actives ({selected.missions.length})
-                </div>
-                {selected.missions.length === 0 ? (
-                  <div style={{ padding: "16px", background: "#F4F3F0", borderRadius: "8px", fontSize: "13px", color: "#9CA3AF", textAlign: "center" }}>
-                    Aucune mission active
+                    </div>
                   </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {selected.missions.map(m => {
-                      const s = STATUT_CONFIG[m.statut] || STATUT_CONFIG.nouvelle
-                      return (
-                        <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <i className="ti ti-briefcase" style={{ fontSize: "14px", color: "#9CA3AF" }} />
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{m.societe || "Mission"}</div>
-                              <div style={{ fontSize: "11px", color: "#9CA3AF" }}>Phase {m.phase || 1}/10</div>
-                            </div>
-                          </div>
-                          <span style={{ background: s.bg, color: s.color, fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500 }}>
-                            {s.label}
-                          </span>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                    <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
+                      <span style={{ color: c.missions.length >= MAX_MISSIONS ? "#B91C1C" : "#111827" }}>{c.missions.length}</span>
+                      <span style={{ color: "#9CA3AF" }}>/{MAX_MISSIONS}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "120px" }}>
+                      <div style={{ flex: 1, background: "#E2DDD8", borderRadius: "3px", height: "6px", overflow: "hidden" }}>
+                        <div style={{ background: color, width: `${pct}%`, height: "100%", borderRadius: "3px" }} />
+                      </div>
+                      <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color, fontWeight: 600, minWidth: "30px" }}>{pct} %</span>
+                    </div>
+                    <span className={c.is_active ? "badge badge--success" : "badge badge--neutral"}>
+                      <i className={`ti ${c.is_active ? "ti-circle-check" : "ti-circle-x"}`} style={{ fontSize: "11px" }} />
+                      {c.is_active ? "Actif" : "Inactif"}
+                    </span>
+                    <i className={`ti ${isOpen ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
+                  </div>
+                </div>
+
+                {/* Contenu déplié */}
+                {isOpen && (
+                  <div style={{ borderTop: "1px solid #E2DDD8", padding: "20px" }}>
+
+                    {/* Occupation détaillée */}
+                    <div style={{ padding: "14px", background: "#F9F0EA", borderRadius: "8px", border: "1px solid #F0DDD0", marginBottom: "16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 500, color: "#6B7280" }}>Taux d'occupation</span>
+                        <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "14px", fontWeight: 600, color }}>{pct} %</span>
+                      </div>
+                      <div style={{ background: "#E2DDD8", borderRadius: "3px", height: "8px", overflow: "hidden" }}>
+                        <div style={{ background: color, width: `${pct}%`, height: "100%", borderRadius: "3px" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "4px" }}>
+                        {c.missions.length} mission{c.missions.length > 1 ? "s" : ""} active{c.missions.length > 1 ? "s" : ""} sur {MAX_MISSIONS} max
+                      </div>
+                    </div>
+
+                    {/* Missions actives */}
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                        Missions actives ({c.missions.length})
+                      </div>
+                      {c.missions.length === 0 ? (
+                        <div style={{ padding: "16px", background: "#F4F3F0", borderRadius: "8px", fontSize: "13px", color: "#9CA3AF", textAlign: "center" }}>
+                          Aucune mission active
                         </div>
-                      )
-                    })}
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {c.missions.map(m => {
+                            const s = STATUT_CONFIG[m.statut] || STATUT_CONFIG.nouvelle
+                            return (
+                              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", border: "1px solid #E2DDD8" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <i className="ti ti-briefcase" style={{ fontSize: "14px", color: "#9CA3AF" }} />
+                                  <div>
+                                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{m.societe || "Mission"}</div>
+                                    <div style={{ fontSize: "11px", color: "#9CA3AF" }}>Phase {m.phase || 1}/10</div>
+                                  </div>
+                                </div>
+                                <span style={{ background: s.bg, color: s.color, fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500 }}>
+                                  {s.label}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assigner une mission */}
+                    {c.missions.length < MAX_MISSIONS && missionsDisponibles.length > 0 && (
+                      <div style={{ borderTop: "1px solid #E2DDD8", paddingTop: "16px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                          Assigner une mission
+                        </div>
+
+                        {assignSuccess && expandedId === c.id && (
+                          <div style={{ padding: "8px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", fontSize: "12px", color: "#2F7D5C", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <i className="ti ti-circle-check" style={{ fontSize: "13px" }} />
+                            Mission assignée avec succès
+                          </div>
+                        )}
+
+                        <select
+                          className="input"
+                          value={expandedId === c.id ? assignMissionId : ""}
+                          onChange={e => setAssignMissionId(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <option value="">Choisir une mission disponible…</option>
+                          {missionsDisponibles.map(m => (
+                            <option key={m.id} value={m.id}>{m.societe || "Mission sans nom"}</option>
+                          ))}
+                        </select>
+
+                        {assignMissionId && (
+                          <button
+                            className="btn-primary"
+                            style={{ width: "100%", marginTop: "10px" }}
+                            onClick={e => { e.stopPropagation(); handleAssigner(c) }}
+                            disabled={assignLoading}
+                          >
+                            {assignLoading
+                              ? <><i className="ti ti-loader" style={{ fontSize: "14px" }} /> Assignation…</>
+                              : <><i className="ti ti-user-check" style={{ fontSize: "14px" }} /> Confirmer l'assignation</>
+                            }
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {c.missions.length >= MAX_MISSIONS && (
+                      <div style={{ padding: "12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "12px", color: "#B91C1C", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} />
+                        Capacité maximale atteinte ({MAX_MISSIONS} missions)
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>
-
-              {/* Assigner une mission */}
-              {selected.missions.length < MAX_MISSIONS && missionsDisponibles.length > 0 && (
-                <div style={{ borderTop: "1px solid #E2DDD8", paddingTop: "16px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
-                    Assigner une mission
-                  </div>
-
-                  {assignSuccess && (
-                    <div style={{ padding: "8px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", fontSize: "12px", color: "#2F7D5C", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <i className="ti ti-circle-check" style={{ fontSize: "13px" }} />
-                      Mission assignée avec succès
-                    </div>
-                  )}
-
-                  <select
-                    className="input"
-                    value={assignMissionId}
-                    onChange={e => setAssignMissionId(e.target.value)}
-                  >
-                    <option value="">Choisir une mission disponible…</option>
-                    {missionsDisponibles.map(m => (
-                      <option key={m.id} value={m.id}>{m.societe || "Mission sans nom"}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {selected.missions.length >= MAX_MISSIONS && (
-                <div style={{ padding: "12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "12px", color: "#B91C1C", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} />
-                  Capacité maximale atteinte ({MAX_MISSIONS} missions)
-                </div>
-              )}
-
-            </div>
-
-            {/* Footer */}
-            {selected.missions.length < MAX_MISSIONS && assignMissionId && (
-              <div style={{ padding: "16px 24px", borderTop: "1px solid #E2DDD8", flexShrink: 0 }}>
-                <button
-                  className="btn-primary"
-                  style={{ width: "100%" }}
-                  onClick={handleAssigner}
-                  disabled={assignLoading}
-                >
-                  {assignLoading
-                    ? <><i className="ti ti-loader" style={{ fontSize: "14px" }} /> Assignation…</>
-                    : <><i className="ti ti-user-check" style={{ fontSize: "14px" }} /> Confirmer l'assignation</>
-                  }
-                </button>
-              </div>
-            )}
-
+            )
+          })}
           </div>
-        </>
       )}
+        </div>
+        )}
+      </div>
 
     </div>
   )

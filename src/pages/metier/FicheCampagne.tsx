@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import { fetchAndStoreGeorisques } from "../../lib/fetchGeorisques"
+import { fetchAndStoreRga } from "../../lib/fetchRga"
+import { detecterAleas, type AleaDetecte } from "../../lib/aleasGeorisques"
 
 const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   soumise:          { label: "Soumise",          color: "#64748B", bg: "#F1F5F9" },
@@ -24,7 +27,8 @@ interface Bien {
   code_postal: string
   surface: number
   type_batiment: string
-  score_climatique: number | null
+  georisques_data: any
+  exposition_rga: string | null
   statut_analyse: string
   telephone_client: string | null
   email_client: string | null
@@ -56,20 +60,21 @@ export default function FicheCampagne() {
     if (!campagneData) { setLoading(false); return }
     setCampagne(campagneData)
 
-    // Charger le profil client
+    // Charger le profil client (table profils_client, pas profils —
+    // client_id reference un compte client, jamais un compte staff)
     if (campagneData.client_id) {
       const { data: clientData } = await supabase
-        .from("profils")
-        .select("id, prenom, nom, profil, telephone")
+        .from("profils_client")
+        .select("id, prenom, nom, type_client, telephone")
         .eq("id", campagneData.client_id)
-        .single()
+        .maybeSingle()
       setClient(clientData)
     }
 
     // Charger les biens liés
     const { data: liaisonsData } = await supabase
       .from("campagnes_actifs")
-      .select("actif:actif_id(id, nom, adresse, ville, code_postal, surface, type_batiment, score_climatique, statut_analyse, telephone_client, email_client, nom_proprietaire)")
+      .select("actif:actif_id(id, nom, adresse, ville, code_postal, surface, type_batiment, georisques_data, exposition_rga, statut_analyse, telephone_client, email_client, nom_proprietaire)")
       .eq("campagne_id", id)
 
     setBiens((liaisonsData || []).map((l: any) => l.actif).filter(Boolean))
@@ -89,13 +94,17 @@ export default function FicheCampagne() {
     setBiens(biens.map(b => ({ ...b, statut_analyse: "en_cours" })))
     setLancement(false)
   }
-async function analyserTousBiens() {
+
+  async function analyserTousBiens() {
     setAnalyseGlobale(true)
-    const biensEnAttente = biens.filter(b => !b.score_climatique)
+    // Vrai pipeline Georisques (fetchAndStoreGeorisques), meme source que
+    // FicheBienCampagne.tsx — aucun score invente, une detection par bien.
+const biensEnAttente = biens.filter(b => !b.georisques_data || !b.exposition_rga)
     for (const bien of biensEnAttente) {
-      const scoreCalcule = Math.min(100, Math.round(Math.random() * 40 + 30))
+      if (!bien.georisques_data) await fetchAndStoreGeorisques(bien)
+      if (!bien.exposition_rga) await fetchAndStoreRga(bien)
       await supabase.from("actifs").update({
-        score_climatique: scoreCalcule,
+ 
         statut_analyse: "en_cours",
         workflow_age: { score_rga: true, prediag_ia: true },
       }).eq("id", bien.id)
@@ -103,12 +112,26 @@ async function analyserTousBiens() {
     await load()
     setAnalyseGlobale(false)
   }
+
+  function aleasDuBien(b: Bien): AleaDetecte[] {
+    return detecterAleas(b.georisques_data, b.exposition_rga ?? null)
+  }
+
+  function nbAleasPresents(b: Bien): number {
+    return aleasDuBien(b).filter(a => a.present === true).length
+  }
+
+  function niveauRga(b: Bien): string | null {
+    const rga = aleasDuBien(b).find(a => a.alea === "rga")
+    return rga?.niveau ?? null
+  }
+
   function exportCSV() {
-    const headers = ["nom", "adresse", "ville", "code_postal", "surface", "type_batiment", "telephone_client", "email_client", "nom_proprietaire", "score_climatique", "statut_analyse"]
+    const headers = ["nom", "adresse", "ville", "code_postal", "surface", "type_batiment", "telephone_client", "email_client", "nom_proprietaire", "aleas_presents", "niveau_rga", "statut_analyse"]
     const rows = biensFiltres.map(b => [
       b.nom, b.adresse, b.ville, b.code_postal, b.surface,
       b.type_batiment, b.telephone_client || "", b.email_client || "",
-      b.nom_proprietaire || "", b.score_climatique || "", b.statut_analyse
+      b.nom_proprietaire || "", nbAleasPresents(b), niveauRga(b) || "", b.statut_analyse
     ])
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -129,15 +152,17 @@ async function analyserTousBiens() {
     return true
   })
 
-  const nbAnalyses  = biens.filter(b => b.score_climatique).length
-  const nbAttente   = biens.filter(b => !b.score_climatique).length
-  const scoreMoyen  = biens.filter(b => b.score_climatique).length > 0
-    ? Math.round(biens.filter(b => b.score_climatique).reduce((acc, b) => acc + (b.score_climatique || 0), 0) / biens.filter(b => b.score_climatique).length)
-    : null
-  const nbRgaEleve  = biens.filter(b => (b.score_climatique || 0) >= 70).length
+  const nbAnalyses     = biens.filter(b => b.georisques_data).length
+  const nbAttente      = biens.filter(b => !b.georisques_data).length
+  const totalAleasPresents = biens.reduce((acc, b) => acc + nbAleasPresents(b), 0)
+  const nbRgaFort       = biens.filter(b => niveauRga(b) === "forte").length
 
-  const scoreColor = (s: number) => s >= 70 ? "#B91C1C" : s >= 40 ? "#D97706" : "#065F46"
-  const scoreBg    = (s: number) => s >= 70 ? "#FEF2F2" : s >= 40 ? "#FFFBEB" : "#ECFDF5"
+  function badgeColor(n: number) {
+    return n >= 3 ? "#B91C1C" : n >= 1 ? "#D97706" : "#065F46"
+  }
+  function badgeBg(n: number) {
+    return n >= 3 ? "#FEF2F2" : n >= 1 ? "#FFFBEB" : "#ECFDF5"
+  }
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
   if (!campagne) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Campagne introuvable</div>
@@ -170,7 +195,7 @@ async function analyserTousBiens() {
                 <span>
                   <i className="ti ti-user" style={{ fontSize: "12px", marginRight: "4px" }} aria-hidden="true" />
                   {client.prenom} {client.nom}
-                  {client.profil && <span style={{ background: "#EFF6FF", color: "#1E40AF", fontSize: "10px", fontWeight: 500, padding: "1px 6px", borderRadius: "3px", marginLeft: "6px" }}>{client.profil}</span>}
+                  {client.type_client && <span style={{ background: "#EFF6FF", color: "#1E40AF", fontSize: "10px", fontWeight: 500, padding: "1px 6px", borderRadius: "3px", marginLeft: "6px" }}>{client.type_client}</span>}
                 </span>
               )}
               {campagne.zone_geo && <span><i className="ti ti-map-pin" style={{ fontSize: "12px", marginRight: "4px" }} aria-hidden="true" />{campagne.zone_geo}</span>}
@@ -179,7 +204,7 @@ async function analyserTousBiens() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          {biens.filter(b => !b.score_climatique).length > 0 && (
+          {biens.filter(b => !b.georisques_data || !b.exposition_rga).length > 0 && (
   <button
     onClick={analyserTousBiens}
     disabled={analyseGlobale}
@@ -204,11 +229,11 @@ async function analyserTousBiens() {
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px" }}>
         {[
-          { label: "Biens",      val: biens.length,   color: "#0F172A" },
-          { label: "Analysés",   val: nbAnalyses,     color: "#065F46" },
-          { label: "En attente", val: nbAttente,       color: "#D97706" },
-          { label: "Score moy.", val: scoreMoyen ?? "—", color: scoreMoyen ? scoreColor(scoreMoyen) : "#94A3B8" },
-          { label: "Score ≥ 70", val: nbRgaEleve,     color: "#B91C1C" },
+          { label: "Biens",           val: biens.length,       color: "#0F172A" },
+          { label: "Analysés",        val: nbAnalyses,         color: "#065F46" },
+          { label: "En attente",      val: nbAttente,          color: "#D97706" },
+          { label: "Aléas présents",  val: totalAleasPresents, color: totalAleasPresents > 0 ? "#B91C1C" : "#94A3B8" },
+          { label: "RGA fort",        val: nbRgaFort,          color: "#B91C1C" },
         ].map((k, i) => (
           <div key={i} style={{ background: "#F8FAFC", borderRadius: "8px", padding: "12px 14px" }}>
             <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "6px" }}>{k.label}</div>
@@ -249,7 +274,8 @@ async function analyserTousBiens() {
           </div>
         ) : (
           biensFiltres.map((b, i) => {
-            const score    = b.score_climatique
+            const analyse  = !!b.georisques_data
+            const nbAleas  = nbAleasPresents(b)
             const isLast   = i === biensFiltres.length - 1
             return (
               <div key={b.id}
@@ -259,8 +285,8 @@ async function analyserTousBiens() {
                 onMouseLeave={e => (e.currentTarget.style.background = "white")}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "8px", background: score ? scoreBg(score) : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <i className="ti ti-building" style={{ fontSize: "18px", color: score ? scoreColor(score) : "#94A3B8" }} aria-hidden="true" />
+                  <div style={{ width: 36, height: 36, borderRadius: "8px", background: analyse ? badgeBg(nbAleas) : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <i className="ti ti-building" style={{ fontSize: "18px", color: analyse ? badgeColor(nbAleas) : "#94A3B8" }} aria-hidden="true" />
                   </div>
                   <div>
                     <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A", marginBottom: "3px" }}>
@@ -275,16 +301,10 @@ async function analyserTousBiens() {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-                  {score ? (
-                    <>
-                      <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: "18px", fontWeight: 500, color: scoreColor(score), fontFamily: "'DM Mono', monospace" }}>{score}</div>
-                        <div style={{ fontSize: "10px", color: "#94A3B8" }}>score</div>
-                      </div>
-                      <span style={{ background: scoreBg(score), color: scoreColor(score), fontSize: "10px", fontWeight: 500, padding: "2px 8px", borderRadius: "3px" }}>
-                        {score >= 70 ? "Risque élevé" : score >= 40 ? "Risque modéré" : "Risque faible"}
-                      </span>
-                    </>
+                  {analyse ? (
+                    <span style={{ background: badgeBg(nbAleas), color: badgeColor(nbAleas), fontSize: "11px", fontWeight: 600, padding: "3px 10px", borderRadius: "4px" }}>
+                      {nbAleas === 0 ? "Aucun aléa détecté" : `${nbAleas} aléa${nbAleas > 1 ? "s" : ""} présent${nbAleas > 1 ? "s" : ""}`}
+                    </span>
                   ) : (
                     <button onClick={e => { e.stopPropagation(); navigate(`/metier/campagnes/${id}/biens/${b.id}`) }} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "6px", border: "none", background: "#0F6E56", color: "white", fontSize: "11px", cursor: "pointer", fontFamily: "inherit" }}>
                       <i className="ti ti-player-play" style={{ fontSize: "12px" }} aria-hidden="true" /> Analyser

@@ -254,12 +254,33 @@ const ALERTES_PAR_PROFIL: Record<string, AlerteRegl[]> = {
     { label: "Audit énergétique recommandé",       echeance: "Dès que possible", niveau: "bleu"   },
   ],
 }
-
+function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
+  const [ouvert, setOuvert] = useState(false)
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
+      <button
+        onClick={() => setOuvert(o => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+        aria-expanded={ouvert}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+          <i className={`ti ${icon}`} style={{ fontSize: "16px", color: dotColor }} aria-hidden="true" />
+          <span style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>{titre}</span>
+          <span style={{ fontSize: "12px", color: "#94A3B8" }}>{texte}</span>
+        </div>
+        <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+      </button>
+      {ouvert && <div style={{ padding: "0 20px 20px" }}>{children}</div>}
+    </div>
+  )
+}
 export default function Accueil() {
   const navigate = useNavigate()
   const [profil, setProfil]   = useState<Profil>(null)
   const [prenom, setPrenom]   = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [kpisReels, setKpisReels] = useState<{ val: string; label: string; tendance?: string; tendanceColor?: string }[] | null>(null)
   const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
   const [alertesDynamiques, setAlertesDynamiques] = useState<AlerteRegl[]>([])
   const [reglemRaw, setReglemRaw] = useState<{ reglementation: string }[]>([])
@@ -301,7 +322,7 @@ if (clientData?.roadmap) setRoadmap(clientData.roadmap)
 // Charger les alertes réglementaires dynamiques
 const { data: actifsData } = await supabase
   .from("actifs")
-  .select("id")
+  .select("id, score_climatique, created_at")
   .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   .neq("categorie", "import_csv")
 
@@ -375,7 +396,8 @@ console.log("user.id:", user.id)
         entreprise: "entreprise", expert: "expert",
         banque: "banque", assurance: "assureur",
       }
-      setProfil((mapping[profilClient.type_client] || profilClient.type_client) as Profil)
+      const profilResolu = (mapping[profilClient.type_client] || profilClient.type_client) as Profil
+      setProfil(profilResolu)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
 
      // Charger les alertes réglementaires dynamiques
@@ -424,8 +446,52 @@ console.log("reglemData:", reglemData)
               })
             }
           }
-          console.log("alertes construites:", alertes)
+  console.log("alertes construites:", alertes)
           setAlertesDynamiques(alertes)
+        }
+      }
+
+      // KPIs réels — remplace les valeurs figées de PROFIL_CONFIG pour
+      // Assureur et Collectivité (P.O. 13/08/2026 : les chiffres codés en
+      // dur induisaient le client en erreur sur son propre portefeuille)
+      if (profilResolu === "assureur" || profilResolu === "collectivite") {
+        const nbActifs = actifsData?.length || 0
+        const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0)
+        const nbActifsMois = (actifsData || []).filter((a: any) => a.created_at && new Date(a.created_at) >= debutMois).length
+        const scores = (actifsData || []).map((a: any) => a.score_climatique).filter((s: any) => typeof s === "number")
+        const scoreMoyen = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
+
+        if (profilResolu === "assureur") {
+        const { data: campagnesData } = await supabase
+            .from("campagnes")
+            .select("id, statut")
+            .eq("client_id", user.id)
+            .eq("origine", "client")
+            .eq("archivee", false)
+          const nbCampagnesActives = (campagnesData || []).filter((c: any) => c.statut !== "terminee" && c.statut !== "refusee").length
+          const nbCampagnesAttente = (campagnesData || []).filter((c: any) => c.statut === "soumise").length
+
+          setKpisReels([
+            { val: String(nbActifs), label: "Biens assurés analysés", tendance: `+${nbActifsMois} ce mois`, tendanceColor: "#0F6E56" },
+            { val: `${scoreMoyen}/100`, label: "Score risque moyen", tendance: scoreMoyen >= 70 ? "Risque élevé" : scoreMoyen >= 40 ? "Risque modéré" : "Risque faible", tendanceColor: scoreMoyen >= 70 ? "#B91C1C" : scoreMoyen >= 40 ? "#D97706" : "#0F6E56" },
+            { val: String(nbCampagnesActives), label: "Campagnes actives", tendance: `${nbCampagnesAttente} en attente`, tendanceColor: "#94A3B8" },
+          ])
+        } else {
+          const debutTrimestre = new Date()
+          debutTrimestre.setMonth(Math.floor(debutTrimestre.getMonth() / 3) * 3, 1)
+          debutTrimestre.setHours(0, 0, 0, 0)
+          const { data: rapportsData } = await supabase
+            .from("rapports_client")
+            .select("id, created_at")
+            .eq("client_id", user.id)
+            .eq("statut", "disponible")
+          const nbRapportsTrimestre = (rapportsData || []).filter((r: any) => new Date(r.created_at) >= debutTrimestre).length
+
+          setKpisReels([
+            { val: String(nbActifs), label: "Sites analysés", tendance: `+${nbActifsMois} ce mois`, tendanceColor: "#0F6E56" },
+            { val: `${scoreMoyen}/100`, label: "Score résilience moyen", tendance: scoreMoyen >= 70 ? "Résilience élevée" : scoreMoyen >= 40 ? "En amélioration" : "À renforcer", tendanceColor: "#0F6E56" },
+            { val: String(nbRapportsTrimestre), label: "Rapports produits", tendance: "Ce trimestre", tendanceColor: "#94A3B8" },
+          ])
         }
       }
 
@@ -460,7 +526,8 @@ console.log("reglemData:", reglemData)
     setLoading(false)
   }
 
-  const config  = PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut
+  const config  = loading ? PROFIL_CONFIG.defaut : (PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut)
+  const kpisAffiches = kpisReels || config.kpis
   const alertes = alertesDynamiques
   const today   = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
@@ -473,7 +540,12 @@ console.log("reglemData:", reglemData)
   const etapesDone  = roadmap.filter(e => e.statut === "complete").length
   const etapesTotal = roadmap.length
   const pctRoadmap  = etapesTotal > 0 ? Math.round(etapesDone / etapesTotal * 100) : 0
-
+const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
+  const nbOrange = alertes.filter(a => a.niveau === "orange").length
+  const alerteDot   = nbRouge > 0 ? "#B91C1C" : nbOrange > 0 ? "#D97706" : "#0369A1"
+  const alerteTexte = nbRouge > 0 ? `· ${nbRouge} urgente${nbRouge > 1 ? "s" : ""} sur ${alertes.length}`
+    : nbOrange > 0 ? `· ${nbOrange} à surveiller sur ${alertes.length}`
+    : `· ${alertes.length} à venir`
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
@@ -512,10 +584,10 @@ console.log("reglemData:", reglemData)
         )}
       </div>
 
-      {/* KPIs */}
-      {config.kpis.length > 0 && (
+    {/* KPIs */}
+      {!loading && kpisAffiches.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-          {config.kpis.map((k, i) => (
+          {kpisAffiches.map((k, i) => (
             <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "18px 20px" }}>
               <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "10px" }}>{k.label}</div>
               <div style={{ fontSize: "26px", fontWeight: 500, color: "#0F172A", letterSpacing: "-0.02em", marginBottom: "6px", fontFamily: "'DM Mono', monospace" }}>{k.val}</div>
@@ -621,7 +693,8 @@ console.log("reglemData:", reglemData)
           </div>
         </div>
       )}
-      {/* Accès rapides */}
+         {/* Accès rapides */}
+      {!loading && (
       <div>
         <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
           Accès rapides
@@ -629,41 +702,39 @@ console.log("reglemData:", reglemData)
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
           {config.raccourcis.map((c, i) => (
             <div key={i} onClick={() => navigate(c.route)} style={{
-              background: "#FFFFFF", border: "1px solid #E2E8F0",
-              borderRadius: "10px", padding: "16px 18px",
-              cursor: "pointer", transition: "border-color 0.12s, background 0.12s",
+              background: "#111C2E", borderLeft: "3px solid #1D9E75",
+              borderRadius: "10px", padding: "16px 18px 16px 15px",
+              cursor: "pointer", transition: "background 0.12s",
               display: "flex", alignItems: "flex-start", gap: "12px",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#A7F3D0"; (e.currentTarget as HTMLDivElement).style.background = "#FAFFFE" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#E2E8F0"; (e.currentTarget as HTMLDivElement).style.background = "#FFFFFF" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "#16233A" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "#111C2E" }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: "8px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: "#0F6E56" }} aria-hidden="true" />
+              <div style={{ width: 36, height: 36, borderRadius: "8px", background: "rgba(29,158,117,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: "#5DCAA5" }} aria-hidden="true" />
               </div>
               <div>
-                <div style={{ fontWeight: 500, color: "#0F172A", fontSize: "13px", marginBottom: "3px" }}>{c.titre}</div>
-                <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.5 }}>{c.desc}</div>
+                <div style={{ fontWeight: 500, color: "#FFFFFF", fontSize: "13px", marginBottom: "3px" }}>{c.titre}</div>
+                <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.5 }}>{c.desc}</div>
               </div>
-            </div>
+                    </div>
           ))}
         </div>
       </div>
+      )}
 
       {/* Roadmap + Alertes */}
       {!loading && (roadmap.length > 0 || alertesDynamiques.length > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-        {/* Consultants recommandés */}
-        {alertesDynamiques.length > 0 && (
-          
-<ConsultantsRecommandes
-alertesRegl={reglemRaw}
-/>
-)}
-          {/* Alertes réglementaires */}
+                {/* Consultants recommandés — repliable en interne, voir ConsultantsRecommandes.tsx */}
+          {alertesDynamiques.length > 0 && (
+            <ConsultantsRecommandes alertesRegl={reglemRaw} />
+          )}
+
+                    {/* Alertes réglementaires */}
           {alertes.length > 0 && (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Alertes réglementaires</div>
+            <BlocDepliant titre="Alertes réglementaires" icon="ti-alert-triangle" dotColor={alerteDot} texte={alerteTexte}>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {alertes.map((a, i) => {
                   const s = niveauStyle[a.niveau]
@@ -675,7 +746,7 @@ alertesRegl={reglemRaw}
                   )
                 })}
               </div>
-            </div>
+            </BlocDepliant>
           )}
         </div>
       )}

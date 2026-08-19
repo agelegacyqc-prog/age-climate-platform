@@ -374,16 +374,16 @@ async function loadConsultants() {
       return
     }
 
-    const { error } = await supabase
+        const { error } = await supabase
       .from("rapports_client")
-      .update({ fichier_url: chemin, updated_at: new Date().toISOString() })
+      .update({ fichier_url: chemin, statut: "disponible", vu_client: false, updated_at: new Date().toISOString() })
       .eq("id", selectedRapport.id)
 
     setUploadingFichier(false)
     if (error) { setErreurRapport("Échec de l'enregistrement : " + error.message); return }
 
-    setRapports(prev => prev.map(r => r.id === selectedRapport.id ? { ...r, fichier_url: chemin } : r))
-    setSelectedRapport(prev => prev ? { ...prev, fichier_url: chemin } : null)
+    setRapports(prev => prev.map(r => r.id === selectedRapport.id ? { ...r, fichier_url: chemin, statut: "disponible" } : r))
+    setSelectedRapport(prev => prev ? { ...prev, fichier_url: chemin, statut: "disponible" } : null)
     e.target.value = ""
   }
 
@@ -917,16 +917,20 @@ async function loadConsultants() {
               <div>
                 <div style={sectionTitleStyle}>Statut</div>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {Object.entries(STATUT_RAPPORT_CONFIG).map(([id, conf]) => (
-                    <button
-                      key={id}
-                      onClick={() => updateStatutRapport(selectedRapport.id, id)}
-                      disabled={savingRapport}
-                      style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${selectedRapport.statut === id ? conf.color : "#E2DDD8"}`, background: selectedRapport.statut === id ? conf.bg : "white", color: selectedRapport.statut === id ? conf.color : "#6B7280" }}
-                    >
-                      {conf.label}
-                    </button>
-                  ))}
+                                {Object.entries(STATUT_RAPPORT_CONFIG).map(([id, conf]) => {
+                    const bloquePasFichier = id === "disponible" && !selectedRapport.fichier_url
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => !bloquePasFichier && updateStatutRapport(selectedRapport.id, id)}
+                        disabled={savingRapport || bloquePasFichier}
+                        title={bloquePasFichier ? "Statut défini automatiquement à l'envoi du fichier PDF" : undefined}
+                        style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: bloquePasFichier ? "not-allowed" : "pointer", fontFamily: "inherit", border: `1px solid ${selectedRapport.statut === id ? conf.color : "#E2DDD8"}`, background: selectedRapport.statut === id ? conf.bg : "white", color: selectedRapport.statut === id ? conf.color : "#6B7280", opacity: bloquePasFichier ? 0.45 : 1 }}
+                      >
+                        {conf.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

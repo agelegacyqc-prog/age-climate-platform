@@ -733,7 +733,7 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
             const etapes = [
               { id: "enregistrement", label: "Enregistrement de l'actif", done: true },
               { id: "reglementaire",  label: "Analyse réglementaire",     done: reglementations.length > 0 },
-              { id: "scoring",        label: "Score climatique",           done: (actif.score_climatique || 0) > 0 },
+              { id: "scoring",        label: "Score climatique",           done: !!prediagnostic },
             ]
             const nbDone = etapes.filter(e => e.done).length
             const pct    = Math.round((nbDone / etapes.length) * 100)

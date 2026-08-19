@@ -327,8 +327,9 @@ export default function Layout() {
   const [nbMessagesClient, setNbMessagesClient] = useState(0)
   const [detailMessagesClient, setDetailMessagesClient] = useState({ demandes: 0, campagnes: 0, actifs: 0 })
   const [nbRapportsDispo, setNbRapportsDispo] = useState(0)
-  const [nbMissionsConsultant, setNbMissionsConsultant] = useState(0)
+    const [nbMissionsConsultant, setNbMissionsConsultant] = useState(0)
   const [detailFileAttente, setDetailFileAttente] = useState<Record<string, number>>({})
+  const [nbRdvNonVus, setNbRdvNonVus] = useState(0)
 
   // Pop-up "Nouveau document" (client)
   const [popupDocuments, setPopupDocuments]     = useState<DocumentNonVu[]>([])
@@ -455,6 +456,26 @@ export default function Layout() {
           setNbCampagnes(countCamp || 0)
         }
 
+        async function chargerNbRdvNonVus(userId: string) {
+          const { count } = await supabase
+            .from("disponibilites_consultant")
+            .select("id", { count: "exact", head: true })
+            .eq("consultant_id", userId)
+            .eq("statut", "reserve")
+            .eq("vu_consultant", false)
+          setNbRdvNonVus(count || 0)
+        }
+
+        await chargerNbRdvNonVus(user.id)
+
+        supabase
+          .channel(`rdv-non-vus-${Date.now()}`)
+          .on("postgres_changes", {
+            event: "*", schema: "public", table: "disponibilites_consultant",
+            filter: `consultant_id=eq.${user.id}`,
+          }, () => declencherRecalculBadges(() => chargerNbRdvNonVus(user.id)))
+          .subscribe()
+
         if (role === "admin_national") {
           await chargerBadgesAdmin()
 
@@ -504,28 +525,36 @@ export default function Layout() {
         .eq("statut", "demande")
         .eq("type_rapport", "analyse_climatique")
 
-      // Demandes marketplace routées vers ce responsable région (chaîne d'affectation)
+   // Demandes marketplace routées vers ce responsable région (chaîne d'affectation)
       const { count: countDemandesRespMarketplace } = await supabase
         .from("demandes_marketplace")
         .select("id", { count: "exact", head: true })
         .eq("responsable_id", userId)
         .eq("statut", "soumise")
 
+      // Demandes de RDV non assignées ou assignées à ce responsable
+      const { count: countRdvRegion } = await supabase
+        .from("demandes_rdv")
+        .select("id", { count: "exact", head: true })
+        .eq("statut", "en_attente")
+        .or(`responsable_id.is.null,responsable_id.eq.${userId}`)
+
       setNbFileAttente(
-        (countAlertes || 0) + (countRapportsRegion || 0) + (countDemandesRespMarketplace || 0)
+        (countAlertes || 0) + (countRapportsRegion || 0) + (countDemandesRespMarketplace || 0) + (countRdvRegion || 0)
       )
       setNbRapportsAttente(countRapportsRegion || 0)
       setDetailFileAttente({
         climatique: countRapportsRegion || 0,
         marketplace: countDemandesRespMarketplace || 0,
         alertes: countAlertes || 0,
+        rdv: countRdvRegion || 0,
       })
     }
 
     if (role === "responsable_regional") {
       await chargerBadgesRespRegional(user.id, profilAGE.region)
 
-      supabase
+supabase
         .channel(`file-attente-region-${Date.now()}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "rapports_client" },
           () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
@@ -537,10 +566,12 @@ export default function Layout() {
           () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
         .on("postgres_changes", { event: "*", schema: "public", table: "campagnes" },
           () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "demandes_rdv" },
+          () => declencherRecalculBadges(() => chargerBadgesRespRegional(user.id, profilAGE.region)))
         .subscribe()
     }
 
- async function chargerBadgeConsultant(userId: string) {
+async function chargerBadgeConsultant(userId: string) {
       const { count: countMissionsConsultant } = await supabase
         .from("missions")
         .select("id", { count: "exact", head: true })
@@ -554,9 +585,35 @@ export default function Layout() {
         .eq("statut", "demande")
         .eq("type_rapport", "analyse_climatique")
 
-      setNbMissionsConsultant((countMissionsConsultant || 0) + (countRapportsConsultant || 0))
-    }
+      const { count: countCampagnesConsultant } = await supabase
+        .from("campagnes")
+        .select("id", { count: "exact", head: true })
+        .eq("consultant_id", userId)
+        .eq("origine", "client")
+        .in("statut", ["nouvelle", "soumise"])
 
+      // RDV — consultant_id sur demandes_rdv reference marketplace_consultants,
+      // pas profils : passer par user_id pour retrouver la/les fiche(s) liee(s)
+      const { data: fichesConsultant } = await supabase
+        .from("marketplace_consultants")
+        .select("id")
+        .eq("user_id", userId)
+      const ficheIds = (fichesConsultant || []).map(f => f.id)
+      let countRdvConsultant = 0
+      if (ficheIds.length > 0) {
+        const { count } = await supabase
+          .from("demandes_rdv")
+          .select("id", { count: "exact", head: true })
+          .in("consultant_id", ficheIds)
+          .eq("statut", "en_attente")
+        countRdvConsultant = count || 0
+      }
+
+      // "Mes missions" — acces direct a la liste de travail (missions + analyses climatiques)
+      setNbMissionsConsultant((countMissionsConsultant || 0) + (countRapportsConsultant || 0))
+      // File d'attente — file de triage (nouveautes campagnes + missions + climatique + rdv a traiter)
+      setNbFileAttente((countMissionsConsultant || 0) + (countCampagnesConsultant || 0) + (countRapportsConsultant || 0) + countRdvConsultant)
+    }
 if (role === "consultant") {
       await chargerBadgeConsultant(user.id)
 
@@ -565,6 +622,8 @@ if (role === "consultant") {
         .on("postgres_changes", { event: "*", schema: "public", table: "missions" },
           () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
         .on("postgres_changes", { event: "*", schema: "public", table: "rapports_client" },
+          () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "demandes_rdv" },
           () => declencherRecalculBadges(() => chargerBadgeConsultant(user.id)))
         .subscribe()
     }
@@ -767,6 +826,7 @@ if (role === "consultant") {
               )}
 
               <NavItem to="/client/demandes" icon="ti-clipboard-list" label="Mes Demandes" />
+              <NavItem to="/client/mon-agenda" icon="ti-calendar-time" label="Mon agenda" />
               <NavItem to="/client/reporting" icon="ti-file-analytics" label="Reporting" badge={nbRapportsDispo} />
               <NavItem to="/client/profil" icon="ti-settings" label="Mon profil" />
               <NavItem
@@ -787,8 +847,8 @@ if (role === "consultant") {
           {/* ── Espace Métier AGE ──────────────────────────────────────── */}
           {espace === "metier" && (
             <>
-          {/* File d'attente — admin national (complète) et responsable régional (analyses climatiques uniquement) */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+      {/* File d'attente — admin national (complète), responsable régional (sa région), consultant (ses dossiers) */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem
                   to="/metier/file-attente"
                   icon="ti-inbox"
@@ -797,6 +857,8 @@ if (role === "consultant") {
                   title={
                     roleAGE === "admin_national"
                       ? `${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.campagnes || 0} campagnes · ${detailFileAttente.rdv || 0} RDV · ${detailFileAttente.missions || 0} missions · ${detailFileAttente.climatique || 0} analyses climatiques · ${detailFileAttente.alertes || 0} alertes score`
+                      : roleAGE === "consultant"
+                      ? "Mes campagnes et missions à traiter"
                       : `${detailFileAttente.climatique || 0} analyse${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} climatique${(detailFileAttente.climatique || 0) > 1 ? "s" : ""} · ${detailFileAttente.marketplace || 0} marketplace · ${detailFileAttente.alertes || 0} alerte${(detailFileAttente.alertes || 0) > 1 ? "s" : ""} score`
                   }
                 />
@@ -811,23 +873,27 @@ if (role === "consultant") {
                   badge={roleAGE === "responsable_regional" ? nbMissions + nbRapportsAttente : nbRapportsAttente}
                 />
               )}
-            {roleAGE === "consultant" && (
-                <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" badge={nbMissionsConsultant} />
-              )}
+         : roleAGE === "consultant"
+                      ? "Mes campagnes, missions et analyses climatiques à traiter"
 
               {/* Mon équipe */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
                 <NavItem to="/metier/equipe" icon="ti-users" label="Mon équipe" />
               )}
 
-              {/* Portefeuille */}
-              {(roleAGE === "admin_national" || roleAGE === "responsable_regional") && (
+            {/* Portefeuille */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem to="/metier/portefeuille" icon="ti-building" label="Portefeuille" />
               )}
 
             {/* Clients */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
+              )}
+
+            {/* Mes missions — acces direct consultant (distinct de File d'attente) */}
+              {roleAGE === "consultant" && (
+                <NavItem to="/metier/missions" icon="ti-briefcase" label="Mes missions" badge={nbMissionsConsultant} />
               )}
 
               {/* Messagerie */}
@@ -837,6 +903,11 @@ if (role === "consultant") {
                 label="Messagerie"
                 badge={nbMessagesAGE}
               />
+
+                          {/* Disponibilités RDV — agenda collaboratif AGE / Clients */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
+                <NavItem to="/metier/disponibilites-rdv" icon="ti-calendar-time" label="Disponibilités RDV" badge={nbRdvNonVus} />
+              )}
 
               {/* Finance */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (

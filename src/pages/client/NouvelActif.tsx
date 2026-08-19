@@ -175,9 +175,7 @@ export default function NouvelActif() {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [analyseIA, setAnalyseIA] = useState<any>(null)
-  const [analyseLoading, setAnalyseLoading] = useState(false)
-  const [analyseErreur, setAnalyseErreur] = useState("")
+  
   const [autresDocuments, setAutresDocuments] = useState<File[]>([])
   const searchRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -303,108 +301,13 @@ export default function NouvelActif() {
         }
       }
     }
-    setLoading(false)
+ setLoading(false)
     setEtape(2)
   }
 
-  async function lancerAnalyseIA() {
-    setAnalyseLoading(true)
-    setAnalyseErreur("")
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-
-      const { data: profil } = await supabase
-        .from("profils_client")
-        .select("organisation_id")
-        .eq("id", user?.id)
-        .maybeSingle()
-
-      const prompt =
-        "Tu es un expert en transition climatique et reglementaire immobilier.\n\n" +
-        "Voici les donnees d'un actif immobilier :\n" +
-        "- Nom : " + infos.nom + "\n" +
-        "- Adresse : " + infos.adresse + ", " + infos.code_postal + " " + infos.ville + "\n" +
-        "- Type de batiment : " + infos.type_batiment + "\n" +
-        "- Surface : " + infos.surface + " m2\n" +
-        "- Annee de construction : " + infos.annee_construction + "\n" +
-        "- Effectifs : " + infos.effectifs + " salaries\n" +
-        "- Chiffre d'affaires : " + infos.chiffre_affaires + " M euros\n" +
-        "- Secteur d'activite : " + infos.secteur_activite + "\n" +
-        "- Classification : " + infos.classification + "\n" +
-        "- Documents disponibles : " + (documentsUploades.join(", ") || "aucun") + "\n\n" +
-        "Genere une roadmap de decarbonation et d'adaptation climatique pour cet actif.\n" +
-        "Reponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, sans commentaires.\n" +
-        '{"etapes":[{"categorie":"string","label":"string","description":"string","priorite":1,"echeance":"YYYY-MM-DD ou null","icone":"emoji","source":"ia"}],"synthese":"string"}'
-
-      const { data: { session } } = await supabase.auth.getSession()
-console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/functions/v1/analyse-actif")
-      const response = await fetch(
-        "https://vkclvfsblsjpuycjfiso.supabase.co/functions/v1/analyse-actif",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + (session?.access_token ?? ""),
-          },
-          body: JSON.stringify({ prompt }),
-        }
-      )
-
-      const rawText = await response.text()
-      console.log("RAW RESPONSE →", rawText)
-
-      if (!response.ok) {
-        throw new Error("Edge Function error: " + response.status + " " + rawText)
-      }
-
-      const data = JSON.parse(rawText)
-      const text = data?.content?.find((b: any) => b.type === "text")?.text || ""
-      console.log("TEXT IA →", text)
-
-      if (!text) throw new Error("Réponse IA vide")
-
-      let parsed: any
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        const clean = text.replace(/```json|```/g, "").trim()
-        if (!clean) throw new Error("Contenu IA vide après nettoyage")
-        parsed = JSON.parse(clean)
-      }
-
-      setAnalyseIA(parsed)
-
-      if (actifId && profil?.organisation_id && parsed.etapes?.length > 0) {
-        await supabase.from("roadmap_etapes").insert(
-          parsed.etapes.map((e: any) => ({
-            organisation_id: profil.organisation_id,
-            actif_id:        actifId,
-            source:          "ia",
-            categorie:       e.categorie,
-            label:           e.label,
-            description:     e.description || null,
-            priorite:        e.priorite || 3,
-            echeance:        e.echeance || null,
-            icone:           e.icone || "📋",
-            statut:          "a_faire",
-            created_by:      user?.id,
-          }))
-        )
-      }
-
-    } catch (err: any) {
-      console.error("ERREUR ANALYSE IA →", err)
-      setAnalyseErreur("L'analyse IA a échoué. Vous pouvez continuer sans elle.")
-    } finally {
-      setAnalyseLoading(false)
-    }
-  }
-
-  async function goToEtape3() {
+  function goToEtape3() {
     const reglsCalculees = calculerEligibilite(infos)
     setReglementations(reglsCalculees)
-    await lancerAnalyseIA()
     setEtape(3)
   }
 
@@ -686,22 +589,8 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:"1.5rem"}}>
             <button onClick={() => setEtape(1)} style={{background:"white",color:"#1a3a2a",border:"1px solid #e5e1da",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"600"}}>← Retour</button>
-            <button
-              onClick={goToEtape3}
-              disabled={analyseLoading}
-              style={{
-                background: analyseLoading ? "#94A3B8" : "#1a3a2a",
-                color: "white", border: "none",
-                padding: "0.875rem 2rem", borderRadius: "8px",
-                cursor: analyseLoading ? "not-allowed" : "pointer",
-                fontWeight: "700", display: "flex",
-                alignItems: "center", gap: "8px",
-              }}
-            >
-              {analyseLoading
-                ? <><i className="ti ti-loader-2 ti-spin" aria-hidden="true" /> Analyse IA en cours…</>
-                : "Suivant →"
-              }
+       <button onClick={goToEtape3} style={{background:"#1a3a2a",color:"white",border:"none",padding:"0.875rem 2rem",borderRadius:"8px",cursor:"pointer",fontWeight:"700"}}>
+              Suivant →
             </button>
           </div>
         </div>
@@ -837,23 +726,8 @@ console.log("LANCEMENT FETCH →", "https://vkclvfsblsjpuycjfiso.supabase.co/fun
           <div style={{textAlign:"center",padding:"2rem"}}>
             <div style={{fontSize:"4rem",marginBottom:"1rem"}}>✅</div>
             <h3 style={{color:"#1a3a2a",marginBottom:"0.5rem",fontSize:"1.5rem"}}>Actif créé avec succès !</h3>
-            <p style={{color:"#666",marginBottom:"0.5rem"}}>Votre actif a été enregistré et l'analyse préliminaire est disponible.</p>
-            <p style={{color:"#666",fontSize:"0.85rem",marginBottom:"2rem"}}>L'analyse complète avec IA sera disponible sous 24h.</p>
+          <p style={{color:"#666",marginBottom:"2rem"}}>Votre actif a été enregistré avec succès.</p>
             <div style={{background:"#f8f7f4",padding:"1.5rem",borderRadius:"12px",marginBottom:"2rem",textAlign:"left"}}>
-              {analyseIA?.synthese && (
-                <div style={{background:"#ECFDF5",border:"1px solid #A7F3D0",borderRadius:"10px",padding:"16px 20px",marginBottom:"16px",display:"flex",gap:"12px"}}>
-                  <i className="ti ti-sparkles" style={{fontSize:"18px",color:"#0F6E56",flexShrink:0,marginTop:"2px"}} aria-hidden="true" />
-                  <div>
-                    <div style={{fontSize:"12px",fontWeight:600,color:"#065F46",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.07em"}}>Analyse IA</div>
-                    <div style={{fontSize:"13px",color:"#065F46",lineHeight:"1.6"}}>{analyseIA.synthese}</div>
-                  </div>
-                </div>
-              )}
-              {analyseErreur && (
-                <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:"10px",padding:"12px 16px",marginBottom:"16px",fontSize:"12px",color:"#991B1B"}}>
-                  <i className="ti ti-alert-triangle" aria-hidden="true" /> {analyseErreur}
-                </div>
-              )}
               <h4 style={{color:"#1a3a2a",marginBottom:"1rem"}}>Récapitulatif</h4>
               <div style={{display:"flex",flexDirection:"column",gap:"0.5rem"}}>
                 {[

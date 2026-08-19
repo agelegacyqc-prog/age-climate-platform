@@ -20,7 +20,27 @@ function tempsEcoule(iso: string) {
 function today() {
   return new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 }
-
+function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
+  const [ouvert, setOuvert] = useState(false)
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <button
+        onClick={() => setOuvert(o => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+        aria-expanded={ouvert}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+          <i className={`ti ${icon}`} style={{ fontSize: "15px", color: dotColor }} aria-hidden="true" />
+          <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>{titre}</span>
+          <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{texte}</span>
+        </div>
+        <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} aria-hidden="true" />
+      </button>
+      {ouvert && <div style={{ borderTop: "1px solid #E2DDD8" }}>{children}</div>}
+    </div>
+  )
+}
 // ─── Composant ───────────────────────────────────────────────────────────────
 export default function DashboardMetier() {
   const navigate = useNavigate()
@@ -225,10 +245,10 @@ export default function DashboardMetier() {
     setAlertes(prev => ({ ...prev, missionsBloquees: bloquCount || 0 }))
   }
 
-  async function loadConsultant(uid: string) {
+async function loadConsultant(uid: string) {
     const [missRes, campRes] = await Promise.all([
       supabase.from("missions").select("id, societe, statut, phase, updated_at, created_at").eq("consultant_id", uid).order("updated_at", { ascending: false }).limit(5),
-      supabase.from("campagnes").select("id, nom, statut, created_at").order("created_at", { ascending: false }).limit(5),
+      supabase.from("campagnes").select("id, nom, statut, created_at").eq("consultant_id", uid).order("created_at", { ascending: false }).limit(5),
     ])
 
     setMesMissions(missRes.data || [])
@@ -256,7 +276,10 @@ export default function DashboardMetier() {
 
   // ── VUE ADMIN / RESPONSABLE ──────────────────────────────────────────────
   if (isAdmin || isResponsable) {
-    const totalAlertesCount =
+        const chargeMax = consultants.length > 0 ? Math.max(...consultants.map(c => Math.min(Math.round((c.missions / 5) * 100), 100))) : 0
+    const chargeMaxColor = chargeMax >= 80 ? "#B91C1C" : chargeMax >= 50 ? "#D97706" : "#2F7D5C"
+
+      const totalAlertesCount =
       (alertes.missionsBloquees || 0) +
       (alertes.demandesRdv || 0) +
       (alertes.rapportsEnAttente || 0) +
@@ -292,49 +315,59 @@ export default function DashboardMetier() {
         {/* KPIs */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
           {[
-            { label: "Campagnes actives",   value: kpis.campagnesActives,   icon: "ti-speakerphone", color: "#B25C2A", route: "/metier/campagnes" },
-            { label: "Missions en cours",   value: kpis.missionsEnCours,    icon: "ti-briefcase",    color: "#0369A1", route: "/metier/missions" },
+            { label: "Campagnes actives",   value: kpis.campagnesActives,   icon: "ti-speakerphone", color: "#F0997B", route: "/metier/campagnes" },
+            { label: "Missions en cours",   value: kpis.missionsEnCours,    icon: "ti-briefcase",    color: "#85B7EB", route: "/metier/missions" },
             ...(!isResponsable ? [
-              { label: "Clients actifs",      value: kpis.clientsActifs,      icon: "ti-users",        color: "#2F7D5C", route: "/metier/clients" },
-              { label: "Partenaires validés", value: kpis.partenairesValides, icon: "ti-star",         color: "#7C3AED", route: "/metier/admin" },
+              { label: "Clients actifs",      value: kpis.clientsActifs,      icon: "ti-users",        color: "#5DCAA5", route: "/metier/clients" },
+              { label: "Partenaires validés", value: kpis.partenairesValides, icon: "ti-star",         color: "#AFA9EC", route: "/metier/admin" },
             ] : [
-              { label: "Consultants",         value: consultants.length,                    icon: "ti-user-check",    color: "#2F7D5C", route: "/metier/equipe" },
-              { label: "Missions bloquées",   value: alertes.missionsBloquees,              icon: "ti-alert-triangle", color: alertes.missionsBloquees > 0 ? "#B91C1C" : "#6B7280", route: "/metier/missions" },
+              { label: "Consultants",         value: consultants.length,                    icon: "ti-user-check",    color: "#5DCAA5", route: "/metier/equipe" },
+              { label: "Missions bloquées",   value: alertes.missionsBloquees,              icon: "ti-alert-triangle", color: alertes.missionsBloquees > 0 ? "#F09595" : "#94A3B8", route: "/metier/missions" },
             ]),
           ].map((k, i) => (
             <div
               key={i}
               onClick={() => navigate(k.route)}
-              style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "12px", padding: "20px", cursor: "pointer", transition: "border-color 0.1s, box-shadow 0.1s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = k.color; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 2px 8px ${k.color}20` }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#E2DDD8"; (e.currentTarget as HTMLDivElement).style.boxShadow = "none" }}
+                        style={{ background: "#111C2E", borderLeft: `3px solid ${k.color}`, borderRadius: "12px", padding: "20px", cursor: "pointer", transition: "background 0.15s, box-shadow 0.15s" }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.background = "#16233A"
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = `inset 0 0 0 1px ${k.color}60, 0 0 24px ${k.color}25`
+                                const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${k.color}55`
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.background = "#111C2E"
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
+                                const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${k.color}2A`
+              }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: `${k.color}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div data-halo style={{ width: "32px", height: "32px", borderRadius: "8px", background: `${k.color}2A`, display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
                   <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
                 </div>
-                <i className="ti ti-arrow-up-right" style={{ fontSize: "13px", color: "#9CA3AF" }} />
+                <i className="ti ti-arrow-up-right" style={{ fontSize: "13px", color: "#94A3B8" }} />
               </div>
-              <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "28px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>
+              <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>
                 {k.value}
               </div>
-              <div className="label-section">{k.label}</div>
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
             </div>
           ))}
         </div>
 
         {/* KPIs Reporting */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: "#111C2E", borderRadius: "12px", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <i className="ti ti-chart-bar" style={{ fontSize: "15px", color: "#B25C2A" }} />
-              <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Synthèse Reporting</span>
+              <i className="ti ti-chart-bar" style={{ fontSize: "15px", color: "#F0997B" }} />
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#FFFFFF" }}>Synthèse Reporting</span>
             </div>
             <button
               onClick={() => navigate("/metier/reporting")}
-              style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+              style={{ fontSize: "12px", color: "#F0997B", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
             >
-              Voir le reporting complet →
+              Voir toute la performance →
             </button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
@@ -343,14 +376,14 @@ export default function DashboardMetier() {
                 label: "ROI campagne",
                 value: kpisReporting.roi > 0 ? `×${kpisReporting.roi.toFixed(0)}` : "—",
                 sub: "1 € investi = X € de pertes évitées",
-                color: "#7C3AED",
+                color: "#AFA9EC",
                 icon: "ti-trending-up",
               },
               {
                 label: "Taux transformation",
                 value: kpisReporting.tauxTransformation > 0 ? `${kpisReporting.tauxTransformation.toFixed(1).replace(".", ",")} %` : "—",
                 sub: "Contact → Diagnostic réalisé",
-                color: "#0369A1",
+                color: "#85B7EB",
                 icon: "ti-percentage",
               },
               {
@@ -359,7 +392,7 @@ export default function DashboardMetier() {
                   ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(kpisReporting.pertes_evitees) + " €"
                   : "—",
                 sub: "Cumul toutes missions",
-                color: "#2F7D5C",
+                color: "#5DCAA5",
                 icon: "ti-shield-check",
               },
               {
@@ -368,32 +401,38 @@ export default function DashboardMetier() {
                   ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(kpisReporting.travaux_generes) + " €"
                   : "—",
                 sub: "Cumul toutes missions",
-                color: "#B25C2A",
+                color: "#F0997B",
                 icon: "ti-hammer",
               },
             ].map((k, i) => (
               <div
                 key={i}
                 onClick={() => navigate("/metier/reporting")}
-                style={{
+                              style={{
                   padding: "20px",
-                  borderRight: i < 3 ? "1px solid #E2DDD8" : "none",
+                  borderRight: i < 3 ? "1px solid rgba(255,255,255,0.08)" : "none",
                   cursor: "pointer",
-                  transition: "background 0.1s",
+                  transition: "background 0.15s, box-shadow 0.15s",
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = "#16233A"
+                  e.currentTarget.style.boxShadow = `inset 0 0 0 1px ${k.color}50`
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = "transparent"
+                  e.currentTarget.style.boxShadow = "none"
+                }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                   <i className={`ti ${k.icon}`} style={{ fontSize: "14px", color: k.color }} />
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {k.label}
                   </span>
                 </div>
                 <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "22px", fontWeight: 700, color: k.color, marginBottom: "4px" }}>
                   {k.value}
                 </div>
-                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{k.sub}</div>
+                <div style={{ fontSize: "11px", color: "#94A3B8" }}>{k.sub}</div>
               </div>
             ))}
           </div>
@@ -402,17 +441,13 @@ export default function DashboardMetier() {
         {/* Points d'attention + Charge équipe */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-          {/* Points d'attention */}
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", gap: "8px" }}>
-              <i className="ti ti-bell" style={{ fontSize: "15px", color: "#B25C2A" }} />
-              <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Points d'attention</span>
-              {totalAlertesCount > 0 && (
-                <span style={{ marginLeft: "auto", background: "#FEF2F2", color: "#B91C1C", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "10px" }}>
-                  {totalAlertesCount}
-                </span>
-              )}
-            </div>
+                  {/* Points d'attention */}
+          <BlocDepliant
+            titre="Points d'attention"
+            icon="ti-bell"
+            dotColor={alertes.missionsBloquees > 0 ? "#B91C1C" : totalAlertesCount > 0 ? "#D97706" : "#0369A1"}
+            texte={totalAlertesCount > 0 ? `· ${totalAlertesCount} action${totalAlertesCount > 1 ? "s" : ""} requise${totalAlertesCount > 1 ? "s" : ""}` : "· rien à signaler"}
+          >
             <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
                 { label: "Missions bloquées", count: alertes.missionsBloquees || 0,                                                                     icon: "ti-lock",     urgence: true,  route: "/metier/missions" },
@@ -459,21 +494,17 @@ export default function DashboardMetier() {
                     </div>
                   </div>
                 )
-              })}
+                       })}
             </div>
-          </div>
+          </BlocDepliant>
 
           {/* Charge équipe */}
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", gap: "8px" }}>
-              <i className="ti ti-users" style={{ fontSize: "15px", color: "#B25C2A" }} />
-              <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>
-                Charge équipe{region ? ` — ${region}` : ""}
-              </span>
-              <span style={{ marginLeft: "auto", fontSize: "12px", color: "#9CA3AF" }}>
-                {consultants.length} consultant{consultants.length > 1 ? "s" : ""}
-              </span>
-            </div>
+          <BlocDepliant
+            titre={`Charge équipe${region ? ` — ${region}` : ""}`}
+            icon="ti-users"
+            dotColor={chargeMaxColor}
+            texte={`· ${consultants.length} consultant${consultants.length > 1 ? "s" : ""}`}
+          >
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
               {consultants.length === 0 ? (
                 <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "16px 0" }}>
@@ -503,38 +534,11 @@ export default function DashboardMetier() {
                     </div>
                   </div>
                 )
-              })}
+                     })}
             </div>
-          </div>
+          </BlocDepliant>
 
         </div>{/* fin grille Points d'attention + Charge équipe */}
-
-        {/* Activité récente */}
-        {activiteRecente.length > 0 && (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", gap: "8px" }}>
-              <i className="ti ti-activity" style={{ fontSize: "15px", color: "#B25C2A" }} />
-              <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Activité récente</span>
-            </div>
-            <div style={{ padding: "8px 0" }}>
-              {activiteRecente.map((a, i) => (
-                <div
-                  key={i}
-                  onClick={() => navigate(a.route)}
-                  style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 20px", cursor: "pointer", borderBottom: i < activiteRecente.length - 1 ? "1px solid #F4F3F0" : "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                >
-                  <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `${a.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <i className={`ti ${a.icon}`} style={{ fontSize: "13px", color: a.color }} />
-                  </div>
-                  <span style={{ flex: 1, fontSize: "13px", color: "#374151" }}>{a.texte}</span>
-                  <span style={{ fontSize: "12px", color: "#9CA3AF", flexShrink: 0 }}>{a.temps}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     )
@@ -593,10 +597,10 @@ export default function DashboardMetier() {
       )}
 
       {/* KPIs consultant */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
         {[
-          { label: "Missions assignées", value: mesMissions.length,                                                              icon: "ti-briefcase",    color: "#B25C2A", route: "/metier/missions" },
-          { label: "Campagnes actives",  value: mesCampagnes.filter((c: any) => c.statut === "en_cours").length, icon: "ti-speakerphone", color: "#0369A1", route: "/metier/campagnes" },
+          { label: "Missions assignées", value: mesMissions.length,                                                              icon: "ti-briefcase",    color: "#B25C2A", route: "/metier/file-attente" },
+          { label: "Campagnes actives",  value: mesCampagnes.filter((c: any) => c.statut === "en_cours").length, icon: "ti-speakerphone", color: "#0369A1", route: "/metier/file-attente" },
         ].map((k, i) => (
           <div
             key={i}
@@ -644,8 +648,8 @@ export default function DashboardMetier() {
               </div>
             </div>
           ))}
-          <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
-            <button onClick={() => navigate("/metier/missions")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+        <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
+            <button onClick={() => navigate("/metier/file-attente")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
               Voir tout →
             </button>
           </div>
@@ -657,12 +661,12 @@ export default function DashboardMetier() {
             <i className="ti ti-speakerphone" style={{ fontSize: "15px", color: "#B25C2A" }} />
             <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>Campagnes</span>
           </div>
-          {mesCampagnes.length === 0 ? (
+        {mesCampagnes.length === 0 ? (
             <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>Aucune campagne</div>
-          ) : mesCampagnes.map((c: any, i: number) => (
+      ) : mesCampagnes.map((c: any, i: number) => (
             <div
               key={c.id}
-              onClick={() => navigate("/metier/campagnes")}
+              onClick={() => navigate("/metier/file-attente")}
               style={{ padding: "12px 20px", borderBottom: i < mesCampagnes.length - 1 ? "1px solid #F4F3F0" : "none", cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -672,7 +676,7 @@ export default function DashboardMetier() {
             </div>
           ))}
           <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
-            <button onClick={() => navigate("/metier/campagnes")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+            <button onClick={() => navigate("/metier/file-attente")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
               Voir tout →
             </button>
           </div>

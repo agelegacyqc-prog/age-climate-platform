@@ -21,6 +21,8 @@ import MonProfil from "./pages/client/MonProfil"
 import Onboarding from "./pages/client/Onboarding"
 import ClientCampagnes from "./pages/client/MesCampagnes"
 import ClientDemandes from "./pages/client/Demandes"
+import PriseRdv from "./pages/client/PriseRdv"
+import MonAgenda from "./pages/client/MonAgenda"
 import BiensCampagnes from "./pages/client/BiensCampagnes"
 import GestionUtilisateurs from "./pages/client/GestionUtilisateurs"
 import FicheCampagne from "./pages/metier/FicheCampagne"
@@ -60,6 +62,7 @@ import AGEcarbonNouveau from "./pages/metier/AGEcarbonNouveau"
 import AGEcarbonSaisie from "./pages/metier/AGEcarbonSaisie"
 import AGEcarbonResultats from "./pages/metier/AGEcarbonResultats"
 import RDVConsultant from "./pages/metier/RDVConsultant"
+import DisponibilitesRDV from "./pages/metier/DisponibilitesRDV"
 import Utilisateurs from "./pages/metier/Utilisateurs"
 import PartenaireLogin from "./pages/partenaire/PartenaireLogin"
 import PartenaireInscription from "./pages/partenaire/PartenaireInscription"
@@ -99,6 +102,8 @@ export default function App() {
           <Route path="client/profil" element={<ProtectedRoute><MonProfil /></ProtectedRoute>} />
           <Route path="client/campagnes" element={<ProtectedRoute><ClientCampagnes /></ProtectedRoute>} />
           <Route path="client/demandes" element={<ProtectedRoute><ClientDemandes /></ProtectedRoute>} />
+          <Route path="client/prise-rdv/:consultantId" element={<ProtectedRoute><PriseRdv /></ProtectedRoute>} />
+          <Route path="client/mon-agenda" element={<ProtectedRoute><MonAgenda /></ProtectedRoute>} />
           <Route path="client/reporting" element={<ProtectedRoute><ClientReporting /></ProtectedRoute>} />
           <Route path="client/biens-campagnes" element={<ProtectedRoute><BiensCampagnes /></ProtectedRoute>} />
           <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
@@ -140,6 +145,7 @@ export default function App() {
 <Route path="metier/agecarbon/:id" element={<ProtectedRoute><AGEcarbonSaisie /></ProtectedRoute>} />
 <Route path="metier/agecarbon/:bilanId/resultats" element={<ProtectedRoute><AGEcarbonResultats /></ProtectedRoute>} />
 <Route path="metier/rdv" element={<ProtectedRoute><RDVConsultant /></ProtectedRoute>} />
+<Route path="metier/disponibilites-rdv" element={<ProtectedRoute><DisponibilitesRDV /></ProtectedRoute>} />
 <Route path="metier/mandats" element={<ProtectedRoute><Mandats /></ProtectedRoute>} />
         </Route>
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />

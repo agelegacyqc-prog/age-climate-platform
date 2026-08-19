@@ -1,10 +1,10 @@
 // GED.tsx — Gestion Électronique de Documents
-// Module P2-08 — Vue liste + arborescence + versioning
+// Module P2-08 — Vue arborescence (par actif) + versioning
 
 import React, { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import {
-  Upload, Search, FolderOpen, List, ChevronDown, ChevronRight,
+  Upload, Search, FolderOpen, ChevronDown, ChevronRight,
   Download, Trash2, Eye, Plus, FileText, Clock, CheckCircle,
   AlertTriangle, History, X, RotateCcw
 } from "lucide-react"
@@ -53,6 +53,7 @@ interface Document {
   region_code: string | null
   note: string | null
   actif?: { nom: string; adresse: string } | null
+  client?: { nom: string; prenom: string } | null
 }
 
 interface Actif {
@@ -60,8 +61,6 @@ interface Actif {
   nom: string
   adresse: string
 }
-
-type VueType = 'liste' | 'arborescence'
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
 
@@ -107,14 +106,11 @@ export default function GED() {
   const [userRegion, setUserRegion] = useState("")
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
-  // Vue
-  const [vue, setVue] = useState<VueType>('liste')
-
   // Filtres
   const [recherche, setRecherche] = useState("")
   const [filtreCategorie, setFiltreCategorie] = useState("tous")
   const [filtreType, setFiltreType] = useState("tous")
-  const [filtreActif, setFiltreActif] = useState("tous")
+  const [filtreClient, setFiltreClient] = useState("tous")
   const [afficherVersions, setAfficherVersions] = useState(false)
 
   // Upload
@@ -303,10 +299,23 @@ export default function GED() {
     if (!afficherVersions && !d.est_version_courante) return false
     if (filtreCategorie !== "tous" && d.categorie !== filtreCategorie) return false
     if (filtreType !== "tous" && d.type_fichier !== filtreType) return false
-    if (filtreActif !== "tous" && d.actif_id !== filtreActif) return false
+    if (filtreClient !== "tous" && d.client_id !== filtreClient) return false
     if (recherche && !d.nom?.toLowerCase().includes(recherche.toLowerCase())) return false
     return true
   })
+
+  // ── Clients disponibles pour le filtre ────────────────────────────────────────
+  // Construit à partir de TOUS les documents (pas documentsFiltres), pour que la liste
+  // ne se réduise pas quand un filtre catégorie/type/client est déjà actif.
+
+  const clientsMap = new Map<string, string>()
+  documents.forEach(d => {
+    if (d.client_id) {
+      const label = d.client ? `${d.client.prenom ?? ""} ${d.client.nom ?? ""}`.trim() : ""
+      clientsMap.set(d.client_id, label || d.client_id)
+    }
+  })
+  const clientsDisponibles = Array.from(clientsMap.entries()).sort((a, b) => a[1].localeCompare(b[1], "fr"))
 
   // ── Arborescence par actif ──────────────────────────────────────────────────
 
@@ -360,23 +369,6 @@ export default function GED() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {/* Toggle vue */}
-          <div style={{ display: "flex", border: "1px solid #E5E1DA", borderRadius: 8, overflow: "hidden" }}>
-            {([
-              { key: "liste" as VueType, icon: <List size={15} />, label: "Liste" },
-              { key: "arborescence" as VueType, icon: <FolderOpen size={15} />, label: "Dossiers" },
-            ]).map(v => (
-              <button key={v.key} onClick={() => setVue(v.key)} style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "7px 12px", border: "none", cursor: "pointer",
-                background: vue === v.key ? "#0F6E56" : "#fff",
-                color: vue === v.key ? "#fff" : "#78716C",
-                fontSize: 12, fontWeight: 500
-              }}>
-                {v.icon} {v.label}
-              </button>
-            ))}
-          </div>
           <button onClick={() => { setShowUploadForm(!showUploadForm); setUploadParentId(null) }} style={{
             display: "flex", alignItems: "center", gap: 6,
             background: "#0F6E56", color: "white", border: "none",
@@ -525,9 +517,9 @@ export default function GED() {
           <option value="tous">Tous types</option>
           {Object.entries(TYPE_FICHIER_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select value={filtreActif} onChange={e => setFiltreActif(e.target.value)} style={selectStyle}>
-          <option value="tous">Tous les actifs</option>
-          {actifs.map(a => <option key={a.id} value={a.id}>{a.nom || a.adresse}</option>)}
+        <select value={filtreClient} onChange={e => setFiltreClient(e.target.value)} style={selectStyle}>
+          <option value="tous">Tous les clients</option>
+          {clientsDisponibles.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#78716C", cursor: "pointer", whiteSpace: "nowrap" as const }}>
           <input type="checkbox" checked={afficherVersions} onChange={e => setAfficherVersions(e.target.checked)}
@@ -536,145 +528,8 @@ export default function GED() {
         </label>
       </div>
 
-      {/* Vue Liste */}
-      {vue === "liste" && (
-        <div style={{ background: "#fff", border: "1px solid #E5E1DA", borderRadius: 12, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" as const }}>
-            <thead>
-              <tr style={{ background: "#F8F7F4", borderBottom: "1px solid #E5E1DA" }}>
-{["Nom", "Type", "Catégorie", "Actif", "Client", "Version", "Taille", "Date", "Note", ""].map((h, i) => (
-                  <th key={i} style={{
-                    padding: "10px 16px", textAlign: "left" as const,
-                    fontSize: 10, fontWeight: 700, color: "#78716C",
-                    letterSpacing: "0.06em", textTransform: "uppercase" as const
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {documentsFiltres.length === 0 ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: 48, textAlign: "center" as const, color: "#78716C" }}>
-                    <FileText size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
-                    <p style={{ margin: 0 }}>Aucun document trouvé</p>
-                  </td>
-                </tr>
-              ) : (
-                documentsFiltres.map(doc => {
-                  const type = TYPE_FICHIER_CONFIG[doc.type_fichier] ?? TYPE_FICHIER_CONFIG.autre
-                  const cat = CATEGORIE_CONFIG[doc.categorie] ?? CATEGORIE_CONFIG.autre
-                  return (
-                    <tr key={doc.id}
-                      style={{ borderBottom: "1px solid #F1F5F9", opacity: doc.est_version_courante ? 1 : 0.6 }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#FAFFFE")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <i className={`ti ${type.icon}`} style={{ fontSize: 16, color: type.couleur, flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, fontWeight: 500, color: "#1F2937" }}>
-                            {doc.nom || doc.nom_fichier || "—"}
-                          </span>
-                          {!doc.est_version_courante && (
-                            <span style={{
-                              fontSize: 9, padding: "1px 6px", borderRadius: 4,
-                              background: "#F1F5F9", color: "#78716C", fontWeight: 600
-                            }}>ARCHIVÉ</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{
-                          background: type.fond, color: type.couleur,
-                          padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600
-                        }}>
-                          {type.label}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{
-                          background: cat.fond, color: cat.couleur,
-                          padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 500,
-                          display: "flex", alignItems: "center", gap: 4, width: "fit-content"
-                        }}>
-                          <i className={`ti ${cat.icone}`} style={{ fontSize: 11 }} />
-                          {cat.label}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#78716C" }}>
-                        {(doc.actif as any)?.nom || (doc.actif as any)?.adresse || "—"}
-                      </td>
-
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#78716C" }}>
-                        {doc.client ? `${(doc.client as any).prenom ?? ''} ${(doc.client as any).nom ?? ''}`.trim() || "—" : "—"}
-                      </td>
-
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{
-                          fontFamily: "JetBrains Mono, monospace", fontSize: 11, fontWeight: 700,
-                          padding: "2px 8px", borderRadius: 4,
-                          background: doc.est_version_courante ? "#ECFDF5" : "#F1F5F9",
-                          color: doc.est_version_courante ? "#0F6E56" : "#78716C"
-                        }}>
-                          v{doc.version ?? 1}
-                          {doc.est_version_courante && " ✓"}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "12px 16px", fontSize: 11, color: "#9CA3AF", fontFamily: "JetBrains Mono, monospace" }}>
-                        {formatTaille(doc.taille_octets)}
-                      </td>
-
-                      <td style={{ padding: "12px 16px", fontSize: 11, color: "#78716C", whiteSpace: "nowrap" as const }}>
-                        {doc.created_at ? formatDateCourte(doc.created_at) : "—"}
-                      </td>
-
-                      <td style={{ padding: "12px 16px", fontSize: 11, color: "#78716C", fontStyle: "italic" as const, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                        {doc.note ?? "—"}
-                      </td>
-
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <BtnIcone onClick={() => telecharger(doc)} title="Télécharger">
-                            <Download size={13} />
-                          </BtnIcone>
-                          {doc.est_version_courante && (
-                            <BtnIcone
-                              onClick={() => {
-                                setUploadParentId(doc.id)
-                                setUploadCategorie(doc.categorie)
-                                setUploadActifId(doc.actif_id ?? "")
-                                setShowUploadForm(true)
-                              }}
-                              title="Nouvelle version">
-                              <History size={13} />
-                            </BtnIcone>
-                          )}
-                          <BtnIcone onClick={() => voirVersions(doc)} title="Versions">
-                            <Eye size={13} />
-                          </BtnIcone>
-                          {(userRole === "admin" || userRole === "admin_national" || doc.consultant_id === userId) && (
-                            <BtnIcone onClick={() => handleDelete(doc)} title="Supprimer" danger>
-                              <Trash2 size={13} />
-                            </BtnIcone>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Vue Arborescence */}
-      {vue === "arborescence" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Vue Dossiers */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {Object.entries(parActif).map(([actifKey, docs]) => {
             const actif = actifs.find(a => a.id === actifKey)
             const label = actif ? (actif.nom || actif.adresse) : "Documents généraux"
@@ -742,6 +597,7 @@ export default function GED() {
                                   </p>
                                   <p style={{ margin: 0, fontSize: 11, color: "#78716C" }}>
                                     {formatDateCourte(doc.created_at)} · {formatTaille(doc.taille_octets)}
+                                    {doc.client && ` · ${doc.client.prenom ?? ""} ${doc.client.nom ?? ""}`.trim()}
                                     {doc.note && ` · ${doc.note}`}
                                   </p>
                                 </div>
@@ -784,7 +640,6 @@ export default function GED() {
             </div>
           )}
         </div>
-      )}
 
       {/* Drawer historique versions */}
       {versionsDoc && (

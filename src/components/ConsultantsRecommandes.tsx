@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 
 interface Consultant {
   id: string
+  user_id: string | null
   prenom: string
   nom: string
   titre: string
@@ -27,21 +29,13 @@ interface Props {
 }
 
 export default function ConsultantsRecommandes({ alertesRegl }: Props) {
+  const navigate = useNavigate()
   const [consultants, setConsultants]       = useState<Consultant[]>([])
   const [loading, setLoading]               = useState(true)
+  const [ouvert, setOuvert]                 = useState(false)
   const [drawerOpen, setDrawerOpen]         = useState(false)
   const [selected, setSelected]             = useState<Consultant | null>(null)
   const [ongletMethodo, setOngletMethodo]   = useState("")
-
-  // Formulaire RDV
-  const [rdvOpen, setRdvOpen]               = useState(false)
-  const [rdvMission, setRdvMission]         = useState("")
-  const [rdvDate, setRdvDate]               = useState("")
-  const [rdvCreneau, setRdvCreneau]         = useState("indifferent")
-  const [rdvMessage, setRdvMessage]         = useState("")
-  const [rdvLoading, setRdvLoading]         = useState(false)
-  const [rdvSuccess, setRdvSuccess]         = useState(false)
-  const [rdvError, setRdvError]             = useState("")
 
   useEffect(() => { chargerConsultants() }, [alertesRegl])
 
@@ -61,7 +55,7 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
           score: c.competences.filter(comp => competencesRecherchees.includes(comp)).length,
         }))
         .sort((a: any, b: any) => b.score - a.score)
-        .slice(0, 6)
+        .slice(0, 10)
 
       setConsultants(sorted)
     } finally {
@@ -75,50 +69,12 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
       comp => alertesRegl.some(a => a.reglementation === comp)
     ) || c.competences[0] || ""
     setOngletMethodo(premiereCompetence)
-    setRdvOpen(false)
-    setRdvSuccess(false)
-    setRdvError("")
     setDrawerOpen(true)
   }
 
-  async function handleDemanderRDV() {
-    if (!selected) return
-    if (!rdvMission) { setRdvError("Veuillez choisir un type de mission."); return }
-    if (!rdvDate)    { setRdvError("Veuillez choisir une date souhaitée."); return }
-
-    setRdvLoading(true)
-    setRdvError("")
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Non authentifié")
-
-      const { error } = await supabase.from("demandes_rdv").insert({
-        client_id:     user.id,
-        consultant_id: selected.id,
-        type_mission:  rdvMission,
-        date_souhaitee: rdvDate,
-        creneau:       rdvCreneau,
-        message:       rdvMessage || null,
-        statut:        "en_attente",
-        lu_admin:      false,
-      })
-      if (error) throw error
-
-      setRdvSuccess(true)
-      setTimeout(() => {
-        setDrawerOpen(false)
-        setRdvSuccess(false)
-        setRdvOpen(false)
-        setRdvMission("")
-        setRdvDate("")
-        setRdvCreneau("indifferent")
-        setRdvMessage("")
-      }, 2000)
-    } catch (err: any) {
-      setRdvError(err.message || "Erreur lors de la demande.")
-    } finally {
-      setRdvLoading(false)
-    }
+  function allerVersAgenda(c: Consultant) {
+    if (!c.user_id) return
+    navigate(`/client/prise-rdv/${c.user_id}`)
   }
 
   if (loading) return (
@@ -127,13 +83,26 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
     </div>
   )
 
-   
- if (consultants.length === 0) return null
+  if (consultants.length === 0) return null
 
   return (
     <>
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", padding: "20px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827", marginBottom: "4px" }}>Consultants recommandés</div>
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", overflow: "hidden" }}>
+        <button
+          onClick={() => setOuvert(o => !o)}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+          aria-expanded={ouvert}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#B25C2A", flexShrink: 0 }} />
+            <i className="ti ti-users" style={{ fontSize: "16px", color: "#B25C2A" }} />
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Experts recommandés</span>
+            <span style={{ fontSize: "12px", color: "#9CA3AF" }}>· {consultants.length} profils</span>
+          </div>
+          <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
+        </button>
+        {ouvert && (
+        <div style={{ padding: "0 20px 20px" }}>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "16px" }}>Sélectionnés selon vos alertes réglementaires</div>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {consultants.map((c) => {
@@ -167,6 +136,8 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
             )
           })}
         </div>
+        </div>
+        )}
       </div>
 
       {/* ── Drawer ── */}
@@ -177,7 +148,7 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
 
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Fiche consultant</div>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Fiche expert</div>
               <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
                 <i className="ti ti-x" style={{ fontSize: "14px" }} />
               </button>
@@ -255,115 +226,17 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
                 </div>
               </div>
 
-              {/* Formulaire RDV */}
-              {rdvOpen && !rdvSuccess && (
-                <div style={{ borderTop: "1px solid #E2DDD8", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>Demande de rendez-vous</div>
-
-                  {rdvError && (
-                    <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "12px", color: "#B91C1C", display: "flex", gap: "6px", alignItems: "center" }}>
-                      <i className="ti ti-alert-triangle" style={{ fontSize: "13px" }} />
-                      {rdvError}
-                    </div>
-                  )}
-
-                  {/* Type de mission */}
-                  <div>
-                    <label style={labelStyle}>Type de mission <span style={{ color: "#B91C1C" }}>*</span></label>
-                    <select className="input" value={rdvMission} onChange={e => setRdvMission(e.target.value)}>
-                      <option value="">Choisir…</option>
-                      {selected.competences.map(comp => (
-                        <option key={comp} value={comp}>{COMPETENCE_LABELS[comp] || comp}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Date souhaitée */}
-                  <div>
-                    <label style={labelStyle}>Date souhaitée <span style={{ color: "#B91C1C" }}>*</span></label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={rdvDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={e => setRdvDate(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Créneau */}
-                  <div>
-                    <label style={labelStyle}>Créneau préféré</label>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {[
-                        { value: "matin", label: "Matin" },
-                        { value: "apres_midi", label: "Après-midi" },
-                        { value: "indifferent", label: "Indifférent" },
-                      ].map(cr => (
-                        <label key={cr.value} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", border: `1px solid ${rdvCreneau === cr.value ? "#B25C2A" : "#E2DDD8"}`, background: rdvCreneau === cr.value ? "#F9F0EA" : "white", fontSize: "12px", color: rdvCreneau === cr.value ? "#B25C2A" : "#374151" }}>
-                          <input type="radio" name="creneau" value={cr.value} checked={rdvCreneau === cr.value} onChange={() => setRdvCreneau(cr.value)} style={{ accentColor: "#B25C2A" }} />
-                          {cr.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Message */}
-                  <div>
-                    <label style={labelStyle}>Message (optionnel)</label>
-                    <textarea
-  style={{ height: "80px", resize: "none", paddingTop: "8px", width: "100%", padding: "8px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "14px", fontFamily: "Inter, sans-serif", color: "#111827", background: "white", outline: "none", boxSizing: "border-box" as const }}
-                      placeholder="Décrivez brièvement votre besoin…"
-                      value={rdvMessage}
-                      onChange={e => setRdvMessage(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Succès */}
-              {rdvSuccess && (
-                <div style={{ padding: "14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "8px", display: "flex", gap: "10px", alignItems: "center" }}>
-                  <i className="ti ti-circle-check" style={{ fontSize: "20px", color: "#2F7D5C" }} />
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#2F7D5C" }}>Demande envoyée</div>
-                    <div style={{ fontSize: "12px", color: "#6B7280" }}>L'équipe AGE vous recontacte sous 48h.</div>
-                  </div>
-                </div>
-              )}
-
             </div>
 
             {/* Footer */}
             <div style={{ padding: "16px 20px", borderTop: "1px solid #E2DDD8", display: "flex", gap: "8px", flexShrink: 0 }}>
-              {!rdvOpen && !rdvSuccess && (
-                <button
-                  onClick={() => setRdvOpen(true)}
-                  style={{ flex: 1, padding: "10px", background: "#B25C2A", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                >
-                  <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} />
-                  Demander un RDV
-                </button>
-              )}
-              {rdvOpen && !rdvSuccess && (
-                <>
-                  <button
-                    onClick={() => { setRdvOpen(false); setRdvError("") }}
-                    style={{ flex: 1, padding: "10px", background: "transparent", color: "#6B7280", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={handleDemanderRDV}
-                    disabled={rdvLoading}
-                    style={{ flex: 2, padding: "10px", background: "#B25C2A", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                  >
-                    {rdvLoading
-                      ? <><i className="ti ti-loader" style={{ fontSize: "14px" }} /> Envoi…</>
-                      : <><i className="ti ti-send" style={{ fontSize: "14px" }} /> Confirmer la demande</>
-                    }
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => allerVersAgenda(selected)}
+                style={{ flex: 1, padding: "10px", background: "#B25C2A", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              >
+                <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} />
+                Voir l'agenda et réserver
+              </button>
             </div>
 
           </div>
@@ -371,12 +244,4 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
       )}
     </>
   )
-}
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "#374151",
-  marginBottom: "6px",
 }

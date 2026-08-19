@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DemandeDispatch {
   id: string
-  type: "campagne" | "mission" | "climatique"
+  type: "campagne" | "mission" | "climatique" | "rdv"
   client_nom: string
   region: string | null
   multi_region: boolean
   statut: string
   created_at: string
   responsable_id: string | null
+  consultant_id: string | null
 }
 
 interface DemandeRDV {
@@ -24,6 +26,7 @@ interface DemandeRDV {
   statut: string
   lu_admin: boolean
   created_at: string
+  responsable_id: string | null
 }
 
 interface AlerteScore {
@@ -59,6 +62,7 @@ const COMPETENCE_LABELS: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function FileAttente() {
+  const navigate = useNavigate()
   const [roleAGE, setRoleAGE] = useState<string>("consultant")
   const [onglet, setOnglet] = useState<"dispatch" | "rdv" | "marketplace" | "climatique" | "alertes">("dispatch")
   const [demandesDispatch, setDemandesDispatch] = useState<DemandeDispatch[]>([])
@@ -94,51 +98,81 @@ export default function FileAttente() {
   const [filtreStatut, setFiltreStatut]       = useState<"tous" | "non_assignee" | "assignee">("tous")
 
   const [maRegion, setMaRegion] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  useEffect(() => {
+ useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).maybeSingle()
-        const roleBrut = profil?.role || "consultant"
-        const role = roleBrut === "admin" ? "admin_national" : roleBrut
-        setRoleAGE(role)
-        setMaRegion(profil?.region || null)
-        if (role === "responsable_regional") setOnglet("climatique")
-      }
+      if (!user) { setLoading(false); return }
+      setUserId(user.id)
+      const { data: profil } = await supabase.from("profils").select("role, region").eq("id", user.id).maybeSingle()
+      const roleBrut = profil?.role || "consultant"
+      const role = roleBrut === "admin" ? "admin_national" : roleBrut
+      setRoleAGE(role)
+      setMaRegion(profil?.region || null)
+      if (role === "responsable_regional") setOnglet("climatique")
+      if (role === "consultant") setOnglet("dispatch")
+      await charger(role, profil?.region || null, user.id)
     })()
-    charger()
   }, [])
 
-  async function charger() {
+async function charger(roleParam?: string, regionParam?: string | null, uidParam?: string | null) {
+    const roleActuel = roleParam ?? roleAGE
+    const regionActuelle = regionParam !== undefined ? regionParam : maRegion
+    const uidActuel = uidParam !== undefined ? uidParam : userId
+
     setLoading(true)
     try {
-      // Campagnes soumises par clients
-     const { data: campagnes } = await supabase
-  .from("campagnes")
-  .select("id, nom, statut, region, multi_region, responsable_id, created_at, client_id")
-  .eq("origine", "client")
-  .order("created_at", { ascending: false })
+      // Campagnes soumises par clients — scopees par role : admin = tout,
+      // responsable_regional = sa region (+ multi_region), consultant = les siennes
+      let campagnesQuery = supabase
+        .from("campagnes")
+        .select("id, nom, statut, region, multi_region, responsable_id, consultant_id, created_at, client_id")
+        .eq("origine", "client")
+        .order("created_at", { ascending: false })
 
-     // Missions soumises
-      const { data: missions } = await supabase
-  .from("missions")
-  .select("id, societe, statut, region, responsable_id, created_at, client_id")
-  .order("created_at", { ascending: false })
+      let missionsQuery = supabase
+        .from("missions")
+        .select("id, societe, statut, region, responsable_id, consultant_id, created_at, client_id")
+        .order("created_at", { ascending: false })
 
-      // Demandes d'analyse climatique
-      const { data: analysesClimatiques } = await supabase
-  .from("rapports_client")
-  .select("id, statut, region, responsable_id, created_at, actif_id, actifs(nom)")
-  .eq("type_rapport", "analyse_climatique")
-  .in("statut", ["demande", "en_cours"])
-  .order("created_at", { ascending: false })
+     if (roleActuel === "responsable_regional" && regionActuelle) {
+        campagnesQuery = campagnesQuery.or(`region.eq.${regionActuelle},multi_region.eq.true,responsable_id.is.null,responsable_id.eq.${uidActuel}`)
+        missionsQuery = missionsQuery.eq("region", regionActuelle)
+      } else if (roleActuel === "consultant" && uidActuel) {
+        campagnesQuery = campagnesQuery.eq("consultant_id", uidActuel)
+        missionsQuery = missionsQuery.eq("consultant_id", uidActuel)
+      }
 
-      // Demandes RDV
-    const { data: rdvs } = await supabase
-  .from("demandes_rdv")
-  .select("id, type_mission, date_souhaitee, creneau, message, statut, lu_admin, created_at, consultant_id, client_id")
-  .order("created_at", { ascending: false })
+      const { data: campagnes } = await campagnesQuery
+      const { data: missions } = await missionsQuery
+
+   // Demandes d'analyse climatique — scopees au consultant si applicable
+      let climatiqueQuery = supabase
+        .from("rapports_client")
+        .select("id, statut, region, responsable_id, consultant_id, created_at, actif_id, actifs(nom)")
+        .eq("type_rapport", "analyse_climatique")
+        .in("statut", ["demande", "en_cours"])
+        .order("created_at", { ascending: false })
+
+      if (roleActuel === "consultant" && uidActuel) {
+        climatiqueQuery = climatiqueQuery.eq("consultant_id", uidActuel)
+      }
+
+      const { data: analysesClimatiques } = await climatiqueQuery
+
+      // Demandes RDV — consultant deja fixe par le client a la creation ;
+      // seul responsable_id est dispatchable (par l'admin, vers un responsable regional)
+      let rdvQuery = supabase
+        .from("demandes_rdv")
+        .select("id, type_mission, date_souhaitee, creneau, message, statut, lu_admin, created_at, consultant_id, client_id, responsable_id")
+        .order("created_at", { ascending: false })
+
+      if (roleActuel === "responsable_regional" && uidActuel) {
+        rdvQuery = rdvQuery.or(`responsable_id.is.null,responsable_id.eq.${uidActuel}`)
+      }
+
+      const { data: rdvs } = await rdvQuery
 
 // Enrichir avec les noms des consultants
 const consultantIds = [...new Set((rdvs || []).map((r: any) => r.consultant_id))]
@@ -167,7 +201,7 @@ try {
 }
 
       // Mapper campagnes
-      const campagnesMapped: DemandeDispatch[] = (campagnes || []).map((c: any) => ({
+const campagnesMapped: DemandeDispatch[] = (campagnes || []).map((c: any) => ({
         id: c.id,
         type: "campagne",
         client_nom: c.nom || "—",
@@ -176,6 +210,7 @@ try {
         statut: c.statut,
         created_at: c.created_at,
         responsable_id: c.responsable_id,
+        consultant_id: c.consultant_id,
       }))
 
     // Mapper missions
@@ -188,10 +223,11 @@ try {
         statut: m.statut,
         created_at: m.created_at,
         responsable_id: m.responsable_id,
+        consultant_id: m.consultant_id,
       }))
 
       // Mapper analyses climatiques (region toujours NULL — pas de filtre régional à l'assignation)
-      const climatiqueMapped: DemandeDispatch[] = (analysesClimatiques || []).map((r: any) => ({
+const climatiqueMapped: DemandeDispatch[] = (analysesClimatiques || []).map((r: any) => ({
         id: r.id,
         type: "climatique",
         client_nom: r.actifs?.nom || "—",
@@ -200,6 +236,7 @@ try {
         statut: r.statut,
         created_at: r.created_at,
         responsable_id: r.responsable_id,
+        consultant_id: r.consultant_id ?? null,
       }))
       setDemandesClimatique(climatiqueMapped)
 
@@ -215,6 +252,7 @@ try {
         statut: r.statut,
         lu_admin: r.lu_admin,
         created_at: r.created_at,
+        responsable_id: r.responsable_id ?? null,
       }))
 console.log("campagnes:", campagnes, "missions:", missions, "rdvs:", rdvs)
       setDemandesDispatch([...campagnesMapped, ...missionsMapped].sort(
@@ -284,7 +322,7 @@ async function ouvrirAssignation(d: DemandeDispatch) {
     setSelectedResponsable("")
     setAssignSuccess(false)
 
-    const cibleConsultant = d.type === "climatique" && roleAGE === "responsable_regional"
+    const cibleConsultant = roleAGE === "responsable_regional"
 
     let query = supabase
       .from("profils")
@@ -302,19 +340,37 @@ async function ouvrirAssignation(d: DemandeDispatch) {
     setDrawerOpen(true)
   }
 
+function ouvrirAssignationRdv(r: DemandeRDV) {
+    ouvrirAssignation({
+      id: r.id,
+      type: "rdv",
+      client_nom: r.client_nom,
+      region: null,
+      multi_region: false,
+      statut: r.statut,
+      created_at: r.created_at,
+      responsable_id: r.responsable_id,
+      consultant_id: null,
+    })
+  }
+
 async function handleAssigner() {
   if (!selectedDemande || !selectedResponsable) return
   setAssignLoading(true)
   try {
-    const table =
+   const table =
       selectedDemande.type === "campagne" ? "campagnes" :
       selectedDemande.type === "mission"  ? "missions" :
+      selectedDemande.type === "rdv"      ? "demandes_rdv" :
       "rapports_client"
 
-    const cibleConsultant = selectedDemande.type === "climatique" && roleAGE === "responsable_regional"
-    const payload = cibleConsultant
-      ? { consultant_id: selectedResponsable, statut: "en_cours" }
-      : { responsable_id: selectedResponsable, statut: "en_cours" }
+    const cibleConsultant = roleAGE === "responsable_regional" && selectedDemande.type !== "rdv"
+    const payload =
+      selectedDemande.type === "rdv"
+        ? { responsable_id: selectedResponsable }
+        : cibleConsultant
+          ? { consultant_id: selectedResponsable, statut: "en_cours" }
+          : { responsable_id: selectedResponsable, statut: "en_cours" }
 
 const { error } = await supabase
       .from(table)
@@ -494,7 +550,7 @@ async function handleMarketplaceValider() {
     return matchType && matchStatut
   })
 
-  const nbNonLusRdv = demandesRdv.filter(r => !r.lu_admin && r.statut === "en_attente").length
+  const nbNonLusRdv = demandesRdv.filter(r => r.statut === "en_attente").length
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -518,17 +574,29 @@ async function handleMarketplaceValider() {
       </div>
 
       {/* Onglets */}
-   <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
+<div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #E2DDD8", paddingBottom: "0" }}>
         {[
-          { id: "dispatch", label: "Campagnes & Missions", count: demandesDispatch.filter(d => !d.responsable_id).length },
+          {
+            id: "dispatch",
+            label:
+              roleAGE === "consultant" ? "Mes campagnes & missions" :
+              roleAGE === "responsable_regional" ? "Campagnes & Missions (ma région)" :
+              "Campagnes & Missions",
+            count: roleAGE === "consultant"
+              ? demandesDispatch.filter(d => d.statut === "nouvelle" || d.statut === "soumise").length
+              : demandesDispatch.filter(d => !d.responsable_id).length,
+          },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
           { id: "marketplace", label: "Marketplace", count: demandesMarketplace.length },
           { id: "climatique", label: "Analyses climatiques", count: demandesClimatique.filter(d => d.statut === "demande").length },
           { id: "alertes", label: "Alertes score", count: demandesAlertes.length },
-      ].filter(o =>
-          roleAGE === "admin_national" ||
-          (roleAGE === "responsable_regional" && (o.id === "climatique" || o.id === "marketplace" || o.id === "alertes"))
-        ).map(o => (
+   ].filter(o => {
+          if (o.id === "dispatch") return true
+          if (roleAGE === "admin_national") return true
+          if (roleAGE === "responsable_regional") return o.id === "climatique" || o.id === "marketplace" || o.id === "alertes" || o.id === "rdv"
+          if (roleAGE === "consultant") return o.id === "climatique" || o.id === "rdv"
+          return false
+        }).map(o => (
           <button
             key={o.id}
             onClick={() => setOnglet(o.id as any)}
@@ -557,21 +625,23 @@ async function handleMarketplaceValider() {
       ) : (
         <>
           {/* ── Onglet Campagnes & Missions ── */}
-          {onglet === "dispatch" && roleAGE === "admin_national" && (
+          {onglet === "dispatch" && (
             <>
-              {/* Filtres */}
+              {/* Filtres — masques pour le consultant (rien a filtrer, tout lui est deja assigne) */}
+              {roleAGE !== "consultant" && (
               <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
                 <select className="input" style={{ width: "160px" }} value={filtreType} onChange={e => setFiltreType(e.target.value as any)}>
                   <option value="tous">Tous types</option>
                   <option value="campagne">Campagnes</option>
                   <option value="mission">Missions</option>
                 </select>
-                <select className="input" style={{ width: "160px" }} value={filtreStatut} onChange={e => setFiltreStatut(e.target.value as any)}>
+           <select className="input" style={{ width: "160px" }} value={filtreStatut} onChange={e => setFiltreStatut(e.target.value as any)}>
                   <option value="tous">Tous statuts</option>
                   <option value="non_assignee">Non assignées</option>
                   <option value="assignee">Assignées</option>
                 </select>
               </div>
+              )}
 
               <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 {demandesFiltrees.length === 0 ? (
@@ -623,14 +693,24 @@ async function handleMarketplaceValider() {
                               {d.responsable_id ? "Assignée" : "En attente"}
                             </span>
                           </td>
-                          <td style={{ ...tdStyle, textAlign: "right" }}>
-                            <button
-                              onClick={() => ouvrirAssignation(d)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                            >
-                              <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
-                              {d.responsable_id ? "Réassigner" : "Assigner"}
-                            </button>
+                <td style={{ ...tdStyle, textAlign: "right" }}>
+                            {roleAGE !== "consultant" ? (
+                              <button
+                                onClick={() => ouvrirAssignation(d)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                              >
+                                <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
+                                {d.responsable_id ? "Réassigner" : "Assigner"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => navigate(d.type === "campagne" ? `/metier/campagnes/${d.id}` : "/metier/missions")}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                              >
+                                <i className="ti ti-eye" style={{ fontSize: "13px" }} />
+                                Voir
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -649,7 +729,7 @@ async function handleMarketplaceValider() {
           )}
 
           {/* ── Onglet Demandes RDV ── */}
-          {onglet === "rdv" && roleAGE === "admin_national" && (
+          {onglet === "rdv" && (roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
               {demandesRdv.length === 0 ? (
                 <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
@@ -659,12 +739,13 @@ async function handleMarketplaceValider() {
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
+                 <tr style={{ background: "#F4F3F0", borderBottom: "1px solid #E2DDD8" }}>
                       <th style={thStyle}>Client</th>
                       <th style={thStyle}>Consultant</th>
                       <th style={thStyle}>Mission</th>
                       <th style={thStyle}>Date souhaitée</th>
                       <th style={thStyle}>Statut</th>
+                      <th style={thStyle}>Affectation</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
                     </tr>
                   </thead>
@@ -702,14 +783,31 @@ async function handleMarketplaceValider() {
                             {r.statut === "confirme" ? "Confirmé" : r.statut === "annule" ? "Annulé" : "En attente"}
                           </span>
                         </td>
+                       <td style={tdStyle}>
+                          <span className={r.responsable_id ? "badge badge--success" : "badge badge--warning"}>
+                            <i className={`ti ${r.responsable_id ? "ti-circle-check" : "ti-clock"}`} style={{ fontSize: "11px" }} />
+                            {r.responsable_id ? "Assignée" : "En attente"}
+                          </span>
+                        </td>
                         <td style={{ ...tdStyle, textAlign: "right" }}>
-                          <button
-                            onClick={() => ouvrirRdv(r)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            <i className="ti ti-eye" style={{ fontSize: "13px" }} />
-                            Voir
-                          </button>
+                          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                            {roleAGE === "admin_national" && (
+                              <button
+                                onClick={() => ouvrirAssignationRdv(r)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                              >
+                                <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
+                                {r.responsable_id ? "Réassigner" : "Assigner"}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => ouvrirRdv(r)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                            >
+                              <i className="ti ti-eye" style={{ fontSize: "13px" }} />
+                              Voir
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -759,14 +857,18 @@ async function handleMarketplaceValider() {
                         {d.responsable_id ? "Assignée" : "En attente"}
                       </span>
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>
-                      <button
-                        onClick={() => ouvrirAssignation(d)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-                      >
-                        <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
-                        {d.responsable_id ? "Réassigner" : "Assigner"}
-                      </button>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                      {roleAGE !== "consultant" ? (
+                        <button
+                          onClick={() => ouvrirAssignation(d)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
+                          {d.responsable_id ? "Réassigner" : "Assigner"}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1019,8 +1121,8 @@ async function handleMarketplaceValider() {
             <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
               <div>
                 <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "4px" }}>Type</p>
-                <span className={selectedDemande.type === "campagne" ? "badge badge--info" : "badge badge--neutral"}>
-                  {selectedDemande.type === "campagne" ? "Campagne" : selectedDemande.type === "mission" ? "Mission" : "Analyse climatique"}
+               <span className={selectedDemande.type === "campagne" ? "badge badge--info" : "badge badge--neutral"}>
+                  {selectedDemande.type === "campagne" ? "Campagne" : selectedDemande.type === "mission" ? "Mission" : selectedDemande.type === "rdv" ? "Demande de RDV" : "Analyse climatique"}
                 </span>
               </div>
               <div>

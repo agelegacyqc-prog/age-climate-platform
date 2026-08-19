@@ -181,38 +181,51 @@ async function sauvegarder() {
         )}
       </div>
 
-      {/* Avatar + résumé */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px", display: "flex", alignItems: "center", gap: "20px" }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "22px", fontWeight: 500, color: "#0F6E56" }}>
-          {initiales}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>
-            {prenom || nom ? `${prenom} ${nom}`.trim() : "Mon profil"}
+ {/* Avatar + résumé */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#9FE1CB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "18px", fontWeight: 500, color: "#085041" }}>
+            {initiales}
           </div>
-          <div style={{ fontSize: "13px", color: "#64748B" }}>
-            {email}{profil ? ` · ${PROFILS.find(p => p.id === profil)?.label}` : ""}{niveau ? ` · Niveau : ${NIVEAUX_LABELS[niveau]?.split(" — ")[0]}` : ""}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "17px", fontWeight: 500, color: "#0F172A" }}>
+              {prenom || nom ? `${prenom} ${nom}`.trim() : "Mon profil"}
+            </div>
+            <div style={{ fontSize: "13px", color: "#64748B", marginTop: "2px" }}>
+              {email}{profil ? ` · ${PROFILS.find(p => p.id === profil)?.label}` : ""}{niveau ? ` · Niveau : ${NIVEAUX_LABELS[niveau]?.split(" — ")[0]}` : ""}
+            </div>
           </div>
         </div>
-        <div style={{ background: pctLabel >= 80 ? "#ECFDF5" : "#FFFBEB", color: pctLabel >= 80 ? "#065F46" : "#92400E", fontSize: "12px", fontWeight: 500, padding: "4px 12px", borderRadius: "6px" }}>
-          Profil complété à {pctLabel} %
+        <div style={{ marginTop: "18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+            <span style={{ fontSize: "12px", color: "#64748B" }}>Profil complété</span>
+            <span style={{ fontSize: "12px", fontWeight: 500, color: pctLabel >= 80 ? "#0F6E56" : "#854F0B" }}>{pctLabel} %</span>
+          </div>
+          <div style={{ height: "6px", borderRadius: "99px", background: "#F1F5F9", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pctLabel}%`, background: pctLabel >= 80 ? "#1D9E75" : "#BA7517", borderRadius: "99px", transition: "width 0.4s ease" }} />
+          </div>
         </div>
       </div>
 
       {/* Identité */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-          <i className="ti ti-user" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Identité</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#E6F1FB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <i className="ti ti-user" style={{ fontSize: "16px", color: "#185FA5" }} aria-hidden="true" />
+          </div>
+          <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A" }}>Identité</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div><label style={lStyle()}>Prénom</label><input value={prenom} onChange={e => setPrenom(e.target.value)} style={iStyle()} placeholder="Votre prénom" /></div>
           <div><label style={lStyle()}>Nom</label><input value={nom} onChange={e => setNom(e.target.value)} style={iStyle()} placeholder="Votre nom" /></div>
           <div><label style={lStyle()}>Téléphone</label><input value={telephone} onChange={e => setTelephone(e.target.value)} style={iStyle()} placeholder="06 XX XX XX XX" /></div>
           <div><label style={lStyle()}>Poste / Fonction</label><input value={poste} onChange={e => setPoste(e.target.value)} style={iStyle()} placeholder="Ex : Directeur des risques" /></div>
-          <div style={{ gridColumn: "1 / -1" }}>
+       <div style={{ gridColumn: "1 / -1" }}>
             <label style={lStyle()}>Email</label>
-            <input value={email} disabled style={iStyle(true)} />
+            <div style={{ position: "relative" }}>
+              <input value={email} disabled style={{ ...iStyle(true), paddingRight: "36px" }} />
+              <i className="ti ti-lock" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", color: "#94A3B8" }} aria-hidden="true" />
+            </div>
             <div style={{ fontSize: "11px", color: "#94A3B8", marginTop: "4px" }}>L'email ne peut pas être modifié ici</div>
           </div>
         </div>
@@ -220,9 +233,11 @@ async function sauvegarder() {
 
       {/* Organisation */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-          <i className="ti ti-building" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Organisation</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <i className="ti ti-building" style={{ fontSize: "16px", color: "#534AB7" }} aria-hidden="true" />
+          </div>
+          <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A" }}>Organisation</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div><label style={lStyle()}>Société</label><input value={societe} onChange={e => setSociete(e.target.value)} style={iStyle()} placeholder="Raison sociale" /></div>
@@ -243,9 +258,11 @@ async function sauvegarder() {
       {/* Mon parcours */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <i className="ti ti-route" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
-            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Mon parcours</div>
+         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <i className="ti ti-route" style={{ fontSize: "16px", color: "#0F6E56" }} aria-hidden="true" />
+            </div>
+            <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A" }}>Mon parcours</div>
           </div>
           <button onClick={() => setEditParcours(!editParcours)} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#0369A1", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
             <i className="ti ti-edit" style={{ fontSize: "14px" }} aria-hidden="true" />
@@ -299,9 +316,11 @@ async function sauvegarder() {
 
       {/* Sécurité */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-          <i className="ti ti-lock" style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Sécurité</div>
+     <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "8px", background: "#FAECE7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <i className="ti ti-lock" style={{ fontSize: "16px", color: "#993C1D" }} aria-hidden="true" />
+          </div>
+          <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A" }}>Sécurité</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFC", borderRadius: "8px" }}>
           <div>

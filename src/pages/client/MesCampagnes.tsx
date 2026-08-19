@@ -66,6 +66,13 @@ export default function MesCampagnes() {
   const [actifsImportes, setActifsImportes] = useState<ActifImporte[]>([])
   const [importErreur, setImportErreur]     = useState("")
   const [importLoading, setImportLoading]   = useState(false)
+
+  // Import a posteriori sur une campagne déjà créée (ouvert depuis le détail dépliable)
+  const [actifsImportesExistante, setActifsImportesExistante] = useState<ActifImporte[]>([])
+  const [importErreurExistante, setImportErreurExistante]     = useState("")
+  const [importLoadingExistante, setImportLoadingExistante]   = useState(false)
+  const [importSuccesExistante, setImportSuccesExistante]     = useState("")
+  const fileInputExistanteRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState<FormCampagne>({
     nom: "", type_campagne: "", zone_geo: "", date_debut: "", date_fin: "", description: "",
   })
@@ -127,6 +134,15 @@ async function load() {
   function traiterLignes(rows: Record<string, string>[]) {
     if (rows.length === 0) { setImportErreur("Le fichier est vide."); return }
     if (rows.length > 500) { setImportErreur("Maximum 500 lignes par import."); return }
+    const colonnesDetectees = Object.keys(rows[0] || {})
+    if (!colonnesDetectees.includes("nom") && !colonnesDetectees.includes("adresse")) {
+      setImportErreur(
+        `Colonnes attendues introuvables (détecté : ${colonnesDetectees.join(", ") || "aucune"}). ` +
+        `Vérifiez que le fichier utilise bien le modèle téléchargé (séparateur virgule, colonnes "nom", "adresse", "ville", "code_postal"...).`
+      )
+      setActifsImportes([])
+      return
+    }
     const actifs: ActifImporte[] = rows.map((row, i) => {
       const erreurs: string[] = []
       if (!row.nom) erreurs.push("nom manquant")
@@ -153,12 +169,158 @@ async function load() {
     setActifsImportes(actifs)
   }
 
+  function handleFichierExistante(file: File) {
+    setImportErreurExistante("")
+    setImportSuccesExistante("")
+    setActifsImportesExistante([])
+    const ext = file.name.split(".").pop()?.toLowerCase()
+    if (ext === "csv") {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        encoding: "UTF-8",
+        complete: (result) => { traiterLignesExistante(result.data as Record<string, string>[]) },
+        error: () => setImportErreurExistante("Erreur lors de la lecture du fichier CSV."),
+      })
+    } else if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer)
+        const workbook = XLSX.read(data, { type: "array" })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[]
+        traiterLignesExistante(rows)
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      setImportErreurExistante("Format non supporté. Utilisez un fichier CSV ou Excel (.xlsx).")
+    }
+  }
+
+  function traiterLignesExistante(rows: Record<string, string>[]) {
+    if (rows.length === 0) { setImportErreurExistante("Le fichier est vide."); return }
+    if (rows.length > 500) { setImportErreurExistante("Maximum 500 lignes par import."); return }
+    const colonnesDetectees = Object.keys(rows[0] || {})
+    if (!colonnesDetectees.includes("nom") && !colonnesDetectees.includes("adresse")) {
+      setImportErreurExistante(
+        `Colonnes attendues introuvables (détecté : ${colonnesDetectees.join(", ") || "aucune"}). ` +
+        `Vérifiez que le fichier utilise bien le modèle téléchargé (séparateur virgule, colonnes "nom", "adresse", "ville", "code_postal"...).`
+      )
+      setActifsImportesExistante([])
+      return
+    }
+    const actifs: ActifImporte[] = rows.map((row, i) => {
+      const erreurs: string[] = []
+      if (!row.nom) erreurs.push("nom manquant")
+      if (!row.adresse) erreurs.push("adresse manquante")
+      if (!row.ville) erreurs.push("ville manquante")
+      if (!row.code_postal) erreurs.push("code postal manquant")
+      return {
+        nom:               row.nom || "",
+        adresse:           row.adresse || "",
+        ville:             row.ville || "",
+        code_postal:       row.code_postal || "",
+        type_batiment:     row.type_batiment || undefined,
+        surface:           row.surface ? parseInt(row.surface) : undefined,
+        annee_construction: row.annee_construction ? parseInt(row.annee_construction) : undefined,
+        valeur_marche:     row.valeur_marche ? parseFloat(row.valeur_marche) : undefined,
+        type_bien:         row.type_bien || undefined,
+        telephone_client:  row.telephone_client || undefined,
+        email_client:      row.email_client || undefined,
+        nom_proprietaire:  row.nom_proprietaire || undefined,
+        score_climatique:  row.score_climatique ? parseInt(row.score_climatique) : undefined,
+        _erreur:           erreurs.length > 0 ? `Ligne ${i + 2} : ${erreurs.join(", ")}` : undefined,
+      }
+    })
+    setActifsImportesExistante(actifs)
+  }
+
+  async function handleImporterSurCampagne(campagneId: string) {
+    const actifsValides = actifsImportesExistante.filter(a => !a._erreur)
+    if (actifsValides.length === 0) return
+
+  setImportLoadingExistante(true)
+    setImportErreurExistante("")
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setImportLoadingExistante(false); return }
+
+    const { data: profilClient } = await supabase
+      .from("profils_client")
+      .select("type_client")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const categorieImport =
+      profilClient?.type_client === "banque"    ? "biens_finances" :
+      profilClient?.type_client === "assurance" ? "biens_assures"  :
+                                                    "patrimoine_client"
+
+    const erreursImport: string[] = []
+    let nbReussis = 0
+    for (const actif of actifsValides) {
+      const { _erreur, ...actifData } = actif
+      const { data: nouvelActif, error: errActif } = await supabase
+        .from("actifs")
+        .insert({
+          ...actifData,
+          user_id:        user.id,
+          client_id:      user.id,
+         statut_analyse: "en_attente",
+          categorie:      categorieImport,
+        })
+        .select("id")
+        .single()
+
+      if (errActif) {
+        console.error("Erreur création actif:", errActif)
+        erreursImport.push(`${actif.nom || "Ligne sans nom"} : ${errActif.message}`)
+        continue
+      }
+
+      if (nouvelActif) {
+        const { error: errLiaison } = await supabase.from("campagnes_actifs").insert({
+          campagne_id: campagneId,
+          actif_id:    nouvelActif.id,
+        })
+        if (errLiaison) {
+          console.error("Erreur liaison campagne_actif:", errLiaison)
+          erreursImport.push(`${actif.nom} : créé mais non lié à la campagne (${errLiaison.message})`)
+        } else {
+          nbReussis++
+        }
+      }
+    }
+
+    setImportLoadingExistante(false)
+    setActifsImportesExistante([])
+    if (fileInputExistanteRef.current) fileInputExistanteRef.current.value = ""
+
+    if (erreursImport.length > 0) {
+      setImportErreurExistante(`${erreursImport.length} bien(s) non importé(s) : ${erreursImport.slice(0, 3).join(" · ")}${erreursImport.length > 3 ? "…" : ""}`)
+    }
+    if (nbReussis > 0) {
+      setImportSuccesExistante(`${nbReussis} bien${nbReussis > 1 ? "s" : ""} ajouté${nbReussis > 1 ? "s" : ""} à la campagne.`)
+      setTimeout(() => setImportSuccesExistante(""), 4000)
+    }
+  }
+
   async function handleSoumettre() {
     if (!form.nom || !form.type_campagne) return
     setLoadingForm(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingForm(false); return }
+
+    const { data: profilClient } = await supabase
+      .from("profils_client")
+      .select("type_client")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const categorieImport =
+      profilClient?.type_client === "banque"    ? "biens_finances" :
+      profilClient?.type_client === "assureur"  ? "biens_assures"  :
+                                                    "patrimoine_client"
 
     // Créer la campagne
     const { error: errCampagne } = await supabase.from("campagnes").insert({
@@ -189,8 +351,9 @@ async function load() {
       .limit(1)
       .single()
 
-    // Importer les actifs valides si présents
+// Importer les actifs valides si présents
     const actifsValides = actifsImportes.filter(a => !a._erreur)
+    const erreursImport: string[] = []
     if (campagneData && actifsValides.length > 0) {
       setImportLoading(true)
       for (const actif of actifsValides) {
@@ -202,13 +365,14 @@ async function load() {
             user_id:        user.id,
             client_id:      user.id,
             statut_analyse: "en_attente",
-            categorie:      "patrimoine_propre",
+            categorie:      categorieImport,
           })
           .select("id")
           .single()
 
         if (errActif) {
           console.error("Erreur création actif:", errActif)
+          erreursImport.push(`${actif.nom || "Ligne sans nom"} : ${errActif.message}`)
           continue
         }
 
@@ -217,10 +381,17 @@ async function load() {
             campagne_id: campagneData.id,
             actif_id:    nouvelActif.id,
           })
-          if (errLiaison) console.error("Erreur liaison campagne_actif:", errLiaison)
+          if (errLiaison) {
+            console.error("Erreur liaison campagne_actif:", errLiaison)
+            erreursImport.push(`${actif.nom} : créé mais non lié à la campagne (${errLiaison.message})`)
+          }
         }
       }
       setImportLoading(false)
+    }
+
+    if (erreursImport.length > 0) {
+      setImportErreur(`${erreursImport.length} bien(s) n'ont pas pu être importés : ${erreursImport.slice(0, 3).join(" · ")}${erreursImport.length > 3 ? "…" : ""}`)
     }
 
     await load()
@@ -331,19 +502,44 @@ async function archiverCampagne(id: string) {
                     <label style={lStyle}>Nom de la campagne *</label>
                     <input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} placeholder="Ex : Campagne prévention inondation 2026" style={iStyle} />
                   </div>
-                  <div>
+                                 <div>
                     <label style={lStyle}>Type de campagne *</label>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                      {Object.entries(TYPE_CONFIG).map(([k, v]) => (
-                        <div key={k} onClick={() => setForm({ ...form, type_campagne: k })} style={{ padding: "14px", borderRadius: "9px", border: `1px solid ${form.type_campagne === k ? "#0F6E56" : "#E2E8F0"}`, background: form.type_campagne === k ? "#ECFDF5" : "white", cursor: "pointer", textAlign: "center", transition: "all 0.12s" }}>
-                          <div style={{ fontSize: "13px", fontWeight: 500, color: form.type_campagne === k ? "#065F46" : "#0F172A", marginBottom: "4px" }}>{v.label}</div>
-                          <div style={{ fontSize: "11px", color: form.type_campagne === k ? "#0F6E56" : "#94A3B8" }}>
-                            {k === "sensibilisation" && "Informer vos clients sur les risques"}
-                            {k === "scoring" && "Évaluer l'exposition climatique"}
-                            {k === "pre_diagnostic" && "Premier niveau de diagnostic terrain"}
+                      {Object.entries(TYPE_CONFIG).map(([k, v]) => {
+                        const estSelectionne = form.type_campagne === k
+                        const iconeType = k === "sensibilisation" ? "ti-speakerphone" : k === "scoring" ? "ti-gauge" : "ti-clipboard-list"
+                        return (
+                          <div
+                            key={k}
+                            onClick={() => setForm({ ...form, type_campagne: k })}
+                            style={{
+                              position: "relative",
+                              padding: "16px 14px",
+                              borderRadius: "10px",
+                              background: estSelectionne ? "#0F6E56" : "#111C2E",
+                              borderLeft: estSelectionne ? "none" : "3px solid #1D9E75",
+                              cursor: "pointer",
+                              textAlign: "center",
+                              transition: "background 0.12s",
+                            }}
+                          >
+                            {estSelectionne && (
+                              <div style={{ position: "absolute", top: "8px", right: "8px", width: "18px", height: "18px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <i className="ti ti-check" style={{ fontSize: "11px", color: "#ffffff" }} aria-hidden="true" />
+                              </div>
+                            )}
+                            <div style={{ width: 32, height: 32, borderRadius: "8px", margin: "0 auto 8px", background: estSelectionne ? "rgba(255,255,255,0.15)" : "rgba(29,158,117,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <i className={`ti ${iconeType}`} style={{ fontSize: "16px", color: estSelectionne ? "#ffffff" : "#5DCAA5" }} aria-hidden="true" />
+                            </div>
+                            <div style={{ fontSize: "13px", fontWeight: 500, color: "#ffffff", marginBottom: "4px" }}>{v.label}</div>
+                            <div style={{ fontSize: "11px", color: estSelectionne ? "#CFEEE3" : "#94A3B8" }}>
+                              {k === "sensibilisation" && "Informer vos clients sur les risques"}
+                              {k === "scoring" && "Évaluer l'exposition climatique"}
+                              {k === "pre_diagnostic" && "Premier niveau de diagnostic terrain"}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -594,11 +790,62 @@ async function archiverCampagne(id: string) {
                           <div style={{ fontSize: "13px", color: "#0F172A" }}>{c.date_debut || "—"} → {c.date_fin || "—"}</div>
                         </div>
                       )}
-                      {c.description && (
+     {c.description && (
                         <div style={{ gridColumn: "1 / -1" }}>
                           <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>Description</div>
                           <div style={{ fontSize: "13px", color: "#64748B", lineHeight: 1.6 }}>{c.description}</div>
                         </div>
+                      )}
+                    </div>
+
+                    {/* Ajouter des biens a posteriori */}
+                    <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #F1F5F9" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "10px" }}>Ajouter des biens</div>
+
+                      {importSuccesExistante && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ECFDF5", color: "#065F46", padding: "8px 12px", borderRadius: "7px", fontSize: "12px", marginBottom: "10px" }}>
+                          <i className="ti ti-circle-check" style={{ fontSize: "14px" }} aria-hidden="true" />
+                          {importSuccesExistante}
+                        </div>
+                      )}
+                      {importErreurExistante && (
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", background: "#FEF2F2", color: "#991B1B", padding: "8px 12px", borderRadius: "7px", fontSize: "12px", marginBottom: "10px" }}>
+                          <i className="ti ti-alert-triangle" style={{ fontSize: "14px", flexShrink: 0, marginTop: "1px" }} aria-hidden="true" />
+                          {importErreurExistante}
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        <button onClick={downloadTemplate} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                          <i className="ti ti-download" style={{ fontSize: "13px" }} aria-hidden="true" />
+                          Télécharger le modèle
+                        </button>
+                        <button onClick={() => fileInputExistanteRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                          <i className="ti ti-upload" style={{ fontSize: "13px" }} aria-hidden="true" />
+                          Choisir un fichier CSV/Excel
+                        </button>
+                        <input ref={fileInputExistanteRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleFichierExistante(e.target.files[0]) }} />
+                        {actifsImportesExistante.filter(a => !a._erreur).length > 0 && (
+                          <span style={{ background: "#ECFDF5", color: "#065F46", fontSize: "11px", fontWeight: 600, padding: "3px 9px", borderRadius: "99px" }}>
+                            {actifsImportesExistante.filter(a => !a._erreur).length} valide{actifsImportesExistante.filter(a => !a._erreur).length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {actifsImportesExistante.filter(a => a._erreur).length > 0 && (
+                          <span style={{ background: "#FEF2F2", color: "#991B1B", fontSize: "11px", fontWeight: 600, padding: "3px 9px", borderRadius: "99px" }}>
+                            {actifsImportesExistante.filter(a => a._erreur).length} ignoré{actifsImportesExistante.filter(a => a._erreur).length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+
+                      {actifsImportesExistante.filter(a => !a._erreur).length > 0 && (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleImporterSurCampagne(c.id) }}
+                          disabled={importLoadingExistante}
+                          style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "7px", border: "none", background: "#0F6E56", color: "white", fontSize: "12px", fontWeight: 500, cursor: importLoadingExistante ? "wait" : "pointer", fontFamily: "inherit" }}
+                        >
+                          <i className="ti ti-plus" style={{ fontSize: "13px" }} aria-hidden="true" />
+                          {importLoadingExistante ? "Import en cours…" : `Ajouter ${actifsImportesExistante.filter(a => !a._erreur).length} bien${actifsImportesExistante.filter(a => !a._erreur).length > 1 ? "s" : ""} à cette campagne`}
+                        </button>
                       )}
                     </div>
                   </div>

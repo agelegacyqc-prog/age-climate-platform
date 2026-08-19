@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 
@@ -6,6 +6,12 @@ const SCORE_CONFIG = (score: number) => {
   if (score >= 70) return { label: "Élevé",  color: "#991B1B", bg: "#FEF2F2" }
   if (score >= 40) return { label: "Modéré", color: "#92400E", bg: "#FFFBEB" }
   return                  { label: "Faible", color: "#065F46", bg: "#ECFDF5" }
+}
+
+const GROUPE_RISQUE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  eleve:  { label: "Risque élevé",  color: "#991B1B", bg: "#FEF2F2" },
+  modere: { label: "Risque modéré", color: "#92400E", bg: "#FFFBEB" },
+  faible: { label: "Risque faible", color: "#065F46", bg: "#ECFDF5" },
 }
 
 const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -21,12 +27,18 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const TYPE_CLIENT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   banque:       { label: "Banque",       color: "#1E40AF", bg: "#EFF6FF" },
-  assurance:    { label: "Assurance",    color: "#5B21B6", bg: "#F5F3FF" },
+  assureur:     { label: "Assurance",    color: "#5B21B6", bg: "#F5F3FF" },
   entreprise:   { label: "Entreprise",   color: "#92400E", bg: "#FFFBEB" },
   collectivite: { label: "Collectivité", color: "#065F46", bg: "#ECFDF5" },
 }
 
 type Onglet = "patrimoine_propre" | "patrimoine_client"
+
+function groupeRisque(score: number): string {
+  if (score >= 70) return "eleve"
+  if (score >= 40) return "modere"
+  return "faible"
+}
 
 function FilterPill({ label, active, onClick }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active: boolean }) {
   return (
@@ -53,7 +65,10 @@ export default function Portefeuille() {
   const [filtreTypeClient, setFiltreTypeClient] = useState("tous")
   const [recherche, setRecherche]               = useState("")
   const [filtreCampagne, setFiltreCampagne] = useState("toutes")
-const [filtreDept, setFiltreDept]         = useState("tous")
+  const [filtreDept, setFiltreDept]         = useState("tous")
+
+    // Groupes ouverts (repli/dépli) — tout replié par défaut à l'ouverture de la page
+  const [groupesOuverts, setGroupesOuverts] = useState<Set<string>>(new Set())
 
   useEffect(() => { loadActifs() }, [])
 
@@ -63,23 +78,25 @@ const [filtreDept, setFiltreDept]         = useState("tous")
     setFiltreTypeClient("tous")
     setRecherche("")
     setFiltreCampagne("toutes")
-setFiltreDept("tous")
+    setFiltreDept("tous")
+        // Tout replié par défaut, quel que soit l'onglet
+    setGroupesOuverts(new Set())
   }, [onglet])
 
-async function loadActifs() {
-  const { data } = await supabase
-    .from("actifs")
-    .select("*, campagnes_actifs(campagne:campagne_id(id, nom))")
-    .order("created_at", { ascending: false })
-  setActifs(data || [])
-  setLoading(false)
-}
+  async function loadActifs() {
+    const { data } = await supabase
+      .from("actifs")
+      .select("*, campagnes_actifs(campagne:campagne_id(id, nom))")
+      .order("created_at", { ascending: false })
+    setActifs(data || [])
+    setLoading(false)
+  }
 
-const actifsOnglet = actifs.filter(a =>
-  onglet === "patrimoine_propre"
-    ? (a.categorie === "patrimoine_propre" || !a.categorie)
-    : (a.categorie === "biens_assures" || a.categorie === "biens_finances")
-)
+  const actifsOnglet = actifs.filter(a =>
+    onglet === "patrimoine_propre"
+      ? (a.categorie === "patrimoine_propre" || !a.categorie)
+      : (a.categorie === "biens_assures" || a.categorie === "biens_finances")
+  )
 
   const actifsFiltres = actifsOnglet.filter(a => {
     if (filtreScore !== "tous") {
@@ -94,7 +111,7 @@ const actifsOnglet = actifs.filter(a =>
       const q = recherche.toLowerCase()
       if (!`${a.nom} ${a.adresse} ${a.ville} ${a.nom_client}`.toLowerCase().includes(q)) return false
     }
-   if (filtreCampagne !== "toutes") {
+    if (filtreCampagne !== "toutes") {
       const campagneIds = (a.campagnes_actifs || []).map((ca: any) => ca.campagne?.id)
       if (!campagneIds.includes(filtreCampagne)) return false
     }
@@ -104,27 +121,137 @@ const actifsOnglet = actifs.filter(a =>
     }
     return true
   })
-// Campagnes disponibles pour l'onglet actif
-const campagnesDisponibles = Array.from(
-  new Map(
-    actifsOnglet
-      .flatMap((a: any) => a.campagnes_actifs || [])
-      .filter((ca: any) => ca.campagne)
-      .map((ca: any) => [ca.campagne.id, ca.campagne])
-  ).values()
-)
 
-// Départements disponibles pour les biens tiers
-const departementsDisponibles = Array.from(
-  new Set(
-    actifs
-      .filter(a => (a.categorie === "biens_assures" || a.categorie === "biens_finances") && a.code_postal)
-      .map((a: any) => String(a.code_postal).substring(0, 2))
-      .filter(Boolean)
+  // Campagnes disponibles pour l'onglet actif
+  const campagnesDisponibles = Array.from(
+    new Map(
+      actifsOnglet
+        .flatMap((a: any) => a.campagnes_actifs || [])
+        .filter((ca: any) => ca.campagne)
+        .map((ca: any) => [ca.campagne.id, ca.campagne])
+    ).values()
   )
-).sort()
+
+  // Départements disponibles pour les biens tiers
+  const departementsDisponibles = Array.from(
+    new Set(
+      actifs
+        .filter(a => (a.categorie === "biens_assures" || a.categorie === "biens_finances") && a.code_postal)
+        .map((a: any) => String(a.code_postal).substring(0, 2))
+        .filter(Boolean)
+    )
+  ).sort()
+
   const countPropre  = actifs.filter(a => a.categorie === "patrimoine_propre" || !a.categorie).length
-const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.categorie === "biens_finances").length
+  const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.categorie === "biens_finances").length
+
+  // ── Groupement ──────────────────────────────────────────────────────────
+  // Biens exploités : par tranche de risque climatique
+  // Biens assurés & financés : par client (nom_client), trié alphabétiquement
+  type Groupe = { cle: string; label: string; color: string; bg: string; items: any[] }
+
+  const groupes: Groupe[] = useMemo(() => {
+    if (onglet === "patrimoine_propre") {
+      const parRisque: Record<string, any[]> = { eleve: [], modere: [], faible: [] }
+      actifsFiltres.forEach(a => {
+        const score = Number(a.score_climatique) || 0
+        parRisque[groupeRisque(score)].push(a)
+      })
+      return (["eleve", "modere", "faible"] as const)
+        .filter(k => parRisque[k].length > 0)
+        .map(k => ({ cle: k, ...GROUPE_RISQUE_CONFIG[k], items: parRisque[k] }))
+    }
+
+    // patrimoine_client : groupement par nom_client
+    const parClient = new Map<string, any[]>()
+    actifsFiltres.forEach(a => {
+      const cle = a.nom_client || "Client non renseigné"
+      if (!parClient.has(cle)) parClient.set(cle, [])
+      parClient.get(cle)!.push(a)
+    })
+    return Array.from(parClient.entries())
+      .sort(([a], [b]) => a.localeCompare(b, "fr"))
+      .map(([nom, items]) => ({ cle: nom, label: nom, color: "#0F172A", bg: "#F1F5F9", items }))
+  }, [actifsFiltres, onglet])
+
+  function toggleGroupe(cle: string) {
+    setGroupesOuverts(prev => {
+      const next = new Set(prev)
+      next.has(cle) ? next.delete(cle) : next.add(cle)
+      return next
+    })
+  }
+
+  const nbColonnes = onglet === "patrimoine_propre" ? 6 : 7
+
+  function renderLigneActif(a: any) {
+    const score      = Number(a.score_climatique) || 0
+    const scoreConf  = SCORE_CONFIG(score)
+    const statut     = STATUT_CONFIG[a.statut_analyse]
+    const typeClient = TYPE_CLIENT_CONFIG[a.type_client]
+    return (
+      <tr key={a.id}
+        onMouseEnter={e => (e.currentTarget.style.background = "#FAFFFE")}
+        onMouseLeave={e => (e.currentTarget.style.background = "white")}
+        style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.1s" }}>
+
+        <td style={{ padding: "12px 16px 12px 40px" }}>
+          <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{a.nom || a.raison_sociale || "—"}</div>
+          {a.siren && <div style={{ fontSize: "11px", color: "#94A3B8" }}>SIREN {a.siren}</div>}
+        </td>
+
+        <td style={{ padding: "12px 16px" }}>
+          <div style={{ fontSize: "13px", color: "#64748B" }}>{a.adresse || "—"}</div>
+          <div style={{ fontSize: "11px", color: "#94A3B8" }}>{a.code_postal} {a.ville}</div>
+        </td>
+
+        <td style={{ padding: "12px 16px", fontSize: "13px", color: "#64748B" }}>
+          {a.type_batiment || a.type_bien || "—"}
+        </td>
+
+        {onglet === "patrimoine_client" && (
+          <td style={{ padding: "12px 16px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
+              {a.nom_client || "—"}
+            </div>
+            {a.telephone_client && (
+              <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{a.telephone_client}</div>
+            )}
+            {typeClient && (
+              <span style={{ display: "inline-flex", background: typeClient.bg, color: typeClient.color, padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, marginTop: "3px" }}>
+                {typeClient.label}
+              </span>
+            )}
+          </td>
+        )}
+
+        <td style={{ padding: "12px 16px" }}>
+          {score > 0 ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: scoreConf.bg, color: scoreConf.color, padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 600 }}>{score}</span>
+              <span style={{ opacity: 0.7 }}>/ 100</span>
+            </span>
+          ) : <span style={{ color: "#CBD5E1", fontSize: "13px" }}>—</span>}
+        </td>
+
+        <td style={{ padding: "12px 16px" }}>
+          {statut ? (
+            <span style={{ background: statut.bg, color: statut.color, padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>{statut.label}</span>
+          ) : <span style={{ color: "#CBD5E1", fontSize: "13px" }}>—</span>}
+        </td>
+
+        <td style={{ padding: "12px 16px" }}>
+          <button
+            onClick={() => navigate(`/metier/portefeuille/${a.id}`)}
+            onMouseEnter={e => (e.currentTarget.style.background = "#ECFDF5")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            style={{ display: "flex", alignItems: "center", gap: "4px", background: "transparent", color: "#0F6E56", border: "1px solid #A7F3D0", padding: "5px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 500, fontFamily: "inherit", transition: "background 0.12s" }}>
+            Voir <i className="ti ti-arrow-right" style={{ fontSize: "13px" }} aria-hidden="true" />
+          </button>
+        </td>
+      </tr>
+    )
+  }
 
   if (loading) return <div style={{ padding: "2rem", color: "#64748B", fontSize: "14px" }}>Chargement…</div>
 
@@ -137,7 +264,7 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
           <span style={{ fontWeight: 500, color: "#0F172A" }}>{actifsFiltres.length}</span> actif{actifsFiltres.length > 1 ? "s" : ""} affiché{actifsFiltres.length > 1 ? "s" : ""}
           {actifsFiltres.length !== actifsOnglet.length && <span> sur {actifsOnglet.length}</span>}
         </div>
-        
+
         <button
           onClick={() => navigate("/metier/import-portefeuille")}
           style={{
@@ -154,7 +281,7 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
       {/* Onglets */}
       <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
         {([
-         { key: "patrimoine_propre", label: "Biens exploités",    count: countPropre,  icon: "ti-building" },
+          { key: "patrimoine_propre", label: "Biens exploités",    count: countPropre,  icon: "ti-building" },
           { key: "patrimoine_client", label: "Biens assurés & financés", count: countClients, icon: "ti-building-bank" },
         ] as const).map(o => (
           <button key={o.key} onClick={() => setOnglet(o.key)} style={{
@@ -194,34 +321,34 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
             />
           </div>
 
-<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campagne</span>
-        <select
-          value={filtreCampagne}
-          onChange={e => setFiltreCampagne(e.target.value)}
-          style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
-        >
-          <option value="toutes">Toutes</option>
-          {campagnesDisponibles.map((c: any) => (
-            <option key={c.id} value={c.id}>{c.nom}</option>
-          ))}
-        </select>
-      </div>
-      {onglet === "patrimoine_client" && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Département</span>
-          <select
-            value={filtreDept}
-            onChange={e => setFiltreDept(e.target.value)}
-            style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
-          >
-            <option value="tous">Tous</option>
-            {departementsDisponibles.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
-      )}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campagne</span>
+            <select
+              value={filtreCampagne}
+              onChange={e => setFiltreCampagne(e.target.value)}
+              style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+            >
+              <option value="toutes">Toutes</option>
+              {campagnesDisponibles.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
+            </select>
+          </div>
+          {onglet === "patrimoine_client" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Département</span>
+              <select
+                value={filtreDept}
+                onChange={e => setFiltreDept(e.target.value)}
+                style={{ padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none", background: "white", color: "#0F172A" }}
+              >
+                <option value="tous">Tous</option>
+                {departementsDisponibles.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Risque</span>
@@ -239,96 +366,56 @@ const countClients = actifs.filter(a => a.categorie === "biens_assures" || a.cat
         </div>
       </div>
 
-      {/* Tableau */}
+      {/* Tableau groupé et repliable */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
-              {(onglet === "patrimoine_propre"
-                ? ["Actif", "Adresse", "Type", "Score climatique", "Statut", ""]
-                : ["Actif", "Adresse", "Type", "Propriétaire", "Score climatique", "Statut", ""]
-              ).map((h, i) => (
-                <th key={i} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {actifsFiltres.length === 0 ? (
-              <tr>
-                <td colSpan={onglet === "patrimoine_propre" ? 6 : 7} style={{ padding: "40px", textAlign: "center", color: "#94A3B8", fontSize: "14px" }}>
-                  Aucun actif ne correspond aux filtres sélectionnés
-                </td>
+        {actifsFiltres.length === 0 ? (
+          <div style={{ padding: "40px", textAlign: "center", color: "#94A3B8", fontSize: "14px" }}>
+            Aucun actif ne correspond aux filtres sélectionnés
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
+                {(onglet === "patrimoine_propre"
+                  ? ["Actif", "Adresse", "Type", "Score climatique", "Statut", ""]
+                  : ["Actif", "Adresse", "Type", "Client", "Score climatique", "Statut", ""]
+                ).map((h, i) => (
+                  <th key={i} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                ))}
               </tr>
-            ) : actifsFiltres.map(a => {
-              const score      = Number(a.score_climatique) || 0
-              const scoreConf  = SCORE_CONFIG(score)
-              const statut     = STATUT_CONFIG[a.statut_analyse]
-              const typeClient = TYPE_CLIENT_CONFIG[a.type_client]
-              return (
-                <tr key={a.id}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#FAFFFE")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "white")}
-                  style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.1s" }}>
-
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{a.nom || a.raison_sociale || "—"}</div>
-                    {a.siren && <div style={{ fontSize: "11px", color: "#94A3B8" }}>SIREN {a.siren}</div>}
-                  </td>
-
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontSize: "13px", color: "#64748B" }}>{a.adresse || "—"}</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>{a.code_postal} {a.ville}</div>
-                  </td>
-
-                  <td style={{ padding: "12px 16px", fontSize: "13px", color: "#64748B" }}>
-                    {a.type_batiment || a.type_bien || "—"}
-                  </td>
-
-                  {onglet === "patrimoine_client" && (
-                   <td style={{ padding: "12px 16px" }}>
-<div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
-  {a.nom || "—"}
-</div>
-{a.telephone_client && (
-  <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{a.telephone_client}</div>
-)}
-  {typeClient && (
-    <span style={{ display: "inline-flex", background: typeClient.bg, color: typeClient.color, padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 500, marginTop: "3px" }}>
-      {typeClient.label}
-    </span>
-  )}
-</td>
-                  )}
-
-                  <td style={{ padding: "12px 16px" }}>
-                    {score > 0 ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: scoreConf.bg, color: scoreConf.color, padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 600 }}>{score}</span>
-                        <span style={{ opacity: 0.7 }}>/ 100</span>
-                      </span>
-                    ) : <span style={{ color: "#CBD5E1", fontSize: "13px" }}>—</span>}
-                  </td>
-
-                  <td style={{ padding: "12px 16px" }}>
-                    {statut ? (
-                      <span style={{ background: statut.bg, color: statut.color, padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>{statut.label}</span>
-                    ) : <span style={{ color: "#CBD5E1", fontSize: "13px" }}>—</span>}
-                  </td>
-
-                  <td style={{ padding: "12px 16px" }}>
-                    <button
-                      onClick={() => navigate(`/metier/portefeuille/${a.id}`)}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#ECFDF5")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                      style={{ display: "flex", alignItems: "center", gap: "4px", background: "transparent", color: "#0F6E56", border: "1px solid #A7F3D0", padding: "5px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 500, fontFamily: "inherit", transition: "background 0.12s" }}>
-                      Voir <i className="ti ti-arrow-right" style={{ fontSize: "13px" }} aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {groupes.map(g => {
+                const ouvert = groupesOuverts.has(g.cle)
+                return (
+                  <React.Fragment key={g.cle}>
+                    <tr>
+                      <td colSpan={nbColonnes} style={{ padding: 0 }}>
+                        <button
+                          onClick={() => toggleGroupe(g.cle)}
+                          style={{
+                            width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                            padding: "10px 16px", background: "#F8FAFC", border: "none",
+                            borderTop: "1px solid #E2E8F0", borderBottom: "1px solid #E2E8F0",
+                            cursor: "pointer", fontFamily: "inherit", textAlign: "left" as const,
+                          }}
+                          aria-expanded={ouvert}
+                        >
+                          <i className={`ti ti-chevron-${ouvert ? "down" : "right"}`} style={{ fontSize: "14px", color: "#64748B" }} aria-hidden="true" />
+                          <span style={{ fontSize: "13px", fontWeight: 500, color: onglet === "patrimoine_propre" ? g.color : "#0F172A" }}>{g.label}</span>
+                          <span style={{ background: g.bg, color: g.color, fontSize: "11px", fontWeight: 600, padding: "1px 8px", borderRadius: "10px" }}>
+                            {g.items.length} bien{g.items.length > 1 ? "s" : ""}
+                          </span>
+                        </button>
+                      </td>
+                    </tr>
+                    {ouvert && g.items.map(a => renderLigneActif(a))}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
