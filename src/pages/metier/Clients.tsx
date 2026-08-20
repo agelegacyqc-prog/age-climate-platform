@@ -72,7 +72,7 @@ export default function Clients() {
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState("")
   const [filtreType, setFiltreType]     = useState("tous")
-  const [filtreStatut, setFiltreStatut] = useState("tous")
+  const [filtreStatut, setFiltreStatut] = useState("actif")
 
   const [responsables, setResponsables] = useState<{ id: string; prenom: string; nom: string; region: string | null }[]>([])
   const [consultants, setConsultants]   = useState<{ id: string; prenom: string; nom: string; region: string | null }[]>([])
@@ -92,9 +92,16 @@ export default function Clients() {
   const [clientAffectation, setClientAffectation] = useState<Client | null>(null)
   const [formAffectation, setFormAffectation]     = useState({ responsable_region_id: "", consultant_id: "" })
   const [savingAffectation, setSavingAffectation] = useState(false)
-  const [erreurAffectation, setErreurAffectation] = useState("")
+   const [erreurAffectation, setErreurAffectation] = useState("")
+  const [menuActionOpen, setMenuActionOpen] = useState<string | null>(null)
 
 useEffect(() => { charger() }, [])
+
+  useEffect(() => {
+    function fermerMenu() { setMenuActionOpen(null) }
+    document.addEventListener("click", fermerMenu)
+    return () => document.removeEventListener("click", fermerMenu)
+  }, [])
 
   async function charger() {
     setLoading(true)
@@ -445,23 +452,56 @@ const { raison_sociale, type_client, prenom, nom, email, password, region } = ne
                         {c.actif ? "Actif" : "Inactif"}
                       </span>
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "flex-end" }}>
-                        {userRole !== "consultant" && (
-                          <button onClick={() => ouvrirAffectation(c)} style={actionBtnStyle} title="Affecter responsable / consultant">
-                            <i className="ti ti-user-cog" style={{ fontSize: "14px" }} />
-                          </button>
-                        )}
-                        <button onClick={() => navigate(`/metier/clients/${c.id}`)} style={actionBtnStyle} title="Voir la fiche">
-                          <i className="ti ti-eye" style={{ fontSize: "14px" }} />
-                        </button>
-                        <button onClick={() => toggleActif(c)}
-                          style={{ ...actionBtnStyle, color: c.actif ? "#B91C1C" : "#2F7D5C", background: c.actif ? "#FEF2F2" : "#F0FDF4", border: `1px solid ${c.actif ? "#FECACA" : "#BBF7D0"}` }}
-                          title={c.actif ? "Désactiver" : "Activer"}
+                              <td style={{ ...tdStyle, textAlign: "right", position: "relative" }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuActionOpen(menuActionOpen === c.id ? null : c.id) }}
+                        style={actionBtnStyle}
+                        title="Actions"
+                      >
+                        <i className="ti ti-dots-vertical" style={{ fontSize: "16px" }} />
+                      </button>
+                      {menuActionOpen === c.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            position: "absolute", top: "38px", right: "16px", background: "#FFFFFF",
+                            border: "1px solid #E2DDD8", borderRadius: "8px",
+                            boxShadow: "0 4px 16px rgba(0,0,0,0.10)", minWidth: "220px",
+                            zIndex: 20, textAlign: "left", overflow: "hidden",
+                          }}
                         >
-                          <i className={`ti ${c.actif ? "ti-toggle-right" : "ti-toggle-left"}`} style={{ fontSize: "16px" }} />
-                        </button>
-                      </div>
+                          {userRole !== "consultant" && (
+                            <div
+                              onClick={() => { ouvrirAffectation(c); setMenuActionOpen(null) }}
+                              style={{ padding: "9px 14px", fontSize: "13px", color: "#111827", display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}
+                              onMouseEnter={e => (e.currentTarget.style.background = "#F4F3F0")}
+                              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <i className="ti ti-user-cog" style={{ fontSize: "15px", color: "#78716C" }} />
+                              Affecter responsable / consultant
+                            </div>
+                          )}
+                          <div
+                            onClick={() => { navigate(`/metier/clients/${c.id}`); setMenuActionOpen(null) }}
+                            style={{ padding: "9px 14px", fontSize: "13px", color: "#111827", display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "#F4F3F0")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <i className="ti ti-eye" style={{ fontSize: "15px", color: "#78716C" }} />
+                            Voir la fiche
+                          </div>
+                          <div style={{ borderTop: "1px solid #E2DDD8" }} />
+                          <div
+                            onClick={() => { toggleActif(c); setMenuActionOpen(null) }}
+                            style={{ padding: "9px 14px", fontSize: "13px", color: c.actif ? "#B91C1C" : "#2F7D5C", display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = c.actif ? "#FEF2F2" : "#F0FDF4")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <i className={`ti ${c.actif ? "ti-toggle-right" : "ti-toggle-left"}`} style={{ fontSize: "15px" }} />
+                            {c.actif ? "Désactiver le client" : "Activer le client"}
+                          </div>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
