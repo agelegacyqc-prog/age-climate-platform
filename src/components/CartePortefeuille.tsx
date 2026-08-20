@@ -8,19 +8,21 @@
 import React, { useEffect, useRef, useState } from "react"
 import { supabase } from "../lib/supabase"
 
-// Couleurs par niveau de risque (classe_risque)
+// Couleurs par niveau de risque (classe_risque) — alignées sur CLASSE_CONFIG de ScoreHistorique.tsx
 const COULEURS_RISQUE: Record<string, string> = {
-  eleve:  "#B91C1C",
-  moyen:  "#D97706",
-  faible: "#2F7D5C",
+  critique: "#7C3AED",
+  eleve:    "#B91C1C",
+  modere:   "#D97706",
+  faible:   "#2F7D5C",
 }
 
 const COULEUR_NON_ANALYSE = "#94A3B8" // gris neutre — pas de faux score
 
 const LABELS_RISQUE: Record<string, string> = {
-  eleve:  "Risque élevé",
-  moyen:  "Risque modéré",
-  faible: "Risque faible",
+  critique: "Risque critique",
+  eleve:    "Risque élevé",
+  modere:   "Risque modéré",
+  faible:   "Risque faible",
 }
 
 interface Bien {
@@ -100,10 +102,11 @@ export default function CartePortefeuille() {
       let scoresParActif: Record<string, { score_global: number | null; classe_risque: string | null }> = {}
 
       if (ids.length > 0) {
-        const { data: scores } = await supabase
+              const { data: scores } = await supabase
           .from("risk_scores")
           .select("actif_id, score_global, classe_risque, created_at")
           .in("actif_id", ids)
+          .eq("valide_client", true)
           .order("created_at", { ascending: false })
 
         if (scores) {

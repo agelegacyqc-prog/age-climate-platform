@@ -198,9 +198,9 @@ function showToast(message: string, type: "success" | "error" = "success") {
       setRoleAGE(profil.role)
       setRegionAGE(profil.region || null)
     }
-    await Promise.all([
-      loadCampagnes(profil?.region),
-      loadDemandesClient(profil?.region),
+     await Promise.all([
+      loadCampagnes(profil?.role, profil?.region, user.id),
+      loadDemandesClient(profil?.role, profil?.region, user.id),
       profil?.role === "responsable_regional"
         ? loadAffectations(user.id, profil?.region)
         : Promise.resolve(),
@@ -208,29 +208,31 @@ function showToast(message: string, type: "success" | "error" = "success") {
     setLoading(false)
   }
 
-  async function loadCampagnes(region?: string | null) {
-    const { data: { user } } = await supabase.auth.getUser()
+  async function loadCampagnes(role?: string, region?: string | null, userId?: string) {
     let query = supabase
       .from("campagnes")
       .select("*")
       .eq("origine", "age")
       .order("date_debut", { ascending: false })
-    if (region) {
-      query = query.or(`region.eq.${region},responsable_id.eq.${user?.id}`)
+    if (role === "responsable_regional" && region) {
+      query = query.or(`region.eq.${region},responsable_id.eq.${userId}`)
+    } else if (role === "consultant" && userId) {
+      query = query.eq("consultant_id", userId)
     }
     const { data } = await query
     setCampagnes(data || [])
   }
 
-  async function loadDemandesClient(region?: string | null) {
-    const { data: { user } } = await supabase.auth.getUser()
+  async function loadDemandesClient(role?: string, region?: string | null, userId?: string) {
     let query = supabase
       .from("campagnes")
       .select("*")
       .eq("origine", "client")
       .order("created_at", { ascending: false })
-    if (region && user?.id) {
-      query = query.or(`region.eq.${region},responsable_id.eq.${user.id}`)
+    if (role === "responsable_regional" && region && userId) {
+      query = query.or(`region.eq.${region},responsable_id.eq.${userId}`)
+    } else if (role === "consultant" && userId) {
+      query = query.eq("consultant_id", userId)
     }
     const { data: campagnesData } = await query
     if (!campagnesData) { setDemandesClient([]); return }

@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useNavigate } from "react-router-dom"
+import loginBackground from "../../assets/login-background.jpg"
 
 export default function Login() {
   const [email, setEmail]       = useState("")
@@ -59,12 +60,18 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f4f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{
+      minHeight: "100vh",
+      backgroundImage: `linear-gradient(180deg, rgba(15,30,20,0.55) 0%, rgba(15,30,20,0.35) 100%), url(${loginBackground})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      display: "flex", alignItems: "center", justifyContent: "center"
+    }}>
       <div style={{ background: "white", padding: "2.5rem", borderRadius: "16px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", width: "100%", maxWidth: "400px" }}>
-        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🌍</div>
-          <h1 style={{ color: "#1a3a2a", fontSize: "1.5rem", fontWeight: 800 }}>AGE Climate</h1>
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>Espace professionnel</p>
+              <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <h1 style={{ color: "#1a3a2a", fontSize: "1.5rem", fontWeight: 800 }}>AGE Platform</h1>
+          <p style={{ color: "#666", fontSize: "0.9rem" }}>La donnée oriente la décision. Le terrain la concrétise.</p>
         </div>
         {error && (
           <div style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.9rem" }}>{error}</div>

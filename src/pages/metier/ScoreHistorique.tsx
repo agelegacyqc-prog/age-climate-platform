@@ -143,8 +143,9 @@ export default function ScoreHistorique({
   const [missionScoreIds, setMissionScoreIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [note, setNote] = useState('')
+    const [note, setNote] = useState('')
   const [noteOpen, setNoteOpen] = useState(false)
+  const [publierClient, setPublierClient] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
   useEffect(() => { charger() }, [bienId, actifId])
@@ -213,6 +214,9 @@ setHistorique(scores ?? [])
       region_code: profil?.region ?? null,
       note: note.trim() || null,
       source: 'manuel',
+      valide_client: publierClient,
+      valide_client_at: publierClient ? new Date().toISOString() : null,
+      valide_client_par: publierClient ? user?.id : null,
     }).select().maybeSingle()
 
     if (error) { setSaving(false); showToast('err', 'Erreur lors de la sauvegarde'); return }
@@ -264,6 +268,7 @@ setHistorique(scores ?? [])
     setSaving(false)
     setNote('')
     setNoteOpen(false)
+    setPublierClient(false)
     showToast('ok', 'Score sauvegardé avec succès')
     charger()
   }
@@ -303,10 +308,11 @@ const dernierScore = historique[historique.length - 1]
 
   const scoreAChange = dernierScore?.score_global !== scoreActuel
 
- // Vue client simplifiée
+  // Vue client simplifiée — n'affiche que les scores explicitement publiés par un consultant
   if (modeClient) {
-    const scorePrincipal = dernierScoreMission ?? dernierScore
-    const afficherSecondaire = dernierScore && scorePrincipal && dernierScore.id !== scorePrincipal.id
+    const historiquePublie = historique.filter((s: any) => s.valide_client)
+    const scorePrincipal = historiquePublie[historiquePublie.length - 1] ?? null
+    const afficherSecondaire = false
 
     return (
       <div style={{
@@ -334,10 +340,8 @@ const dernierScore = historique[historique.length - 1]
                 }}>
                   {CLASSE_CONFIG[scorePrincipal.classe_risque]?.label}
                 </span>
-                <span style={{ fontSize: 11, color: '#78716C' }}>
-                  {dernierScoreMission
-                    ? `Mission AGE — ${new Date(scorePrincipal.created_at).toLocaleDateString('fr-FR')}`
-                    : `Mis à jour le ${new Date(scorePrincipal.created_at).toLocaleDateString('fr-FR')}`}
+                              <span style={{ fontSize: 11, color: '#78716C' }}>
+                  Mission AGE — {new Date(scorePrincipal.created_at).toLocaleDateString('fr-FR')}
                 </span>
               </div>
             </div>
@@ -499,6 +503,10 @@ const dernierScore = historique[historique.length - 1]
                 <Info size={12} /> Score modifié — pensez à sauvegarder
               </div>
             )}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#78716C', cursor: 'pointer' }}>
+              <input type="checkbox" checked={publierClient} onChange={e => setPublierClient(e.target.checked)} />
+              Publier au client
+            </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setNoteOpen(o => !o)} style={{
                 padding: '8px 14px', border: '1px solid #E5E1DA', borderRadius: 8,

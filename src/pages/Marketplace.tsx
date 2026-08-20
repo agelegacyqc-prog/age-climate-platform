@@ -443,18 +443,18 @@ const onglets = !userCtx.role ? [] : [
       {onglet === "consultants" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {consultantRegional && (
-            <div style={{ background: "#FFFFFF", border: "2px solid #0F6E56", borderRadius: "12px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, color: "#0F6E56", flexShrink: 0 }}>
+            <div style={{ background: "#111C2E", border: "none", borderRadius: "12px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 600, color: "#FFFFFF", flexShrink: 0 }}>
                 {consultantRegional.prenom[0]}{consultantRegional.nom[0]}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "11px", fontWeight: 600, color: "#0F6E56", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Votre consultant régional</div>
-                <div style={{ fontSize: "15px", fontWeight: 600, color: "#0F172A" }}>{consultantRegional.prenom} {consultantRegional.nom}</div>
-                <div style={{ fontSize: "12px", color: "#64748B" }}>{consultantRegional.titre}{consultantRegional.region ? ` · ${consultantRegional.region}` : ""}</div>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "#5DCAA5", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Votre consultant régional</div>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "#FFFFFF" }}>{consultantRegional.prenom} {consultantRegional.nom}</div>
+                <div style={{ fontSize: "12px", color: "#94A3B8" }}>{consultantRegional.titre}{consultantRegional.region ? ` · ${consultantRegional.region}` : ""}</div>
               </div>
                             <button
                 onClick={() => navigate(`/client/prise-rdv/${consultantRegional.id}?mode=coordination`)}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", background: "#FFFFFF", color: "#111827", border: "none", padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
               >
                 <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} aria-hidden="true" />
                 Voir l'agenda et réserver

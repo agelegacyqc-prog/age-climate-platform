@@ -20,12 +20,16 @@ function tempsEcoule(iso: string) {
 function today() {
   return new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 }
-function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
+function BlocDepliant({ titre, icon, dotColor, texte, children, onVoirClick, forceOuvert }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode; onVoirClick?: () => void; forceOuvert?: number }) {
   const [ouvert, setOuvert] = useState(false)
+  useEffect(() => { if (forceOuvert) setOuvert(true) }, [forceOuvert])
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-      <button
+      <div
         onClick={() => setOuvert(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOuvert(o => !o) } }}
         style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
         aria-expanded={ouvert}
       >
@@ -35,8 +39,19 @@ function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: strin
           <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>{titre}</span>
           <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{texte}</span>
         </div>
-        <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} aria-hidden="true" />
-      </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {onVoirClick && (
+            <button
+              onClick={e => { e.stopPropagation(); onVoirClick() }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-eye" style={{ fontSize: "14px" }} aria-hidden="true" />
+              Voir
+            </button>
+          )}
+          <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} aria-hidden="true" />
+        </div>
+      </div>
       {ouvert && <div style={{ borderTop: "1px solid #E2DDD8" }}>{children}</div>}
     </div>
   )
@@ -73,6 +88,9 @@ export default function DashboardMetier() {
     fileAttente: 0,
     demandesMarketplace: 0,
   })
+  const [missionsBloqueesListe, setMissionsBloqueesListe] = useState<{ id: string; societe: string }[]>([])
+  const [missionAttentionOuverte, setMissionAttentionOuverte] = useState(false)
+  const [ouvrirPointsAttention, setOuvrirPointsAttention] = useState(0)
 
   // Charge équipe
   const [consultants, setConsultants] = useState<{ id: string; prenom: string; nom: string; missions: number; region: string | null }[]>([])
@@ -161,8 +179,8 @@ export default function DashboardMetier() {
     const dateLimite = new Date()
     dateLimite.setDate(dateLimite.getDate() - 5)
 
-    const [bloquRes, rdvRes, rapRes, fileRes, marketRes] = await Promise.all([
-      supabase.from("missions").select("id", { count: "exact", head: true }).eq("statut", "en_cours").lte("updated_at", dateLimite.toISOString()),
+        const [bloquRes, rdvRes, rapRes, fileRes, marketRes] = await Promise.all([
+      supabase.from("missions").select("id, societe").eq("statut", "en_cours").lte("updated_at", dateLimite.toISOString()),
       supabase.from("demandes_rdv").select("id", { count: "exact", head: true }).eq("statut", "en_attente").eq("lu_admin", false),
       supabase.from("rapports_client").select("id", { count: "exact", head: true }).eq("statut", "demande"),
       supabase.from("campagnes").select("id", { count: "exact", head: true }).eq("origine", "client").eq("statut", "soumise").is("responsable_id", null),
@@ -171,12 +189,13 @@ export default function DashboardMetier() {
 
     // Un seul setAlertes avec les 5 champs
     setAlertes({
-      missionsBloquees:    bloquRes.count || 0,
+      missionsBloquees:    bloquRes.data?.length || 0,
       demandesRdv:         rdvRes.count || 0,
       rapportsEnAttente:   rapRes.count || 0,
       fileAttente:         fileRes.count || 0,
       demandesMarketplace: marketRes.count || 0,
     })
+    setMissionsBloqueesListe((bloquRes.data || []).map((m: any) => ({ id: m.id, societe: m.societe || "Mission sans nom" })))
 
     // Charge consultants ET responsables régionaux
     const { data: profs } = await supabase
@@ -245,10 +264,11 @@ export default function DashboardMetier() {
     // Missions bloquées de la région
     const dateLimite = new Date()
     dateLimite.setDate(dateLimite.getDate() - 5)
-    let bloquQuery = supabase.from("missions").select("id", { count: "exact", head: true }).eq("statut", "en_cours").lte("updated_at", dateLimite.toISOString())
+      let bloquQuery = supabase.from("missions").select("id, societe").eq("statut", "en_cours").lte("updated_at", dateLimite.toISOString())
     if (userRegion) bloquQuery = bloquQuery.eq("region", userRegion)
-    const { count: bloquCount } = await bloquQuery
-    setAlertes(prev => ({ ...prev, missionsBloquees: bloquCount || 0 }))
+    const { data: bloquData } = await bloquQuery
+    setAlertes(prev => ({ ...prev, missionsBloquees: bloquData?.length || 0 }))
+    setMissionsBloqueesListe((bloquData || []).map((m: any) => ({ id: m.id, societe: m.societe || "Mission sans nom" })))
   }
 
 async function loadConsultant(uid: string) {
@@ -319,13 +339,20 @@ async function loadConsultant(uid: string) {
               {today().charAt(0).toUpperCase() + today().slice(1)}
             </p>
           </div>
-          {totalAlertesCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px" }}>
+             {totalAlertesCount > 0 && (
+            <button
+              onClick={() => {
+                setOuvrirPointsAttention(n => n + 1)
+                document.getElementById("bloc-points-attention")?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }}
+              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit" }}
+            >
               <i className="ti ti-alert-triangle" style={{ fontSize: "16px", color: "#B91C1C" }} />
               <span style={{ fontSize: "13px", fontWeight: 600, color: "#B91C1C" }}>
                 {totalAlertesCount} action{totalAlertesCount > 1 ? "s" : ""} requise{totalAlertesCount > 1 ? "s" : ""}
               </span>
-            </div>
+              <i className="ti ti-chevron-right" style={{ fontSize: "13px", color: "#B91C1C" }} />
+            </button>
           )}
         </div>
 
@@ -458,26 +485,29 @@ async function loadConsultant(uid: string) {
         {/* Points d'attention + Charge équipe */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-                  {/* Points d'attention */}
-          <BlocDepliant
+                                  {/* Points d'attention */}
+                <div id="bloc-points-attention">
+                <BlocDepliant
             titre="Points d'attention"
             icon="ti-bell"
             dotColor={alertes.missionsBloquees > 0 ? "#B91C1C" : totalAlertesCount > 0 ? "#D97706" : "#0369A1"}
             texte={totalAlertesCount > 0 ? `· ${totalAlertesCount} action${totalAlertesCount > 1 ? "s" : ""} requise${totalAlertesCount > 1 ? "s" : ""}` : "· rien à signaler"}
+            forceOuvert={ouvrirPointsAttention}
           >
             <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
-                { label: "Missions bloquées", count: alertes.missionsBloquees || 0,                                                                     icon: "ti-lock",     urgence: true,  route: "/metier/missions" },
-                { label: "Demandes RDV",      count: alertes.demandesRdv || 0,                                                                          icon: "ti-calendar", urgence: false, route: "/metier/file-attente" },
-                { label: "À traiter",         count: (alertes.fileAttente || 0) + (alertes.demandesMarketplace || 0) + (alertes.rapportsEnAttente || 0), icon: "ti-inbox",    urgence: true,  route: "/metier/file-attente" },
+                { id: "missions",   label: "Missions bloquées", count: alertes.missionsBloquees || 0,                                                                     icon: "ti-lock",     urgence: true,  route: "/metier/missions" },
+                { id: "rdv",        label: "Demandes RDV",      count: alertes.demandesRdv || 0,                                                                          icon: "ti-calendar", urgence: false, route: "/metier/file-attente" },
+                { id: "atraiter",   label: "À traiter",         count: (alertes.fileAttente || 0) + (alertes.demandesMarketplace || 0) + (alertes.rapportsEnAttente || 0), icon: "ti-inbox",    urgence: true,  route: "/metier/file-attente" },
               ].map((a, i) => {
                 const isActive     = a.count > 0
                 const accentColor  = isActive ? (a.urgence ? "#B91C1C" : "#D97706") : "#9CA3AF"
                 const bgColor      = isActive ? (a.urgence ? "#FEF2F2" : "#FFFBEB") : "#F4F3F0"
+                const estMissions  = a.id === "missions"
                 return (
+                  <div key={i}>
                   <div
-                    key={i}
-                    onClick={() => navigate(a.route)}
+                    onClick={() => estMissions && isActive ? setMissionAttentionOuverte(o => !o) : navigate(a.route)}
                     style={{
                       display: "flex", alignItems: "center", gap: "12px",
                       padding: "12px 14px", borderRadius: "10px",
@@ -507,20 +537,36 @@ async function loadConsultant(uid: string) {
                           {a.count}
                         </span>
                       )}
-                      <i className="ti ti-chevron-right" style={{ fontSize: "14px", color: isActive ? accentColor : "#C9C3BB" }} />
+                      <i className={`ti ${estMissions && isActive ? `ti-chevron-${missionAttentionOuverte ? "up" : "down"}` : "ti-chevron-right"}`} style={{ fontSize: "14px", color: isActive ? accentColor : "#C9C3BB" }} />
                     </div>
                   </div>
+                  {estMissions && isActive && missionAttentionOuverte && (
+                    <div style={{ marginTop: "6px", marginLeft: "48px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                      {missionsBloqueesListe.map(m => (
+                        <div
+                          key={m.id}
+                          onClick={() => navigate("/metier/missions")}
+                          style={{ fontSize: "12px", color: "#111827", padding: "6px 10px", background: "#FFFFFF", border: "1px solid #FECACA", borderRadius: "6px", cursor: "pointer" }}
+                        >
+                          {m.societe}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  </div>
                 )
-                       })}
+                             })}
             </div>
           </BlocDepliant>
+                </div>
 
           {/* Charge équipe */}
-          <BlocDepliant
+             <BlocDepliant
             titre={`Charge équipe${region ? ` — ${region}` : ""}`}
             icon="ti-users"
             dotColor={chargeMaxColor}
             texte={`· ${consultants.length} consultant${consultants.length > 1 ? "s" : ""}`}
+            onVoirClick={() => navigate("/metier/equipe")}
           >
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
               {consultants.length === 0 ? (

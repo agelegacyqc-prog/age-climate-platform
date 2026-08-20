@@ -487,12 +487,18 @@ export default function Layout() {
             .subscribe()
         }
 
-    async function chargerBadgesRespRegional(userId: string, region: string) {
+        async function chargerBadgesRespRegional(userId: string, region: string) {
       const { count: countCampRegion } = await supabase
         .from("campagnes")
         .select("id", { count: "exact", head: true })
         .eq("responsable_id", userId)
       setNbCampagnes(countCampRegion || 0)
+
+      const { count: countMissionsNonVues } = await supabase
+        .from("missions")
+        .select("id", { count: "exact", head: true })
+        .eq("responsable_id", userId)
+        .eq("vu_responsable", false)
 
       const { count: countAlertes } = await supabase
         .from("alertes_scores")
@@ -500,12 +506,12 @@ export default function Layout() {
         .eq("lu", false)
         .eq("region_code", region)
 
-      const { count: countMissRegion } = await supabase
+            const { count: countMissRegion } = await supabase
         .from("missions")
         .select("id", { count: "exact", head: true })
         .eq("region", region)
         .is("consultant_id", null)
-      setNbMissions(countMissRegion || 0)
+      setNbMissions((countMissRegion || 0) + (countMissionsNonVues || 0))
 
       // Demandes d'analyse climatique non assignées — visible par tous les
       // responsables régionaux, sans filtre région (rapports_client.region

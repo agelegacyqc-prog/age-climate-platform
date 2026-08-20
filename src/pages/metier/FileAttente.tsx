@@ -13,6 +13,7 @@ interface DemandeDispatch {
   created_at: string
   responsable_id: string | null
   consultant_id: string | null
+  vu_responsable?: boolean
 }
 
 interface DemandeRDV {
@@ -131,9 +132,9 @@ async function charger(roleParam?: string, regionParam?: string | null, uidParam
         .eq("origine", "client")
         .order("created_at", { ascending: false })
 
-      let missionsQuery = supabase
+         let missionsQuery = supabase
         .from("missions")
-        .select("id, societe, statut, region, responsable_id, consultant_id, created_at, client_id")
+        .select("id, societe, statut, region, responsable_id, consultant_id, created_at, client_id, vu_responsable")
         .order("created_at", { ascending: false })
 
      if (roleActuel === "responsable_regional" && regionActuelle) {
@@ -213,7 +214,7 @@ const campagnesMapped: DemandeDispatch[] = (campagnes || []).map((c: any) => ({
         consultant_id: c.consultant_id,
       }))
 
-    // Mapper missions
+          // Mapper missions
       const missionsMapped: DemandeDispatch[] = (missions || []).map((m: any) => ({
         id: m.id,
         type: "mission",
@@ -224,6 +225,7 @@ const campagnesMapped: DemandeDispatch[] = (campagnes || []).map((c: any) => ({
         created_at: m.created_at,
         responsable_id: m.responsable_id,
         consultant_id: m.consultant_id,
+        vu_responsable: m.vu_responsable,
       }))
 
       // Mapper analyses climatiques (region toujours NULL — pas de filtre régional à l'assignation)
@@ -321,6 +323,11 @@ async function ouvrirAssignation(d: DemandeDispatch) {
     setSelectedDemande(d)
     setSelectedResponsable("")
     setAssignSuccess(false)
+
+    if (d.type === "mission" && d.vu_responsable === false) {
+      await supabase.from("missions").update({ vu_responsable: true }).eq("id", d.id)
+      setDemandesDispatch(prev => prev.map(x => x.id === d.id ? { ...x, vu_responsable: true } : x))
+    }
 
     const cibleConsultant = roleAGE === "responsable_regional"
 
@@ -584,6 +591,8 @@ async function handleMarketplaceValider() {
               "Campagnes & Missions",
             count: roleAGE === "consultant"
               ? demandesDispatch.filter(d => d.statut === "nouvelle" || d.statut === "soumise").length
+              : roleAGE === "responsable_regional"
+              ? demandesDispatch.filter(d => !d.responsable_id || d.vu_responsable === false).length
               : demandesDispatch.filter(d => !d.responsable_id).length,
           },
           { id: "rdv", label: "Demandes RDV", count: nbNonLusRdv },
@@ -662,13 +671,16 @@ async function handleMarketplaceValider() {
                       </tr>
                     </thead>
                     <tbody>
-                      {demandesFiltrees.map(d => (
-                        <tr key={d.id} style={{ borderBottom: "1px solid #E2DDD8", height: "52px" }}
+                                   {demandesFiltrees.map(d => (
+                        <tr key={d.id} style={{ borderBottom: "1px solid #E2DDD8", height: "52px", background: d.vu_responsable === false ? "#FFFBF7" : "transparent" }}
                           onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                          onMouseLeave={e => (e.currentTarget.style.background = d.vu_responsable === false ? "#FFFBF7" : "transparent")}
                         >
                           <td style={tdStyle}>
-                            <span style={{ fontWeight: 500, color: "#111827" }}>{d.client_nom}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {d.vu_responsable === false && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#B91C1C", flexShrink: 0, display: "inline-block" }} />}
+                              <span style={{ fontWeight: 500, color: "#111827" }}>{d.client_nom}</span>
+                            </div>
                           </td>
                           <td style={tdStyle}>
                             <span className={d.type === "campagne" ? "badge badge--info" : "badge badge--neutral"}>
@@ -694,17 +706,23 @@ async function handleMarketplaceValider() {
                             </span>
                           </td>
                 <td style={{ ...tdStyle, textAlign: "right" }}>
-                            {roleAGE !== "consultant" ? (
+                                               {roleAGE !== "consultant" ? (
                               <button
                                 onClick={() => ouvrirAssignation(d)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "none", background: d.responsable_id ? "#0369A1" : "#D97706", color: "white", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                               >
                                 <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
                                 {d.responsable_id ? "Réassigner" : "Assigner"}
                               </button>
                             ) : (
                               <button
-                                onClick={() => navigate(d.type === "campagne" ? `/metier/campagnes/${d.id}` : "/metier/missions")}
+                                onClick={async () => {
+                                  if (d.type === "mission" && d.vu_responsable === false) {
+                                    await supabase.from("missions").update({ vu_responsable: true }).eq("id", d.id)
+                                    setDemandesDispatch(prev => prev.map(x => x.id === d.id ? { ...x, vu_responsable: true } : x))
+                                  }
+                                  navigate(d.type === "campagne" ? `/metier/campagnes/${d.id}` : "/metier/missions")
+                                }}
                                 style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                               >
                                 <i className="ti ti-eye" style={{ fontSize: "13px" }} />
@@ -791,10 +809,10 @@ async function handleMarketplaceValider() {
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                            {roleAGE === "admin_national" && (
+                                                {roleAGE === "admin_national" && (
                               <button
                                 onClick={() => ouvrirAssignationRdv(r)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "none", background: r.responsable_id ? "#0369A1" : "#D97706", color: "white", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                               >
                                 <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
                                 {r.responsable_id ? "Réassigner" : "Assigner"}
@@ -858,10 +876,10 @@ async function handleMarketplaceValider() {
                       </span>
                     </td>
                   <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {roleAGE !== "consultant" ? (
+                                      {roleAGE !== "consultant" ? (
                         <button
                           onClick={() => ouvrirAssignation(d)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#F4F3F0", color: "#111827", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 12px", borderRadius: "6px", border: "none", background: d.responsable_id ? "#0369A1" : "#D97706", color: "white", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                         >
                           <i className="ti ti-user-check" style={{ fontSize: "13px" }} />
                           {d.responsable_id ? "Réassigner" : "Assigner"}

@@ -3,9 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
 } from "recharts"
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatEur(val: number) {
   if (val >= 1000000) return (val / 1000000).toFixed(1).replace(".", ",") + " M€"
@@ -33,6 +32,18 @@ function TooltipCA({ active, payload, label }: any) {
       <div style={{ fontSize: "12px", fontWeight: 600, color: "#0F172A", marginBottom: "4px" }}>{label}</div>
       <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: "#B25C2A", fontWeight: 600 }}>
         {formatEurFull(payload[0]?.value || 0)}
+      </div>
+    </div>
+  )
+}
+
+function TooltipCumul({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "10px 14px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, color: "#0F172A", marginBottom: "4px" }}>{label}</div>
+      <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: "#B25C2A", fontWeight: 600 }}>
+        {formatEurFull(payload[0]?.value || 0)} cumulés
       </div>
     </div>
   )
@@ -128,13 +139,27 @@ export default function Reporting() {
     const finISO   = fin.toISOString()
     const region   = filtreRegion === "toutes" ? null : filtreRegion
 
-    // ── Factures (CA) — filtrées par date_emission ─────────────────────────
+    // ── Factures (CA) — filtrées par date_emission, et par région via mission/campagne ──
     let factQuery = supabase.from("factures")
-      .select("total_ht, date_emission, statut")
+      .select("total_ht, date_emission, statut, mission_id, campagne_id")
       .neq("statut", "brouillon")
       .gte("date_emission", debutISO.split("T")[0])
       .lte("date_emission", finISO.split("T")[0])
-    const { data: factures } = await factQuery
+    const { data: facturesData } = await factQuery
+
+    let factures = facturesData || []
+    if (region) {
+      const [{ data: missionsRegion }, { data: campagnesRegion }] = await Promise.all([
+        supabase.from("missions").select("id").eq("region", region),
+        supabase.from("campagnes").select("id").eq("region", region),
+      ])
+      const missionIds = new Set((missionsRegion || []).map((m: any) => m.id))
+      const campagneIds = new Set((campagnesRegion || []).map((c: any) => c.id))
+      factures = factures.filter((f: any) =>
+        (f.mission_id && missionIds.has(f.mission_id)) ||
+        (f.campagne_id && campagneIds.has(f.campagne_id))
+      )
+    }
 
     // ── Clients ────────────────────────────────────────────────────────────
     const { count: nbClientsCount } = await supabase
@@ -225,7 +250,12 @@ export default function Reporting() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const caMaxMois        = Math.max(...caParMois.map(d => d.ca), 1)
+    const caMaxMois        = Math.max(...caParMois.map(d => d.ca), 1)
+  const caCumule = caParMois.reduce<{ mois: string; cumul: number }[]>((acc, d) => {
+    const precedent = acc.length > 0 ? acc[acc.length - 1].cumul : 0
+    acc.push({ mois: d.mois, cumul: precedent + d.ca })
+    return acc
+  }, [])
   const isAdmin          = roleUser === "admin" || roleUser === "admin_national"
   const isResponsable    = roleUser === "responsable_regional"
   const labelPeriode     = filtrePeriode === "annee"
@@ -341,22 +371,36 @@ export default function Reporting() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px" }}>
-          {[
-            { label: "CA global",      val: formatEur(caGlobal),        sub: "Factures émises",  icon: "ti-chart-line",       color: "#B25C2A", bg: "#FEF3EC" },
-            { label: "Clients",        val: nbClients.toString(),        sub: "Comptes actifs",   icon: "ti-building-community",color: "#0369A1", bg: "#EFF6FF" },
-            { label: "Biens analysés", val: nbBiens.toString(),          sub: "Total patrimoine", icon: "ti-building",         color: "#2F7D5C", bg: "#ECFDF5" },
-            { label: "Campagnes",      val: nbCampagnes.toString(),      sub: labelPeriode,       icon: "ti-speakerphone",     color: "#7C3AED", bg: "#F5F3FF" },
-            { label: "Missions",       val: nbMissions.toString(),       sub: labelPeriode,       icon: "ti-briefcase",        color: "#1E40AF", bg: "#EFF6FF" },
+           {[
+            { label: "CA global",      val: formatEur(caGlobal),        sub: "Factures émises",  icon: "ti-chart-line",       color: "#F0997B" },
+            { label: "Clients",        val: nbClients.toString(),        sub: "Comptes actifs",   icon: "ti-building-community",color: "#85B7EB" },
+            { label: "Biens analysés", val: nbBiens.toString(),          sub: "Total patrimoine", icon: "ti-building",         color: "#5DCAA5" },
+            { label: "Campagnes",      val: nbCampagnes.toString(),      sub: labelPeriode,       icon: "ti-speakerphone",     color: "#AFA9EC" },
+            { label: "Missions",       val: nbMissions.toString(),       sub: labelPeriode,       icon: "ti-briefcase",        color: "#85B7EB" },
           ].map((k, i) => (
-            <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "18px 20px", borderTop: `3px solid ${k.color}` }}>
+            <div
+              key={i}
+              style={{ background: "#111C2E", borderLeft: `3px solid ${k.color}`, borderRadius: "12px", padding: "20px", transition: "background 0.15s, box-shadow 0.15s" }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.background = "#16233A"
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = `inset 0 0 0 1px ${k.color}60, 0 0 24px ${k.color}25`
+                const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${k.color}55`
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.background = "#111C2E"
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
+                const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${k.color}2A`
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>{k.label}</div>
-                <div style={{ width: 30, height: 30, borderRadius: "7px", background: k.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <i className={`ti ${k.icon}`} style={{ fontSize: "15px", color: k.color }} />
+                <div data-halo style={{ width: "32px", height: "32px", borderRadius: "8px", background: `${k.color}2A`, display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
                 </div>
               </div>
-              <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: i === 0 ? "20px" : "26px", fontWeight: 600, color: k.color, marginBottom: "4px" }}>{k.val}</div>
-              <div style={{ fontSize: "11px", color: "#94A3B8" }}>{k.sub}</div>
+              <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: i === 0 ? "22px" : "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>{k.val}</div>
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
             </div>
           ))}
         </div>
@@ -388,13 +432,28 @@ export default function Reporting() {
                 <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#94A3B8", fontFamily: "inherit" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#94A3B8", fontFamily: "inherit" }} axisLine={false} tickLine={false} tickFormatter={v => v === 0 ? "0" : formatEur(v)} />
                 <Tooltip content={<TooltipCA />} cursor={{ fill: "#FEF3EC" }} />
-                <Bar dataKey="ca" name="CA HT" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="ca" name="CA HT" radius={[4, 4, 0, 0]}>
                   {caParMois.map((entry, i) => (
                     <Cell key={i} fill={entry.ca === caMaxMois && caMaxMois > 0 ? "#B25C2A" : "#F5DDD0"} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          )}
+
+          {filtrePeriode === "annee" && !loading && (
+            <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: "12px", fontWeight: 500, color: "#0F172A", marginBottom: "12px" }}>Progression du CA cumulé</div>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={caCumule} margin={{ top: 0, right: 0, bottom: 0, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#94A3B8", fontFamily: "inherit" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94A3B8", fontFamily: "inherit" }} axisLine={false} tickLine={false} tickFormatter={v => v === 0 ? "0" : formatEur(v)} />
+                  <Tooltip content={<TooltipCumul />} />
+                  <Line type="monotone" dataKey="cumul" name="CA cumulé" stroke="#B25C2A" strokeWidth={2.5} dot={{ r: 3, fill: "#B25C2A" }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
 

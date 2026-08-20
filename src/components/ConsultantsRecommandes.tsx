@@ -87,9 +87,12 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
 
   return (
     <>
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", overflow: "hidden" }}>
-        <button
+                 <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
+            <div
           onClick={() => setOuvert(o => !o)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOuvert(o => !o) } }}
           style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
           aria-expanded={ouvert}
         >
@@ -99,8 +102,17 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
             <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Experts recommandés</span>
             <span style={{ fontSize: "12px", color: "#9CA3AF" }}>· {consultants.length} profils</span>
           </div>
-          <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
-        </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              onClick={e => { e.stopPropagation(); setOuvert(o => !o) }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-eye" style={{ fontSize: "14px" }} />
+              Voir
+            </button>
+            <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
+          </div>
+        </div>
         {ouvert && (
         <div style={{ padding: "0 20px 20px" }}>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "16px" }}>Sélectionnés selon vos alertes réglementaires</div>

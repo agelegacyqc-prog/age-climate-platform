@@ -170,11 +170,11 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/sensibilisation",  icon: "ti-leaf",           titre: "Documentation", desc: "Ressources et obligations réglementaires" },
     ],
   },
-  collectivite: {
+    collectivite: {
     sousTitre: "Pilotez la résilience climatique de votre territoire",
     boutons: [
-      { label: "Mon territoire", route: "/metier/portefeuille", icon: "ti-map" },
-      { label: "Reporting",      route: "/metier/reporting",    icon: "ti-file-analytics" },
+      { label: "Mon territoire", route: "/client/actifs",     icon: "ti-map" },
+      { label: "Reporting",      route: "/client/reporting",  icon: "ti-file-analytics" },
     ],
     afficherCarte: true, afficherRoadmap: true,
     kpis: [
@@ -257,9 +257,12 @@ const ALERTES_PAR_PROFIL: Record<string, AlerteRegl[]> = {
 function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
   const [ouvert, setOuvert] = useState(false)
   return (
-    <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
-      <button
+       <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
+      <div
         onClick={() => setOuvert(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOuvert(o => !o) } }}
         style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
         aria-expanded={ouvert}
       >
@@ -269,8 +272,17 @@ function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: strin
           <span style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>{titre}</span>
           <span style={{ fontSize: "12px", color: "#94A3B8" }}>{texte}</span>
         </div>
-        <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
-      </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            onClick={e => { e.stopPropagation(); setOuvert(o => !o) }}
+            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <i className="ti ti-eye" style={{ fontSize: "14px" }} aria-hidden="true" />
+            Voir
+          </button>
+          <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#94A3B8" }} aria-hidden="true" />
+        </div>
+      </div>
       {ouvert && <div style={{ padding: "0 20px 20px" }}>{children}</div>}
     </div>
   )

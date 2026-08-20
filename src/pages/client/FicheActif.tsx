@@ -30,6 +30,57 @@ const reglIcones:any = {
   ifrs_s2:"ti-world", loi_climat:"ti-thermometer", bilan_ges:"ti-plant-2",
 }
 
+const REGL_DETAILS: Record<string, { objectif: string; sanctions: string }> = {
+  tertiaire: {
+    objectif: "Réduire les consommations d'énergie finale des bâtiments tertiaires d'au moins 1 000 m² : -40 % d'ici 2030, -50 % d'ici 2040, -60 % d'ici 2050, par rapport à une année de référence. Les consommations doivent être déclarées chaque année sur la plateforme OPERAT.",
+    sanctions: "En l'absence de déclaration ou d'atteinte des objectifs, mise en demeure du préfet puis amende administrative pouvant atteindre 1 500 € pour une personne physique et 7 500 € pour une personne morale, avec publication du manquement (« name and shame »).",
+  },
+  bacs: {
+    objectif: "Équiper les bâtiments tertiaires dont la puissance nominale de chauffage ou de climatisation dépasse 290 kW d'un système d'automatisation et de régulation du bâtiment (GTB), afin de piloter et d'optimiser les usages énergétiques.",
+    sanctions: "Le décret ne prévoit pas de sanction financière directe, mais la non-conformité expose l'exploitant lors des contrôles et complique l'atteinte des objectifs du Décret Tertiaire, avec lequel BACS est étroitement lié.",
+  },
+  csrd: {
+    objectif: "Imposer un reporting de durabilité standardisé (environnement, social, gouvernance) selon les normes ESRS, pour les entreprises dépassant certains seuils d'effectif, de chiffre d'affaires ou de total bilan.",
+    sanctions: "Sanctions administratives et pénales fixées par chaque État membre lors de la transposition ; en France, elles peuvent inclure des amendes et un contrôle renforcé du commissaire aux comptes, avec un risque réputationnel significatif en cas de non-conformité.",
+  },
+  bilan_carbone: {
+    objectif: "Quantifier les émissions de gaz à effet de serre directes et indirectes (scopes 1, 2 et 3) de l'organisation, afin de bâtir un plan de transition crédible.",
+    sanctions: "Pour les entités soumises à l'obligation réglementaire (Bilan GES réglementaire), l'absence de publication peut entraîner une amende administrative pouvant atteindre 50 000 €.",
+  },
+  iso50001: {
+    objectif: "Mettre en place un système de management de l'énergie structuré, visant l'amélioration continue de la performance énergétique de l'organisation.",
+    sanctions: "Norme volontaire — aucune sanction associée. La certification peut néanmoins conditionner l'éligibilité à certains dispositifs d'aide (CEE, exonérations).",
+  },
+  audit_energetique: {
+    objectif: "Réaliser un audit énergétique complet (bâtiments, procédés, transports) tous les 4 ans pour les grandes entreprises, afin d'identifier les gisements d'économies d'énergie.",
+    sanctions: "Le non-respect de l'obligation expose à une amende administrative pouvant atteindre 4 % du chiffre d'affaires hors taxes (2 % en cas de première infraction), prononcée par la DGCCRF.",
+  },
+  eu_taxonomy: {
+    objectif: "Classifier les activités économiques selon leur contribution aux objectifs environnementaux européens, et publier la part du chiffre d'affaires, des CapEx et OpEx alignée sur la taxonomie.",
+    sanctions: "Aucune sanction financière directe, mais un risque réputationnel et un impact potentiel sur l'accès au financement durable en cas de non-conformité ou de « greenwashing » constaté.",
+  },
+  sfdr: {
+    objectif: "Imposer aux acteurs des marchés financiers (sociétés de gestion, assureurs) une transparence sur l'intégration des risques de durabilité et les incidences négatives de leurs investissements.",
+    sanctions: "Sanctions fixées par les autorités de supervision nationales (AMF en France), pouvant inclure des amendes administratives et des mesures correctives en cas de manquement à l'obligation de transparence.",
+  },
+  esrs: {
+    objectif: "Fournir le référentiel technique détaillé de la CSRD : indicateurs, méthodologies et format de reporting attendus pour chaque thématique de durabilité.",
+    sanctions: "Les manquements aux ESRS sont sanctionnés dans le cadre général de la CSRD (cf. ci-dessus).",
+  },
+  ifrs_s2: {
+    objectif: "Standardiser la publication d'informations financières liées au climat (risques physiques, risques de transition, opportunités) à destination des investisseurs.",
+    sanctions: "Norme dont le caractère obligatoire dépend de la juridiction d'adoption ; en l'absence de transposition contraignante en France, son application reste volontaire à ce jour.",
+  },
+  loi_climat: {
+    objectif: "Renforcer les obligations climatiques des grandes entreprises sur un périmètre large (urbanisme, mobilité, consommation, publicité), en complément des dispositifs sectoriels existants.",
+    sanctions: "Les sanctions varient selon le volet concerné de la loi ; certaines dispositions prévoient des amendes administratives spécifiques à chaque obligation sectorielle.",
+  },
+  bilan_ges: {
+    objectif: "Établir et publier un bilan des émissions de gaz à effet de serre (scopes 1 et 2 obligatoires, scope 3 recommandé) pour les entreprises de plus de 500 salariés, tous les 4 ans.",
+    sanctions: "Amende administrative pouvant atteindre 50 000 € en cas d'absence de publication du bilan dans les délais réglementaires.",
+  },
+}
+
 const typesDocuments = [
   { id:"dpe",          label:"DPE",              desc:"Diagnostic de Performance Énergétique" },
   { id:"audit",        label:"Audit énergétique", desc:"Dernier audit réalisé" },
@@ -47,6 +98,61 @@ const ALEA_LABELS: Record<string, string> = {
   rga: "RGA",
   submersion: "Submersion",
   episodes_froids: "Épisodes froids",
+}
+
+const ALEA_ICONE_PRINCIPALE: Record<string, string> = {
+  inondation: "ti-droplet", chaleur: "ti-temperature", secheresse: "ti-droplet-off",
+  feux_foret: "ti-flame", tempetes: "ti-wind", rga: "ti-layers-difference",
+  submersion: "ti-waves", episodes_froids: "ti-snowflake",
+}
+
+const ALEA_COULEUR_PRINCIPALE: Record<string, string> = {
+  inondation: "#0369A1", chaleur: "#D97706", secheresse: "#BA7517",
+  feux_foret: "#B91C1C", tempetes: "#5F5E5A", rga: "#993C1D",
+  submersion: "#0369A1", episodes_froids: "#0369A1",
+}
+
+const ALEA_SOLUTIONS: Record<string, { icon: string; titre: string; desc: string }[]> = {
+  inondation: [
+    { icon: "ti-shield", titre: "Batardeaux amovibles", desc: "Protection des accès rez-de-chaussée en cas de crue" },
+    { icon: "ti-tool", titre: "Pompe de relevage", desc: "Évacuation rapide des eaux infiltrées" },
+    { icon: "ti-arrow-up", titre: "Surélévation des réseaux", desc: "Mise hors d'eau des équipements électriques sensibles" },
+  ],
+  chaleur: [
+    { icon: "ti-sun", titre: "Brise-soleil et protections solaires", desc: "Réduction des apports thermiques en façade" },
+    { icon: "ti-plant-2", titre: "Toiture ou façade végétalisée", desc: "Effet rafraîchissant naturel du bâtiment" },
+    { icon: "ti-color-swatch", titre: "Revêtement réfléchissant", desc: "Limitation de l'absorption de chaleur en toiture" },
+  ],
+  secheresse: [
+    { icon: "ti-droplet", titre: "Irrigation goutte-à-goutte", desc: "Optimisation de la consommation d'eau des espaces verts" },
+    { icon: "ti-container", titre: "Récupération des eaux pluviales", desc: "Cuve de stockage pour les usages non potables" },
+    { icon: "ti-plant-2", titre: "Végétation résistante au stress hydrique", desc: "Adaptation des plantations aux périodes sèches" },
+  ],
+  feux_foret: [
+    { icon: "ti-scissors", titre: "Débroussaillage réglementaire", desc: "Réduction de la charge combustible aux abords du bâtiment" },
+    { icon: "ti-shield", titre: "Écran pare-feu", desc: "Zone tampon entre végétation et bâti" },
+    { icon: "ti-brick", titre: "Matériaux de construction M0", desc: "Résistance renforcée au feu en façade" },
+  ],
+  tempetes: [
+    { icon: "ti-tool", titre: "Fixation renforcée de toiture", desc: "Résistance accrue aux vents violents" },
+    { icon: "ti-door", titre: "Volets et fermetures renforcés", desc: "Protection des ouvertures en cas de tempête" },
+    { icon: "ti-tree", titre: "Élagage des arbres à proximité", desc: "Réduction du risque de chute sur le bâtiment" },
+  ],
+  rga: [
+    { icon: "ti-ruler-2", titre: "Renforcement des fondations", desc: "Adaptation aux mouvements du sol argileux" },
+    { icon: "ti-layers-difference", titre: "Joints de dilatation", desc: "Absorption des mouvements différentiels du bâti" },
+    { icon: "ti-droplet-off", titre: "Drainage périphérique", desc: "Régulation de l'humidité autour des fondations" },
+  ],
+  submersion: [
+    { icon: "ti-shield", titre: "Digue ou batardeaux", desc: "Barrière physique contre la montée des eaux" },
+    { icon: "ti-arrow-up", titre: "Zone refuge en étage", desc: "Mise en sécurité des occupants et biens sensibles" },
+    { icon: "ti-tool", titre: "Réseaux techniques hors d'eau", desc: "Protection des installations électriques et techniques" },
+  ],
+  episodes_froids: [
+    { icon: "ti-snowflake", titre: "Isolation thermique renforcée", desc: "Réduction des déperditions de chaleur" },
+    { icon: "ti-thermometer", titre: "Calorifugeage des réseaux", desc: "Protection des canalisations contre le gel" },
+    { icon: "ti-bolt", titre: "Groupe électrogène de secours", desc: "Continuité de chauffage en cas de coupure" },
+  ],
 }
 // Même conversion markdown → HTML que PreDiagDrawer.tsx, pour un rendu
 // identique du rapport IA côté client.
@@ -107,11 +213,25 @@ export default function FicheActif() {
   const [photoUrl, setPhotoUrl]                 = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto]     = useState(false)
     const [erreurPhoto, setErreurPhoto]           = useState("")
-  const [infosSiteDeplie, setInfosSiteDeplie]   = useState(false)
+    const [infosSiteDeplie, setInfosSiteDeplie]   = useState(false)
+  const [reglementationsDeplie, setReglementationsDeplie] = useState(false)
     const [prediagIa, setPrediagIa]               = useState<any>(null)
   const [prediagDetailOuvert, setPrediagDetailOuvert] = useState(false)
+     const [reglementationDetailOuverte, setReglementationDetailOuverte] = useState<any>(null)
+  const [consultantRegionalId, setConsultantRegionalId] = useState<string | null>(null)
+  const [aleaDetailOuvert, setAleaDetailOuvert] = useState<{ alea: string; score: number } | null>(null)
 
   useEffect(() => { loadActif() }, [id])
+
+  useEffect(() => {
+    async function chargerConsultantRegional() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const affectation = await resolveAffectationClient(user.id)
+      setConsultantRegionalId(affectation?.consultant_id ?? null)
+    }
+    chargerConsultantRegional()
+  }, [])
 
   async function loadActif() {
     const { data: actifData } = await supabase.from("actifs").select("*").eq("id", id).single()
@@ -470,14 +590,25 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem",alignItems:"start"}}>
         <div style={{display:"flex",flexDirection:"column",gap:"1.5rem"}}>
           <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-            <button
+                  <div
               onClick={() => setInfosSiteDeplie(d => !d)}
-      
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setInfosSiteDeplie(d => !d) } }}
               style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",marginBottom: infosSiteDeplie ? "1rem" : 0,fontFamily:"inherit"}}
             >
               <h3 style={{color:"#111827",margin:0}}>Informations du site</h3>
-              <i className={`ti ti-chevron-${infosSiteDeplie ? "up" : "down"}`} style={{fontSize:"16px",color:"#9CA3AF"}} />
-            </button>
+              <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                <button
+                  onClick={e => { e.stopPropagation(); setInfosSiteDeplie(d => !d) }}
+                  style={{display:"flex",alignItems:"center",gap:"6px",background:"#0F6E56",color:"white",border:"none",padding:"6px 14px",borderRadius:"6px",fontSize:"12px",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+                >
+                  <i className="ti ti-eye" style={{fontSize:"14px"}} />
+                  Voir
+                </button>
+                <i className={`ti ti-chevron-${infosSiteDeplie ? "up" : "down"}`} style={{fontSize:"16px",color:"#9CA3AF"}} />
+              </div>
+            </div>
             {infosSiteDeplie && (
               <>
                 {[
@@ -528,24 +659,44 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
             )}
           </div>
                    <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-              <h3 style={{color:"#111827",marginBottom:"1rem"}}>Réglementations</h3>
-              {reglementations.length === 0 ? (
-                <p style={{color:"#666",fontSize:"0.9rem"}}>Aucune réglementation analysée</p>
-              ) : (
-                reglementations.map((r,i) => (
-                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
-                    <span style={{fontSize:"0.9rem",color:"#111827",display:"flex",alignItems:"center",gap:"6px"}}>
-                      <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"15px",color:statutReglColor[r.statut]?.color||"#6B7280"}} />
-                      {reglLabels[r.reglementation]||r.reglementation}
-                    </span>
-                    <span style={{background:statutReglColor[r.statut]?.bg||"#f0f0f0",color:statutReglColor[r.statut]?.color||"#666",padding:"0.2rem 0.6rem",borderRadius:"999px",fontSize:"0.75rem",fontWeight:"600"}}>
-                      <i className={`ti ${statutReglColor[r.statut]?.icone}`} style={{fontSize:"11px"}} />
-                      {statutReglColor[r.statut]?.label||r.statut}
-                    </span>
-                  </div>
-                ))
+              <div
+                onClick={() => setReglementationsDeplie(d => !d)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setReglementationsDeplie(d => !d) } }}
+                style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",marginBottom: reglementationsDeplie ? "1rem" : 0,fontFamily:"inherit"}}
+              >
+                <h3 style={{color:"#111827",margin:0}}>Réglementations</h3>
+                <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setReglementationsDeplie(d => !d) }}
+                    style={{display:"flex",alignItems:"center",gap:"6px",background:"#0F6E56",color:"white",border:"none",padding:"6px 14px",borderRadius:"6px",fontSize:"12px",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+                  >
+                    <i className="ti ti-eye" style={{fontSize:"14px"}} />
+                    Voir
+                  </button>
+                  <i className={`ti ti-chevron-${reglementationsDeplie ? "up" : "down"}`} style={{fontSize:"16px",color:"#9CA3AF"}} />
+                </div>
+              </div>
+              {reglementationsDeplie && (
+                reglementations.length === 0 ? (
+                  <p style={{color:"#666",fontSize:"0.9rem"}}>Aucune réglementation analysée</p>
+                ) : (
+                  reglementations.map((r,i) => (
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
+                      <span style={{fontSize:"0.9rem",color:"#111827",display:"flex",alignItems:"center",gap:"6px"}}>
+                        <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"15px",color:statutReglColor[r.statut]?.color||"#6B7280"}} />
+                        {reglLabels[r.reglementation]||r.reglementation}
+                      </span>
+                      <span style={{background:statutReglColor[r.statut]?.bg||"#f0f0f0",color:statutReglColor[r.statut]?.color||"#666",padding:"0.2rem 0.6rem",borderRadius:"999px",fontSize:"0.75rem",fontWeight:"600"}}>
+                        <i className={`ti ${statutReglColor[r.statut]?.icone}`} style={{fontSize:"11px"}} />
+                        {statutReglColor[r.statut]?.label||r.statut}
+                      </span>
+                    </div>
+                  ))
+                )
               )}
-            </div>
+                 </div>
       <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
               <h3 style={{color:"#111827",marginBottom:"1rem"}}>Score climatique</h3>
               <ScoreHistorique
@@ -579,8 +730,8 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                     )}
                     {s.aleas?.length > 0 && (
                       <div style={{display:"flex",gap:"6px",flexWrap:"wrap" as const,marginBottom:"14px"}}>
-                        {s.aleas.map((a: any, i: number) => (
-                          <span key={i} style={{display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",padding:"3px 8px",borderRadius:"6px",background:"#16233A",color:"#94A3B8"}}>
+                                         {s.aleas.map((a: any, i: number) => (
+                          <span key={i} style={{display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",padding:"3px 8px",borderRadius:"6px",background:"#16233A",color:"#FFFFFF"}}>
                             <i className={`ti ${ICONE_ALEA[a.type] || "ti-alert-triangle"}`} style={{fontSize:"12px",color:COULEUR_ALEA[a.type] || "#94A3B8"}} />
                             {a.label}
                           </span>
@@ -620,7 +771,7 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
               </div>
             )
           })()}
-        </div>
+               </div>
         </div>
       )}
 
@@ -699,50 +850,210 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
           </div>
         </>
       )}
+
+      {/* Modale détail aléa climatique — croquis de solutions */}
+      {aleaDetailOuvert && (() => {
+        const { alea, score } = aleaDetailOuvert
+        const couleur = ALEA_COULEUR_PRINCIPALE[alea] || "#6B7280"
+        const solutions = ALEA_SOLUTIONS[alea] || []
+        const recoAssociees = prediagnostic?.recommandations?.find((r: any) => r.alea === alea)
+        return (
+          <>
+            <div onClick={() => setAleaDetailOuvert(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:300}} />
+            <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"560px",maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto",background:"#FFFFFF",borderRadius:"16px",zIndex:301,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+
+              <div style={{background:couleur+"14",padding:"28px 28px 20px",textAlign:"center" as const,position:"relative"}}>
+                <button onClick={() => setAleaDetailOuvert(null)} style={{position:"absolute",top:"14px",right:"14px",border:"none",background:"rgba(255,255,255,0.7)",width:"28px",height:"28px",borderRadius:"6px",cursor:"pointer"}}>
+                  <i className="ti ti-x" style={{fontSize:"14px"}} />
+                </button>
+                <div style={{width:"60px",height:"60px",borderRadius:"50%",background:"#FFFFFF",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>
+                  <i className={`ti ${ALEA_ICONE_PRINCIPALE[alea] || "ti-alert-triangle"}`} style={{fontSize:"28px",color:couleur}} />
+                </div>
+                <h3 style={{margin:0,fontSize:"16px",fontWeight:700,color:"#111827"}}>{ALEA_LABELS[alea] || alea}</h3>
+                <div style={{fontSize:"12px",color:"#6B7280",marginTop:"4px"}}>Score d'exposition : {score}/100</div>
+              </div>
+
+              <div style={{padding:"22px 28px"}}>
+                <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"12px"}}>Solutions d'adaptation</div>
+
+                {/* Croquis */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",background:"#F8FAFC",borderRadius:"10px",padding:"20px 16px 14px",marginBottom:"18px",borderBottom:"2px solid #CBD5E1"}}>
+                  {solutions.map((s, i) => (
+                    <div key={i} style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:"8px",flex:1,padding:"0 6px"}}>
+                      <div style={{width:"44px",height:"44px",borderRadius:"50%",border:`2px solid ${couleur}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <i className={`ti ${s.icon}`} style={{fontSize:"20px",color:couleur}} />
+                      </div>
+                      <span style={{fontSize:"10px",color:couleur,textAlign:"center" as const,fontWeight:500,lineHeight:1.3}}>{s.titre}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Détail des solutions */}
+                <div style={{display:"flex",flexDirection:"column" as const,gap:"8px",marginBottom:"20px"}}>
+                  {solutions.map((s, i) => (
+                    <div key={i} style={{display:"flex",gap:"10px",alignItems:"flex-start",padding:"10px 12px",background:"#F8F7F4",borderRadius:"8px"}}>
+                      <div style={{width:"22px",height:"22px",borderRadius:"50%",background:couleur,color:"#fff",fontSize:"11px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i + 1}</div>
+                      <div>
+                        <div style={{fontSize:"12px",fontWeight:600,color:"#111827"}}>{s.titre}</div>
+                        <div style={{fontSize:"11px",color:"#6B7280"}}>{s.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {recoAssociees?.actions?.length > 0 && (
+                  <>
+                    <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"8px"}}>Recommandations de votre consultant</div>
+                    <ul style={{margin:"0 0 20px",paddingLeft:"18px"}}>
+                      {recoAssociees.actions.map((a: string, i: number) => (
+                        <li key={i} style={{fontSize:"13px",color:"#374151",marginBottom:"4px"}}>{a}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                {consultantRegionalId && (
+                  <button
+                    onClick={() => navigate(`/client/prise-rdv/${consultantRegionalId}?mode=coordination`)}
+                    style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",background:"#111C2E",color:"#FFFFFF",border:"none",padding:"12px 16px",borderRadius:"8px",fontSize:"13px",fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}
+                  >
+                    <i className="ti ti-calendar-plus" style={{fontSize:"15px"}} />
+                    Prendre RDV avec mon consultant régional
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
       {/* Onglet Réglementaire */}
       {onglet==="reglementaire" && (
-        <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.5rem"}}>
-            <h3 style={{color:"#111827",margin:0}}>⚖️ Analyse réglementaire détaillée</h3>
-            <button onClick={lancerAnalyseReglementaire} style={{display:"flex",alignItems:"center",gap:"6px",background:"#B25C2A",color:"white",border:"none",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",fontSize:"13px",fontFamily:"inherit"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+              <i className="ti ti-scale" style={{fontSize:"18px",color:"#B25C2A"}} aria-hidden="true" />
+              <h3 style={{color:"#111827",margin:0}}>Analyse réglementaire détaillée</h3>
+            </div>
+            <button onClick={lancerAnalyseReglementaire} style={{display:"flex",alignItems:"center",gap:"6px",background:"#B25C2A",color:"white",border:"none",padding:"8px 16px",borderRadius:"8px",cursor:"pointer",fontSize:"13px",fontWeight:500,fontFamily:"inherit"}}>
               <i className="ti ti-refresh" style={{fontSize:"14px"}} aria-hidden="true" />
               {reglementations.length === 0 ? "Lancer l'analyse" : "Relancer l'analyse"}
             </button>
           </div>
           {reglementations.length === 0 ? (
-            <div style={{textAlign:"center",padding:"2rem",color:"#666"}}>
+            <div style={{background:"white",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",textAlign:"center",padding:"2rem",color:"#666"}}>
               <p>Aucune réglementation analysée pour cet actif.</p>
               <p style={{fontSize:"0.85rem"}}>Cliquez sur "Lancer l'analyse" pour démarrer.</p>
             </div>
           ) : (
-            <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
+            <div style={{background:"white",borderRadius:"10px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",overflow:"hidden"}}>
               {reglementations.map((r,i) => (
-                <div key={i} style={{padding:"1.25rem",borderRadius:"12px",border:`2px solid ${statutReglColor[r.statut]?.color||"#e5e1da"}`,background:statutReglColor[r.statut]?.bg||"#f0f0f0"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
-                      <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"20px",color:statutReglColor[r.statut]?.color||"#6B7280"}} />
-                      <div style={{fontWeight:"700",color:"#111827",fontSize:"1rem"}}>{reglLabels[r.reglementation]||r.reglementation}</div>
-                    </div>
-                    <span style={{background:"white",color:statutReglColor[r.statut]?.color||"#666",padding:"0.3rem 0.875rem",borderRadius:"999px",fontSize:"0.8rem",fontWeight:"700",border:`1px solid ${statutReglColor[r.statut]?.color||"#e5e1da"}`}}>
-                      <i className={`ti ${statutReglColor[r.statut]?.icone}`} style={{fontSize:"11px"}} />
-                      {statutReglColor[r.statut]?.label||r.statut}
-                    </span>
+                <div key={i} style={{
+                  display:"flex",alignItems:"center",gap:"14px",padding:"12px 18px",
+                  borderBottom: i < reglementations.length - 1 ? "1px solid #F0EFEA" : "none",
+                  borderLeft:`3px solid ${statutReglColor[r.statut]?.color||"#78716C"}`,
+                }}>
+                  <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"16px",color:statutReglColor[r.statut]?.color||"#6B7280",flexShrink:0}} />
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:"13px",fontWeight:500,color:"#111827"}}>{reglLabels[r.reglementation]||r.reglementation}</div>
+                    {r.details && (
+                      <div style={{fontSize:"11px",color:"#6B7280",marginTop:"1px"}}>{r.details}</div>
+                    )}
                   </div>
-                  {r.details && (
-                    <div style={{fontSize:"0.85rem",color:"#444",background:"white",padding:"0.75rem",borderRadius:"8px"}}>{r.details}</div>
+                   {r.echeance && (
+                    <span style={{fontSize:"11px",color:"#6B7280",whiteSpace:"nowrap"}}>
+                      Éch. {new Date(r.echeance).toLocaleDateString("fr-FR")}
+                    </span>
                   )}
-                  {r.echeance && (
-                    <div style={{fontSize:"0.8rem",color:"#666",marginTop:"0.5rem"}}>
-                      <i className="ti ti-calendar" style={{fontSize:"13px"}} /> Échéance : {new Date(r.echeance).toLocaleDateString("fr-FR")}
-                    </div>
-                  )}
+                  <span style={{background:statutReglColor[r.statut]?.bg||"#f0f0f0",color:statutReglColor[r.statut]?.color||"#666",padding:"3px 8px",borderRadius:"5px",fontSize:"11px",fontWeight:500,whiteSpace:"nowrap"}}>
+                    {statutReglColor[r.statut]?.label||r.statut}
+                  </span>
+                            <button
+                    onClick={() => setReglementationDetailOuverte(r)}
+                    style={{display:"flex",alignItems:"center",gap:"6px",background:"#0F6E56",color:"white",border:"none",padding:"6px 14px",borderRadius:"6px",fontSize:"12px",fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}
+                  >
+                    <i className="ti ti-eye" style={{fontSize:"14px"}} />
+                    Voir plus
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
-{/* Onglet Climatique */}
+
+      {/* Modale détail réglementation */}
+      {reglementationDetailOuverte && (() => {
+        const r = reglementationDetailOuverte
+        const cfg = statutReglColor[r.statut]
+        const details = REGL_DETAILS[r.reglementation]
+        return (
+          <>
+            <div onClick={() => setReglementationDetailOuverte(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:300}} />
+            <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"560px",maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto",background:"#FFFFFF",borderRadius:"16px",zIndex:301,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+
+              {/* Illustration */}
+              <div style={{background:cfg?.bg||"#F4F3F0",padding:"36px 28px 24px",textAlign:"center" as const,position:"relative"}}>
+                <button onClick={() => setReglementationDetailOuverte(null)} style={{position:"absolute",top:"16px",right:"16px",border:"none",background:"rgba(255,255,255,0.7)",width:"28px",height:"28px",borderRadius:"6px",cursor:"pointer"}}>
+                  <i className="ti ti-x" style={{fontSize:"14px"}} />
+                </button>
+                <div style={{width:"72px",height:"72px",borderRadius:"50%",background:"#FFFFFF",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+                  <i className={`ti ${reglIcones[r.reglementation]}`} style={{fontSize:"34px",color:cfg?.color||"#6B7280"}} />
+                </div>
+                <h3 style={{margin:0,fontSize:"17px",fontWeight:700,color:"#111827"}}>{reglLabels[r.reglementation]||r.reglementation}</h3>
+                <span style={{display:"inline-block",marginTop:"8px",background:"#FFFFFF",color:cfg?.color||"#666",padding:"3px 10px",borderRadius:"999px",fontSize:"11px",fontWeight:700}}>
+                  {cfg?.label||r.statut}
+                </span>
+              </div>
+
+              <div style={{padding:"24px 28px"}}>
+                {details ? (
+                  <>
+                    <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"8px"}}>Objectif</div>
+                    <p style={{fontSize:"13px",color:"#111827",lineHeight:1.6,margin:"0 0 20px"}}>{details.objectif}</p>
+
+                    <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"8px"}}>Sanctions et contraintes</div>
+                    <p style={{fontSize:"13px",color:"#111827",lineHeight:1.6,margin:"0 0 20px"}}>{details.sanctions}</p>
+                  </>
+                ) : (
+                  <p style={{fontSize:"13px",color:"#6B7280",margin:"0 0 20px"}}>Détails non renseignés pour cette réglementation.</p>
+                )}
+
+                {r.details && (
+                  <>
+                    <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"8px"}}>Situation de votre actif</div>
+                    <p style={{fontSize:"13px",color:"#111827",lineHeight:1.6,margin:"0 0 20px"}}>{r.details}</p>
+                  </>
+                )}
+
+                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#F9F0EA",border:"1px solid #F0DDD0",borderRadius:"8px",padding:"12px 14px",marginBottom:"18px"}}>
+                  <span style={{fontSize:"12px",color:"#6B7280"}}>Accompagnement AGE Climate</span>
+                  <span style={{fontSize:"13px",fontWeight:500,color:"#B25C2A"}}>Sur devis</span>
+                </div>
+
+                {r.echeance && (
+                  <div style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"12px",color:"#6B7280",marginBottom:"18px"}}>
+                    <i className="ti ti-calendar" style={{fontSize:"14px"}} />
+                    Échéance : {new Date(r.echeance).toLocaleDateString("fr-FR")}
+                  </div>
+                )}
+
+                {consultantRegionalId && (
+                  <button
+                    onClick={() => navigate(`/client/prise-rdv/${consultantRegionalId}?mode=coordination`)}
+                    style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",background:"#111C2E",color:"#FFFFFF",border:"none",padding:"12px 16px",borderRadius:"8px",fontSize:"13px",fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}
+                  >
+                    <i className="ti ti-calendar-plus" style={{fontSize:"15px"}} />
+                    Prendre RDV avec mon consultant régional
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* Onglet Climatique */}
       {onglet==="climatique" && (
         prediagnostic ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -775,40 +1086,41 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                 <p style={{ color: "#6B7280", fontSize: 13 }}>Aucune décomposition par aléa disponible.</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {Object.entries(prediagnostic.risk_score.scores_aleas as Record<string, number>).map(([alea, score]) => (
+                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ width: 160, flexShrink: 0 }} />
+                    <span style={{ flex: 1 }} />
+                    <span style={{ width: 36, flexShrink: 0 }} />
+                    <span style={{ width: 64, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>Solutions d'adaptation</span>
+                  </div>
+                           {Object.entries(prediagnostic.risk_score.scores_aleas as Record<string, number>).map(([alea, score]) => (
                     <div key={alea} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <span style={{ width: 160, fontSize: 13, color: "#111827" }}>{ALEA_LABELS[alea] || alea}</span>
                       <div style={{ flex: 1, background: "#F1F5F9", borderRadius: 4, height: 8, overflow: "hidden" }}>
                         <div style={{ width: `${score}%`, height: "100%", background: score >= 70 ? "#B91C1C" : score >= 40 ? "#D97706" : "#2F7D5C", borderRadius: 4 }} />
                       </div>
-                      <span style={{ width: 36, textAlign: "right" as const, fontFamily: "JetBrains Mono, monospace", fontSize: 12, color: "#6B7280" }}>{score}</span>
+                                           <span style={{ width: 36, textAlign: "right" as const, fontFamily: "JetBrains Mono, monospace", fontSize: 12, color: "#6B7280" }}>{score}</span>
+                      <span style={{
+                        width: 64, flexShrink: 0, textAlign: "center" as const,
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 5,
+                        background: (score as number) >= 70 ? "#FEF2F2" : (score as number) >= 40 ? "#FFFBEB" : "#F0FDF4",
+                        color: (score as number) >= 70 ? "#B91C1C" : (score as number) >= 40 ? "#D97706" : "#2F7D5C",
+                      }}>
+                        {(score as number) >= 70 ? "Élevé" : (score as number) >= 40 ? "Modéré" : "Faible"}
+                      </span>
+                      <button
+                        onClick={() => setAleaDetailOuvert({ alea, score: score as number })}
+                        style={{display:"flex",alignItems:"center",gap:"6px",background:"#0F6E56",color:"white",border:"none",padding:"6px 14px",borderRadius:"6px",fontSize:"12px",fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}
+                      >
+                        <i className="ti ti-eye" style={{fontSize:"14px"}} />
+                        Voir
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div style={{ background: "white", padding: "1.5rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-              <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Recommandations d'adaptation</h3>
-              {!prediagnostic.recommandations || prediagnostic.recommandations.length === 0 ? (
-                <p style={{ color: "#6B7280", fontSize: 13 }}>Aucune recommandation renseignée.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {prediagnostic.recommandations.map((r: any, i: number) => (
-                    <div key={i} style={{ padding: "1rem", background: "#F8F7F4", borderRadius: 8, border: "1px solid #E5E1DA" }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginBottom: 6 }}>
-                        {ALEA_LABELS[r.alea] || r.alea}
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        {(r.actions || []).map((a: string, j: number) => (
-                          <li key={j} style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>{a}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 24px", background: "white", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center" }}>
@@ -848,7 +1160,6 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
           </div>
         )
       )}
-    
 
       {/* Onglet Documents */}
       {onglet==="documents" && (
