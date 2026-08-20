@@ -84,7 +84,6 @@ function ProspectionMenu() {
                    location.pathname.startsWith('/metier/dossiers-rga') ||
                    location.pathname.startsWith('/metier/publipostage') ||
                    location.pathname.startsWith('/metier/modeles-comm') ||
-                   location.pathname.startsWith('/metier/rdv') ||
                    location.pathname.startsWith('/metier/mandats')
 
   return (
@@ -114,15 +113,7 @@ function ProspectionMenu() {
             <i className="ti ti-speakerphone nav-item__icon" style={{ fontSize: '14px' }} />
             <span className="nav-item__label">Campagnes</span>
           </NavLink>
-          <NavLink
-            to="/metier/rdv"
-            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
-            style={{ fontSize: '12px', padding: '6px 10px' }}
-          >
-            <i className="ti ti-calendar nav-item__icon" style={{ fontSize: '14px' }} />
-            <span className="nav-item__label">Agenda RDV</span>
-          </NavLink>
-          <NavLink
+                    <NavLink
             to="/metier/dossiers-rga"
             className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
             style={{ fontSize: '12px', padding: '6px 10px' }}
@@ -609,8 +600,8 @@ async function chargerBadgeConsultant(userId: string) {
         countRdvConsultant = count || 0
       }
 
-      // "Mes missions" — acces direct a la liste de travail (missions + analyses climatiques)
-      setNbMissionsConsultant((countMissionsConsultant || 0) + (countRapportsConsultant || 0))
+            // "Mes missions" — uniquement les nouvelles missions non encore prises en main
+      setNbMissionsConsultant(countMissionsConsultant || 0)
       // File d'attente — file de triage (nouveautes campagnes + missions + climatique + rdv a traiter)
       setNbFileAttente((countMissionsConsultant || 0) + (countCampagnesConsultant || 0) + (countRapportsConsultant || 0) + countRdvConsultant)
     }
@@ -904,7 +895,12 @@ if (role === "consultant") {
                 badge={nbMessagesAGE}
               />
 
-                          {/* Disponibilités RDV — agenda collaboratif AGE / Clients */}
+                                   {/* Agenda RDV — juste avant Disponibilités RDV, sorti de Prospection */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
+                <NavItem to="/metier/rdv" icon="ti-calendar" label="Agenda RDV" />
+              )}
+
+              {/* Disponibilités RDV — agenda collaboratif AGE / Clients */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem to="/metier/disponibilites-rdv" icon="ti-calendar-time" label="Disponibilités RDV" badge={nbRdvNonVus} />
               )}

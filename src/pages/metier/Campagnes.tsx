@@ -294,7 +294,8 @@ console.log("actifs:", actifs)
   async function handleCreerCampagne() {
     if (!form.nom || !form.type_campagne) return
     setFormLoading(true)
-    const { data } = await supabase.from("campagnes").insert({
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase.from("campagnes").insert({
       nom:           form.nom,
       type_campagne: form.type_campagne,
       zone_geo:      form.zone_geo || null,
@@ -304,11 +305,22 @@ console.log("actifs:", actifs)
       statut:        "en_cours",
       origine:       "age",
       region:        regionAGE || null,
+      // Nécessaire pour que la policy SELECT (consultant_id = auth.uid()
+      // côté consultant) autorise la relecture immédiate après insert.
+      consultant_id: user?.id || null,
     }).select().single()
-    if (data) setCampagnes([data, ...campagnes])
+
+    setFormLoading(false)
+
+    if (error || !data) {
+      showToast("Échec de la création : " + (error?.message || "erreur inconnue"), "error")
+      return
+    }
+
+    setCampagnes([data, ...campagnes])
     setForm(FORM_INITIAL)
     setShowForm(false)
-    setFormLoading(false)
+    showToast("Campagne créée avec succès.")
   }
 
   async function updateStatutDemande(id: string, statut: string) {
@@ -428,10 +440,19 @@ async function lancerAnalyse(campagne: Campagne) {
           </p>
         </div>
         {onglet === "age" && (
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            <i className="ti ti-plus" style={{ fontSize: "14px" }} />
-            Nouvelle campagne
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => navigate("/metier/import-portefeuille")}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "8px", border: "1px solid #E2DDD8", background: "#FFFFFF", color: "#111827", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-upload" style={{ fontSize: "14px" }} />
+              Importer des biens
+            </button>
+            <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+              <i className="ti ti-plus" style={{ fontSize: "14px" }} />
+              Nouvelle campagne
+            </button>
+          </div>
         )}
       </div>
 

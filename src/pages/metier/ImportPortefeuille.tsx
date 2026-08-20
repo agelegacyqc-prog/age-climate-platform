@@ -46,6 +46,10 @@ const COLONNES_BIENS = [
   { champ: "type_client",  label: "Type client",  obligatoire: false, type: "text"   },
   { champ: "categorie",    label: "Catégorie",    obligatoire: false, type: "text"   },
   { champ: "priorite",     label: "Priorité",     obligatoire: false, type: "number" },
+  { champ: "prenom",       label: "Prénom",       obligatoire: false, type: "text"   },
+  { champ: "nom",          label: "Nom",          obligatoire: false, type: "text"   },
+  { champ: "email",        label: "Email",        obligatoire: false, type: "text"   },
+  { champ: "telephone",    label: "Téléphone",    obligatoire: false, type: "text"   },
 ]
 
 const COLONNES_ACTIFS = [
@@ -91,9 +95,10 @@ export default function ImportPortefeuille() {
   const [cible, setCible]               = useState<CibleImport>("biens")
   const [mode, setMode]                 = useState<ModeImport>("libre")
   const [campagnes, setCampagnes]       = useState<Campagne[]>([])
-  const [campagneId, setCampagneId]     = useState<string>("")
+   const [campagneId, setCampagneId]     = useState<string>("")
   const [roleAGE, setRoleAGE]           = useState<string>("")
   const [userId, setUserId]             = useState<string>("")
+  const [creerActifClimat, setCreerActifClimat] = useState(false)
 
   // Fichier
   const [fichier, setFichier]           = useState<File | null>(null)
@@ -345,6 +350,34 @@ export default function ImportPortefeuille() {
           statut: "importe",
         })
       }
+
+      // Alimentation croisée pipeline analyse climatique : création d'un
+      // actif jumeau, lié à la campagne via campagnes_actifs. Pas de
+      // déclenchement d'analyse ici (fetchAndStoreGeorisques/fetchAndStoreRga
+      // sont des appels réseau — décision PO : lancés via le bouton dédié
+      // "Analyser tous les biens" déjà existant dans FicheCampagne.tsx).
+      if (mode === "campagne" && campagneId && cible === "biens" && creerActifClimat) {
+        const nomActif = (ligne.donnees.nom_client as string) || (ligne.donnees.adresse as string) || "Actif sans nom"
+        const { data: actifCree, error: erreurActif } = await supabase
+          .from("actifs")
+          .insert({
+            nom:         nomActif,
+            adresse:     ligne.donnees.adresse,
+            ville:       ligne.donnees.ville,
+            code_postal: ligne.donnees.code_postal,
+            type_bien:   ligne.donnees.type_bien,
+            client_id:   userId,
+          })
+          .select("id")
+          .single()
+
+        if (!erreurActif && actifCree) {
+          await supabase.from("campagnes_actifs").insert({
+            campagne_id: campagneId,
+            actif_id: actifCree.id,
+          })
+        }
+      }
     }
  setResultat(res)
     } catch (e) {
@@ -510,7 +543,7 @@ export default function ImportPortefeuille() {
             </div>
           </div>
 
-          {/* Sélecteur campagne */}
+                    {/* Sélecteur campagne */}
           {mode === "campagne" && (
             <div style={{ marginBottom: "20px" }}>
               <label style={lStyle}>Campagne cible</label>
@@ -520,7 +553,7 @@ export default function ImportPortefeuille() {
                   Aucune campagne en cours
                 </div>
               ) : (
-                <select
+                              <select
                   value={campagneId}
                   onChange={e => setCampagneId(e.target.value)}
                   style={{ ...iStyle, cursor: "pointer" }}
@@ -533,6 +566,31 @@ export default function ImportPortefeuille() {
                   ))}
                 </select>
               )}
+            </div>
+          )}
+
+          {/* Alimentation croisée pipeline analyse climatique — visible
+              uniquement en mode campagne + cible biens */}
+          {mode === "campagne" && cible === "biens" && (
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "14px 16px", borderRadius: "8px", cursor: "pointer", border: `2px solid ${creerActifClimat ? "#B25C2A" : "#E2DDD8"}`, background: creerActifClimat ? "#F9F0EA" : "#FFFFFF" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={creerActifClimat}
+                  onChange={e => setCreerActifClimat(e.target.checked)}
+                  style={{ marginTop: "2px" }}
+                />
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: creerActifClimat ? "#B25C2A" : "#111827", marginBottom: "2px" }}>
+                    Alimenter aussi l'analyse climatique
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#9CA3AF" }}>
+                    Crée en parallèle un actif lié à la campagne (table Portefeuille), prêt pour l'analyse Géorisques/RGA. Le nom de l'actif est déduit du nom client, ou de l'adresse si absent.
+                  </div>
+                </div>
+              </label>
             </div>
           )}
 
@@ -841,7 +899,7 @@ export default function ImportPortefeuille() {
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                  <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" as const }}>
               {mode === "campagne" && campagneId && (
                 <button
                   className="btn-primary"
@@ -849,6 +907,16 @@ export default function ImportPortefeuille() {
                 >
                   <i className="ti ti-layout-kanban" style={{ fontSize: "14px" }} />
                   Voir le pipeline
+                </button>
+              )}
+              {mode === "campagne" && campagneId && cible === "biens" && creerActifClimat && (
+                <button
+                  className="btn-primary"
+                  onClick={() => navigate(`/metier/campagnes/${campagneId}`)}
+                  style={{ background: "#0F6E56" }}
+                >
+                  <i className="ti ti-thermometer" style={{ fontSize: "14px" }} />
+                  Lancer l'analyse climatique
                 </button>
               )}
               <button

@@ -201,15 +201,16 @@ export default function Publipostage() {
     setLoading(false)
   }
 
-  async function chargerContacts(cid: string) {
-    // Jointure contacts_campagne → biens pour récupérer adresse + score
+   async function chargerContacts(cid: string) {
+    // Jointure contacts_campagne → biens : l'identité et les coordonnées du
+    // contact sont portées par biens (prenom, nom, email, telephone),
+    // pas par contacts_campagne qui ne fait que suivre le statut du pipeline.
     const { data } = await supabase
       .from('contacts_campagne')
       .select(`
         id, statut,
-        prenom, nom, email, telephone,
         bien_id,
-        biens (adresse, ville, code_postal, score_global, classe_risque, alea_principal)
+        biens (prenom, nom, email, telephone, adresse, ville, code_postal, score_risque, niveau_risque, alea_principal)
       `)
       .eq('campagne_id', cid)
 
@@ -217,15 +218,15 @@ export default function Publipostage() {
       const bien = Array.isArray(r.biens) ? r.biens[0] : r.biens
       return {
         id: r.id,
-        prenom: r.prenom,
-        nom: r.nom,
-        email: r.email,
-        telephone: r.telephone,
+        prenom: bien?.prenom ?? null,
+        nom: bien?.nom ?? null,
+        email: bien?.email ?? null,
+        telephone: bien?.telephone ?? null,
         adresse: bien?.adresse ?? null,
         ville: bien?.ville ?? null,
         code_postal: bien?.code_postal ?? null,
-        score_risque: bien?.score_global ?? null,
-        classe_risque: bien?.classe_risque ?? null,
+        score_risque: bien?.score_risque ?? null,
+        classe_risque: bien?.niveau_risque ?? null,
         alea_principal: bien?.alea_principal ?? null,
         statut: r.statut,
       }
@@ -249,7 +250,7 @@ export default function Publipostage() {
         exporterPDFCourriers(contactsValides, modeleSelectionne, consultant, telConsultant)
       }
 
-      // Incrémenter usage_count + logger export
+          // Incrémenter usage_count + logger export
       await supabase
         .from('modeles_comm')
         .update({ usage_count: (modeleSelectionne.usage_count ?? 0) + 1 })
@@ -264,6 +265,19 @@ export default function Publipostage() {
           ? `brevo_export_${new Date().toISOString().slice(0, 10)}.csv`
           : `courriers_${new Date().toISOString().slice(0, 10)}.pdf`,
       })
+
+      // Incrément cumulatif : chaque export envoie de nouveaux courriers,
+      // contrairement à rdv_pris/diagnostics qui sont des états recalculés
+      // (cf. CampagnePipeline.tsx) — décision PO 19/08/2026.
+      const { data: campagneActuelle } = await supabase
+        .from('campagnes')
+        .select('courriers_envoyes')
+        .eq('id', campagneId)
+        .maybeSingle()
+      await supabase
+        .from('campagnes')
+        .update({ courriers_envoyes: (campagneActuelle?.courriers_envoyes ?? 0) + contactsValides.length })
+        .eq('id', campagneId)
 
       showToast('ok', `Export réussi · ${contactsValides.length} contact${contactsValides.length > 1 ? 's' : ''} traité${contactsValides.length > 1 ? 's' : ''}`)
       setEtape(4)

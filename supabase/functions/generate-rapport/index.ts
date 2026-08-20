@@ -103,9 +103,31 @@ Réponds avec EXACTEMENT ce schéma JSON :
   "annexes": "1-2 phrases de mention méthodologique (ABC, facteurs d'émission ADEME)"
 }`
     }
-
     if (module === "prediag") {
       const { source, bien, actif } = data
+      const SCHEMA_PREDIAG = `
+Réponds UNIQUEMENT avec un objet JSON valide. Aucun texte avant, aucun texte après, aucun bloc markdown \`\`\`. N'inclus aucun caractère de retour à la ligne brut à l'intérieur des chaînes — utilise l'échappement \\n si nécessaire, ou reste sur des phrases courtes sans saut de ligne.
+
+Réponds avec EXACTEMENT ce schéma JSON :
+{
+  "synthese": {
+    "niveau_risque": "faible | modere | eleve | critique",
+    "resume": "1 à 2 phrases résumant le niveau d'exposition global"
+  },
+  "aleas": [
+    { "type": "chaleur | pluie | rga | feu | inondation | submersion | tempete | froid", "label": "libellé court de l'aléa", "description": "1 phrase courte sur l'impact potentiel" }
+  ],
+  "recommandations": [
+    { "urgence": "immediate | court_terme | moyen_terme | preventif", "titre": "titre court de l'action", "description": "1 phrase sur la nature de l'action et l'intervenant recommandé" }
+  ],
+  "budget": {
+    "montant_bas": nombre en euros sans texte,
+    "montant_haut": nombre en euros sans texte,
+    "commentaire": "1 phrase de contexte sur cette fourchette"
+  },
+  "prochaines_etapes": "2 à 3 phrases sur la mission de diagnostic complet, le mandat et les financements mobilisables (Ma Prime Adapt', Fonds Barnier, éco-PTZ), sans saut de ligne"
+}
+Le champ "aleas" doit lister 3 à 5 aléas maximum, classés par pertinence. Le champ "recommandations" doit lister 5 actions classées par urgence décroissante.`
 
       if (source === "bien") {
         const b = bien
@@ -114,7 +136,7 @@ Réponds avec EXACTEMENT ce schéma JSON :
         if (b.zone_ppri) risques.push("Inondation / PPRI")
 
         prompt = `Tu es un expert en risque climatique immobilier chez AGE Climate.
-Tu dois rédiger un pré-diagnostic climatique professionnel et structuré en français pour un bien immobilier B2B.
+Tu dois générer un pré-diagnostic climatique professionnel et structuré en français pour un bien immobilier B2B, au format d'un objet JSON strict.
 
 DONNÉES DU BIEN :
 - Adresse : ${b.adresse || "—"}, ${b.ville || "—"}
@@ -125,15 +147,9 @@ DONNÉES DU BIEN :
 - Zones à risque identifiées : ${risques.length > 0 ? risques.join(", ") : "Aucune zone spécifique identifiée"}
 ${b.nom_client ? `- Propriétaire / Client : ${b.nom_client}` : ""}
 
-Rédige un pré-diagnostic structuré avec les sections suivantes :
-1. **Synthèse du bien** — présentation et niveau d'exposition global
-2. **Aléas climatiques identifiés** — analyse des risques détectés et leur impact potentiel sur le bien
-3. **Recommandations prioritaires** — 5 actions concrètes classées par urgence (travaux, assurance, mesures préventives)
-4. **Estimation budgétaire** — fourchette indicative des travaux d'adaptation (€)
-5. **Prochaines étapes AGE** — mission de diagnostic complet, mandat, financement (Fonds Barnier, Ma Prime Adapt')
-
 Sois précis, professionnel, ancré dans le contexte réglementaire français (loi Climat et Résilience, PPRN, RGA BRGM).
-Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.`
+Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.
+${SCHEMA_PREDIAG}`
       }
 
       if (source === "actif") {
@@ -146,7 +162,7 @@ Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur 
         const commune = a.georisques_data?.data?.[0]?.libelle_commune ?? a.ville ?? "—"
 
         prompt = `Tu es un expert en risque climatique immobilier chez AGE Climate.
-Tu dois rédiger un pré-diagnostic climatique professionnel et structuré en français pour un particulier.
+Tu dois générer un pré-diagnostic climatique professionnel et structuré en français pour un particulier, au format d'un objet JSON strict.
 
 DONNÉES DU BIEN :
 - Nom du bien : ${a.nom || "—"}
@@ -156,15 +172,9 @@ DONNÉES DU BIEN :
 - Score climatique : ${a.score_climatique ?? "—"} / 100
 - Risques Géorisques identifiés : ${risquesLabels || "Aucun risque identifié"}
 
-Rédige un pré-diagnostic structuré avec les sections suivantes :
-1. **Synthèse du bien** — présentation et niveau d'exposition global
-2. **Aléas climatiques identifiés** — analyse détaillée des risques Géorisques et leur impact potentiel sur le bien
-3. **Recommandations prioritaires** — 5 actions concrètes classées par urgence (travaux, assurance, mesures préventives)
-4. **Estimation budgétaire** — fourchette indicative des travaux d'adaptation (€)
-5. **Prochaines étapes AGE** — mission de diagnostic complet, mandat, financement (Ma Prime Adapt', Fonds Barnier, éco-PTZ)
-
 Sois précis, professionnel, ancré dans le contexte réglementaire français (loi Climat et Résilience, PPRN, RGA BRGM, Géorisques).
-Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.`
+Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur les données fournies.
+${SCHEMA_PREDIAG}`
       }
     }
 
@@ -198,6 +208,50 @@ Ne mentionne pas d'informations inventées sur le bien. Base-toi uniquement sur 
         })
       }
       return new Response(JSON.stringify({ rapport_structure: rapportStructure }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    if (module === "prediag") {
+      let s
+      try {
+        const nettoye = texte.replace(/^```json\s*|\s*```$/g, "").trim()
+        s = JSON.parse(nettoye)
+      } catch (parseError) {
+        return new Response(JSON.stringify({ error: "Réponse IA non conforme au format JSON attendu.", brut: texte }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+
+      // Reconstruction déterministe du markdown complet à partir des champs
+      // structurés (au lieu de demander au modèle de l'embarquer dans le
+      // JSON — un très long texte libre imbriqué casse trop souvent le
+      // parsing JSON à cause de retours à la ligne bruts non échappés).
+      const LABEL_URGENCE: Record<string, string> = {
+        immediate: "Urgence immédiate", court_terme: "Court terme (0-3 mois)",
+        moyen_terme: "Moyen terme (3-6 mois)", preventif: "Préventif",
+      }
+      const rapportMarkdown = `## 1. Synthèse du bien
+${s.synthese?.resume ?? ""}
+
+## 2. Aléas climatiques identifiés
+${(s.aleas ?? []).map((a: any) => `### ${a.label}\n${a.description}`).join("\n\n")}
+
+## 3. Recommandations prioritaires
+${(s.recommandations ?? []).map((r: any, i: number) => `${i + 1}. **${r.titre}** (${LABEL_URGENCE[r.urgence] ?? r.urgence})\n${r.description}`).join("\n\n")}
+
+## 4. Estimation budgétaire
+Fourchette indicative : ${s.budget?.montant_bas?.toLocaleString("fr-FR") ?? "—"} € — ${s.budget?.montant_haut?.toLocaleString("fr-FR") ?? "—"} €
+${s.budget?.commentaire ?? ""}
+
+## 5. Prochaines étapes AGE
+${s.prochaines_etapes ?? ""}`
+
+      return new Response(JSON.stringify({
+        rapport: rapportMarkdown,
+        structure: s,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }

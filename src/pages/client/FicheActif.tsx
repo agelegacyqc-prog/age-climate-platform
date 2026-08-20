@@ -48,13 +48,47 @@ const ALEA_LABELS: Record<string, string> = {
   submersion: "Submersion",
   episodes_froids: "Épisodes froids",
 }
+// Même conversion markdown → HTML que PreDiagDrawer.tsx, pour un rendu
+// identique du rapport IA côté client.
+function markdownPrediagToHtml(text: string): string {
+  return text
+    .replace(/^## (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;color:#1F2937;margin:20px 0 8px;">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4 style="font-size:13px;font-weight:600;color:#1F2937;margin:16px 0 6px;">$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^(\d+)\. \*\*(.+?)\*\*(.*)$/gm, '<div style="margin:12px 0 4px;"><span style="font-weight:700;color:#1D9E75;">$1.</span> <strong>$2</strong>$3</div>')
+    .replace(/^- (.+)$/gm, '<div style="display:flex;gap:8px;margin:4px 0;"><span style="color:#1D9E75;flex-shrink:0;">•</span><span>$1</span></div>')
+    .replace(/\n\n/g, '<div style="margin:8px 0;"></div>')
+}
+
+const ICONE_ALEA: Record<string, string> = {
+  chaleur: "ti-temperature", pluie: "ti-droplet", rga: "ti-layers-difference",
+  feu: "ti-flame", inondation: "ti-droplet", submersion: "ti-waves",
+  tempete: "ti-wind", froid: "ti-snowflake",
+}
+const COULEUR_ALEA: Record<string, string> = {
+  chaleur: "#BA7517", pluie: "#185FA5", rga: "#993C1D", feu: "#A32D2D",
+  inondation: "#185FA5", submersion: "#185FA5", tempete: "#5F5E5A", froid: "#185FA5",
+}
+const COULEUR_URGENCE: Record<string, string> = {
+  immediate: "#A32D2D", court_terme: "#BA7517", moyen_terme: "#854F0B", preventif: "#3B6D11",
+}
+const LABEL_URGENCE: Record<string, string> = {
+  immediate: "Urgence immédiate", court_terme: "Court terme", moyen_terme: "Moyen terme", preventif: "Préventif",
+}
+const LABEL_RISQUE: Record<string, { label: string; bg: string; color: string }> = {
+  faible:   { label: "Risque faible",   bg: "#FAEEDA", color: "#633806" },
+  modere:   { label: "Risque modéré",   bg: "#FFFBEB", color: "#D97706" },
+  eleve:    { label: "Risque élevé",    bg: "#FEF2F2", color: "#B91C1C" },
+  critique: { label: "Risque critique", bg: "#FEF2F2", color: "#991B1B" },
+}
+
 export default function FicheActif() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const location = useLocation()
 
   // Récupération de la route d'origine transmise via state (React Router v6)
-  const from = (location.state as { from?: string } | null)?.from ?? "/client/accueil"
+      const from = (location.state as { from?: string } | null)?.from ?? "/"
 
   const [actif, setActif]                       = useState<any>(null)
   const [reglementations, setReglementations]   = useState<any[]>([])
@@ -72,7 +106,10 @@ export default function FicheActif() {
   const [erreurUpload, setErreurUpload]         = useState("")
   const [photoUrl, setPhotoUrl]                 = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto]     = useState(false)
-  const [erreurPhoto, setErreurPhoto]           = useState("")
+    const [erreurPhoto, setErreurPhoto]           = useState("")
+  const [infosSiteDeplie, setInfosSiteDeplie]   = useState(false)
+    const [prediagIa, setPrediagIa]               = useState<any>(null)
+  const [prediagDetailOuvert, setPrediagDetailOuvert] = useState(false)
 
   useEffect(() => { loadActif() }, [id])
 
@@ -85,7 +122,7 @@ export default function FicheActif() {
       .eq("actif_id", id).eq("visible_client", true).eq("est_version_courante", true)
     const { data: { user } }  = await supabase.auth.getUser()
 
-    const [{ data: rapportsData }, { data: demandesData }, { data: prediagData }, { data: demandeAnalyseData }] = await Promise.all([
+    const [{ data: rapportsData }, { data: demandesData }, { data: prediagData }, { data: demandeAnalyseData }, { data: prediagIaData }] = await Promise.all([
       supabase.from("rapports_client").select("id, statut, type_rapport").eq("actif_id", id).eq("statut", "disponible"),
       supabase.from("demandes_marketplace").select("id").eq("actif_id", id).eq("client_id", user?.id || ""),
       supabase.from("prediagnostics")
@@ -94,6 +131,10 @@ export default function FicheActif() {
         .order("generated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("rapports_client")
         .select("id, statut").eq("actif_id", id).eq("type_rapport", "analyse_climatique")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("pre_diagnostics_ia")
+        .select("id, rapport, structure, created_at")
+        .eq("source", "actif").eq("actif_id", id)
         .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ])
 
@@ -113,14 +154,15 @@ export default function FicheActif() {
     }
 
     setReglementations(reglData || [])
-   const docsGedFormates = (gedData || []).map((g:any) => ({
-      id: g.id, nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged"
+     const docsGedFormates = (gedData || []).map((g:any) => ({
+      id: g.id, nom: g.nom, type_document: "Envoyé par AGE", url: g.storage_path, source: "ged", categorie: g.categorie
     }))
     setDocuments([...(docData || []), ...docsGedFormates])
  setRapports(rapportsData || [])
     setDemandes(demandesData || [])
     setPrediagnostic(prediagData || null)
     setDemandeAnalyse(demandeAnalyseData || null)
+    setPrediagIa(prediagIaData || null)
     setLoading(false)
   }
 
@@ -315,9 +357,9 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
                 <div>
                   {/* ── Bouton Retour corrigé ── */}
-                  <button
+                                <button
                     onClick={() => navigate(from)}
-                    style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", padding: 0, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px", fontFamily: "inherit" }}
+                    style={{ background: "none", border: "none", color: "#6B7280", fontSize: "12px", fontWeight: 500, cursor: "pointer", padding: 0, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px", fontFamily: "inherit" }}
                   >
                     <i className="ti ti-arrow-left" style={{ fontSize: "12px" }} />
                     Retour
@@ -370,7 +412,7 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
         </div>
       </div>
 
-      {/* KPIs rapides */}
+        {/* KPIs rapides */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
         {[
           { label:"Surface",                     val: actif.surface+"m²",         icone:"ti-ruler-2" },
@@ -378,10 +420,31 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
           { label:"Réglementations obligatoires",val: nbObligatoires.toString(),   icone:"ti-scale" },
           { label:"Documents",                   val: documents.length.toString(), icone:"ti-file-text" },
         ].map((k,i) => (
-          <div key={i} style={{background:"white",padding:"1.25rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-            <i className={`ti ${k.icone}`} style={{fontSize:"20px",color:"#B25C2A",marginBottom:"0.25rem",display:"block"}} />
-            <div style={{fontSize:"0.75rem",color:"#666",marginBottom:"0.25rem"}}>{k.label}</div>
-            <div style={{fontSize:"1.5rem",fontWeight:"800",color:"#111827"}}>{k.val}</div>
+              <div
+            key={i}
+            style={{ background: "#111C2E", borderLeft: "3px solid #1D9E75", borderRadius: "12px", padding: "20px", transition: "background 0.15s, box-shadow 0.15s" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLDivElement).style.background = "#16233A"
+              ;(e.currentTarget as HTMLDivElement).style.boxShadow = "inset 0 0 0 1px #1D9E7560, 0 0 24px #1D9E7525"
+              const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+              if (halo) halo.style.background = "#1D9E7555"
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLDivElement).style.background = "#111C2E"
+              ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
+              const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+              if (halo) halo.style.background = "#1D9E752A"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div data-halo style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#1D9E752A", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                <i className={`ti ${k.icone}`} style={{ fontSize: "16px", color: "#1D9E75" }} />
+              </div>
+            </div>
+            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>
+              {k.val}
+            </div>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
           </div>
         ))}
       </div>
@@ -400,60 +463,71 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
             {o.label}
           </button>
         ))}
-      </div>
-
-      {/* Onglet Synthèse */}
-      {onglet==="synthese" && (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem"}}>
-          <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-            <h3 style={{color:"#111827",marginBottom:"1rem"}}>Informations du site</h3>
-            {[
-              ["Nom",actif.nom],
-              ["Type",actif.type_batiment||"—"],
-              ["Surface",actif.surface+"m²"],
-              ["Année construction",actif.annee_construction||"—"],
-              ["Secteur",actif.secteur_activite||"—"],
-              ["Effectifs",actif.effectifs+" salariés"],
-             ["Nb sites",actif.nb_sites||1],
-            ].map(([k,v],i) => (
-              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
-                <span style={{color:"#666",fontSize:"0.9rem"}}>{k}</span>
-                <span style={{fontWeight:"600",color:"#111827",fontSize:"0.9rem"}}>{v}</span>
-              </div>
-            ))}
-            <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #f0f0f0" }}>
-              <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827", marginBottom: "0.75rem" }}>Aléas climatiques identifiés</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
-                {aleasDetectes.map((a,i) => {
-                  let badge: { label: string; bg: string; color: string }
-                  if (a.alea === "rga") {
-                    badge = a.niveau
-                      ? { label: `RGA ${a.niveau}`, bg: a.niveau==="forte"?"#FEF2F2":a.niveau==="moyenne"?"#FFFBEB":"#F0FDF4", color: a.niveau==="forte"?"#B91C1C":a.niveau==="moyenne"?"#D97706":"#2F7D5C" }
-                      : { label: "Non renseigné", bg: "#F4F3F0", color: "#78716C" }
-                  } else if (!a.automatise) {
-                    badge = { label: "À évaluer", bg: "#F4F3F0", color: "#78716C" }
-                  } else if (a.present === null) {
-                    badge = { label: "Non disponible", bg: "#F4F3F0", color: "#78716C" }
-                  } else if (a.present) {
-                    badge = { label: "Présent", bg: "#FEF2F2", color: "#B91C1C" }
-                  } else {
-                    badge = { label: "Non détecté", bg: "#F0FDF4", color: "#2F7D5C" }
-                  }
-                  return (
-                    <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0.75rem",background:"#f8f7f4",borderRadius:"8px"}}>
-                      <span style={{fontSize:"0.85rem",color:"#111827"}}>{a.label}</span>
-                      <span style={{fontSize:"0.7rem",fontWeight:700,padding:"3px 8px",borderRadius:"6px",background:badge.bg,color:badge.color}}>
-                        {badge.label}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-              <p style={{fontSize:"0.75rem",color:"#94A3B8",marginTop:"0.75rem"}}>Détection basée sur la localisation — score climatique définitif établi lors d'une mission AGE.</p>
             </div>
+
+              {/* Onglet Synthèse */}
+      {onglet==="synthese" && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.5rem",alignItems:"start"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:"1.5rem"}}>
+          <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+            <button
+              onClick={() => setInfosSiteDeplie(d => !d)}
+      
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",marginBottom: infosSiteDeplie ? "1rem" : 0,fontFamily:"inherit"}}
+            >
+              <h3 style={{color:"#111827",margin:0}}>Informations du site</h3>
+              <i className={`ti ti-chevron-${infosSiteDeplie ? "up" : "down"}`} style={{fontSize:"16px",color:"#9CA3AF"}} />
+            </button>
+            {infosSiteDeplie && (
+              <>
+                {[
+                  ["Nom",actif.nom],
+                  ["Type",actif.type_batiment||"—"],
+                  ["Surface",actif.surface+"m²"],
+                  ["Année construction",actif.annee_construction||"—"],
+                  ["Secteur",actif.secteur_activite||"—"],
+                  ["Effectifs",actif.effectifs+" salariés"],
+                 ["Nb sites",actif.nb_sites||1],
+                ].map(([k,v],i) => (
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"0.5rem 0",borderBottom:"1px solid #f0f0f0"}}>
+                    <span style={{color:"#666",fontSize:"0.9rem"}}>{k}</span>
+                    <span style={{fontWeight:"600",color:"#111827",fontSize:"0.9rem"}}>{v}</span>
+                  </div>
+                ))}
+                <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #f0f0f0" }}>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827", marginBottom: "0.75rem" }}>Aléas climatiques identifiés</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
+                    {aleasDetectes.map((a,i) => {
+                      let badge: { label: string; bg: string; color: string }
+                      if (a.alea === "rga") {
+                        badge = a.niveau
+                          ? { label: `RGA ${a.niveau}`, bg: a.niveau==="forte"?"#FEF2F2":a.niveau==="moyenne"?"#FFFBEB":"#F0FDF4", color: a.niveau==="forte"?"#B91C1C":a.niveau==="moyenne"?"#D97706":"#2F7D5C" }
+                          : { label: "Non renseigné", bg: "#F4F3F0", color: "#78716C" }
+                      } else if (!a.automatise) {
+                        badge = { label: "À évaluer", bg: "#F4F3F0", color: "#78716C" }
+                      } else if (a.present === null) {
+                        badge = { label: "Non disponible", bg: "#F4F3F0", color: "#78716C" }
+                      } else if (a.present) {
+                        badge = { label: "Présent", bg: "#FEF2F2", color: "#B91C1C" }
+                      } else {
+                        badge = { label: "Non détecté", bg: "#F0FDF4", color: "#2F7D5C" }
+                      }
+                      return (
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.5rem 0.75rem",background:"#f8f7f4",borderRadius:"8px"}}>
+                          <span style={{fontSize:"0.85rem",color:"#111827"}}>{a.label}</span>
+                          <span style={{fontSize:"0.7rem",fontWeight:700,padding:"3px 8px",borderRadius:"6px",background:badge.bg,color:badge.color}}>
+                            {badge.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p style={{fontSize:"0.75rem",color:"#94A3B8",marginTop:"0.75rem"}}>Détection basée sur la localisation — score climatique définitif établi lors d'une mission AGE.</p>
+                </div>
+              </>
+            )}
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
-            <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+                   <div style={{background:"white",padding:"1.5rem",borderRadius:"12px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
               <h3 style={{color:"#111827",marginBottom:"1rem"}}>Réglementations</h3>
               {reglementations.length === 0 ? (
                 <p style={{color:"#666",fontSize:"0.9rem"}}>Aucune réglementation analysée</p>
@@ -478,9 +552,152 @@ const nbObligatoires = reglementations.filter(r => r.statut==="eligible").length
                 actifId={actif.id}
                 modeClient={true}
               />
-        </div>
           </div>
         </div>
+        <div style={{display:"flex",flexDirection:"column",gap:"1.5rem"}}>
+          {prediagIa && (() => {
+            const s = prediagIa.structure
+            const risqueCfg = s?.synthese?.niveau_risque ? LABEL_RISQUE[s.synthese.niveau_risque] : null
+            return (
+              <div style={{background:"#111C2E",borderLeft:"3px solid #1D9E75",borderRadius:"12px",padding:"20px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
+                  <div style={{width:"32px",height:"32px",borderRadius:"8px",background:"#1D9E752A",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <i className="ti ti-home" style={{fontSize:"16px",color:"#1D9E75"}} />
+                  </div>
+                  <span style={{fontSize:"14px",fontWeight:700,color:"#FFFFFF"}}>Pré-diagnostic</span>
+                </div>
+
+                {s ? (
+                  <>
+                    {risqueCfg && (
+                      <div style={{display:"inline-block",fontSize:"11px",fontWeight:500,padding:"3px 10px",borderRadius:"20px",background:risqueCfg.bg,color:risqueCfg.color,marginBottom:"10px"}}>
+                        {risqueCfg.label}
+                      </div>
+                    )}
+                    {s.synthese?.resume && (
+                      <p style={{fontSize:"13px",color:"#E2E8F0",lineHeight:1.6,margin:"0 0 12px"}}>{s.synthese.resume}</p>
+                    )}
+                    {s.aleas?.length > 0 && (
+                      <div style={{display:"flex",gap:"6px",flexWrap:"wrap" as const,marginBottom:"14px"}}>
+                        {s.aleas.map((a: any, i: number) => (
+                          <span key={i} style={{display:"flex",alignItems:"center",gap:"4px",fontSize:"11px",padding:"3px 8px",borderRadius:"6px",background:"#16233A",color:"#94A3B8"}}>
+                            <i className={`ti ${ICONE_ALEA[a.type] || "ti-alert-triangle"}`} style={{fontSize:"12px",color:COULEUR_ALEA[a.type] || "#94A3B8"}} />
+                            {a.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {s.recommandations?.[0] && (
+                      <div style={{background:"#16233A",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}}>
+                        <div style={{fontSize:"10px",color:"#94A3B8",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"4px"}}>Action prioritaire</div>
+                        <div style={{fontSize:"12px",color:"#E2E8F0"}}>{s.recommandations[0].titre} — {LABEL_URGENCE[s.recommandations[0].urgence] || s.recommandations[0].urgence}</div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{fontSize:"12px",color:"#94A3B8",marginBottom:"14px",lineHeight:1.5}}>
+                    Analyse climatique préliminaire réalisée par votre consultant AGE Climate.
+                  </p>
+                )}
+
+                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px"}}>
+                  <button
+                    onClick={() => setPrediagDetailOuvert(true)}
+                    style={{display:"flex",alignItems:"center",gap:"6px",background:"#1D9E75",color:"white",border:"none",padding:"8px 16px",borderRadius:"8px",fontSize:"13px",fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}
+                  >
+                    <i className="ti ti-eye" style={{fontSize:"14px"}} />
+                    Voir le détail
+                  </button>
+                  {s?.budget && (
+                    <div style={{textAlign:"right" as const}}>
+                      <div style={{fontSize:"10px",color:"#94A3B8",textTransform:"uppercase" as const,letterSpacing:"0.05em"}}>Investissement estimé</div>
+                      <div style={{fontSize:"13px",fontWeight:700,color:"#FFFFFF",fontFamily:"JetBrains Mono, monospace"}}>
+                        {s.budget.montant_bas?.toLocaleString("fr-FR")} € — {s.budget.montant_haut?.toLocaleString("fr-FR")} €
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+        </div>
+      )}
+
+      {/* Modale détail pré-diagnostic */}
+      {prediagDetailOuvert && prediagIa && (
+        <>
+          <div onClick={() => setPrediagDetailOuvert(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:300}} />
+          <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"560px",maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto",background:"#FFFFFF",borderRadius:"16px",zIndex:301,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",padding:"28px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"20px"}}>
+              <div>
+                <h3 style={{margin:0,fontSize:"16px",fontWeight:700,color:"#111827"}}>{actif.nom}</h3>
+                <p style={{margin:"2px 0 0",fontSize:"12px",color:"#6B7280"}}>Pré-diagnostic · {new Date(prediagIa.created_at).toLocaleDateString("fr-FR")}</p>
+              </div>
+              <button onClick={() => setPrediagDetailOuvert(false)} style={{border:"none",background:"#F4F3F0",width:"28px",height:"28px",borderRadius:"6px",cursor:"pointer"}}>
+                <i className="ti ti-x" style={{fontSize:"14px"}} />
+              </button>
+            </div>
+
+            {prediagIa.structure ? (() => {
+              const s = prediagIa.structure
+              return (
+                <>
+                  <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"10px"}}>Synthèse</div>
+                  <p style={{fontSize:"13px",color:"#111827",lineHeight:1.6,margin:"0 0 20px"}}>{s.synthese?.resume}</p>
+
+                  {s.aleas?.length > 0 && (
+                    <>
+                      <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"10px"}}>Aléas identifiés</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"20px"}}>
+                        {s.aleas.map((a: any, i: number) => (
+                          <div key={i} style={{background:"#F8F7F4",borderRadius:"8px",padding:"12px",display:"flex",gap:"10px",alignItems:"flex-start"}}>
+                            <i className={`ti ${ICONE_ALEA[a.type] || "ti-alert-triangle"}`} style={{fontSize:"18px",color:COULEUR_ALEA[a.type] || "#78716C"}} />
+                            <div>
+                              <div style={{fontSize:"12px",fontWeight:600,color:"#111827"}}>{a.label}</div>
+                              <div style={{fontSize:"11px",color:"#6B7280"}}>{a.description}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {s.recommandations?.length > 0 && (
+                    <>
+                      <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"10px"}}>Recommandations prioritaires</div>
+                      <div style={{display:"flex",flexDirection:"column" as const,gap:"8px",marginBottom:"20px"}}>
+                        {s.recommandations.map((r: any, i: number) => (
+                          <div key={i} style={{display:"flex",gap:"12px",alignItems:"flex-start",padding:"10px 12px",background:"#F8F7F4",borderRadius:"8px"}}>
+                            <div style={{width:"20px",height:"20px",borderRadius:"50%",background:COULEUR_URGENCE[r.urgence] || "#78716C",color:"#fff",fontSize:"11px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i + 1}</div>
+                            <div>
+                              <div style={{fontSize:"12px",fontWeight:600,color:"#111827"}}>{r.titre}</div>
+                              <div style={{fontSize:"11px",color:"#6B7280"}}>{LABEL_URGENCE[r.urgence] || r.urgence} — {r.description}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {s.budget && (
+                    <>
+                      <div style={{fontSize:"11px",fontWeight:600,color:"#6B7280",textTransform:"uppercase" as const,letterSpacing:"0.05em",marginBottom:"10px"}}>Investissement d'adaptation estimé</div>
+                      <div style={{display:"flex",alignItems:"baseline",gap:"8px",marginBottom:"4px"}}>
+                        <span style={{fontSize:"22px",fontWeight:700,color:"#111827",fontFamily:"JetBrains Mono, monospace"}}>
+                          {s.budget.montant_bas?.toLocaleString("fr-FR")} € — {s.budget.montant_haut?.toLocaleString("fr-FR")} €
+                        </span>
+                      </div>
+                      {s.budget.commentaire && <p style={{fontSize:"12px",color:"#6B7280",margin:0}}>{s.budget.commentaire}</p>}
+                    </>
+                  )}
+                </>
+              )
+            })() : (
+              <div dangerouslySetInnerHTML={{ __html: markdownPrediagToHtml(prediagIa.rapport).replace(/color:#[0-9A-Fa-f]{6};?/g, "") }} style={{fontSize:"13px",color:"#111827",lineHeight:1.7}} />
+            )}
+          </div>
+        </>
       )}
       {/* Onglet Réglementaire */}
       {onglet==="reglementaire" && (

@@ -233,6 +233,51 @@ export default function PriseRdv() {
       return
     }
 
+    // Duplication dans l'Agenda RDV (table `rendez_vous`, système indépendant
+    // de disponibilites_consultant/rendez_vous_client) — identité client
+    // résolue comme dans Missions.tsx (organisation_id prioritaire, sinon nom).
+    const { data: pc } = await supabase
+      .from("profils_client")
+      .select("prenom, nom, organisation_id")
+      .eq("id", userId)
+      .maybeSingle()
+
+    let clientLabel = "Client"
+    if (pc) {
+      if (pc.organisation_id) {
+        const { data: org } = await supabase
+          .from("organisations")
+          .select("raison_sociale")
+          .eq("id", pc.organisation_id)
+          .maybeSingle()
+        if (org?.raison_sociale) clientLabel = org.raison_sociale
+      }
+      if (clientLabel === "Client" && (pc.prenom || pc.nom)) {
+        clientLabel = `${pc.prenom || ""} ${pc.nom || ""}`.trim()
+      }
+    }
+
+    const motifLabel = modeCoordination
+      ? (MOTIFS_COORDINATION[typeMission] || typeMission)
+      : (COMPETENCE_LABELS[typeMission] || typeMission)
+
+    const { error: erreurAgenda } = await supabase.from("rendez_vous").insert({
+      titre: `${clientLabel} — ${motifLabel}`,
+      type_rdv: "appel",
+      date_debut: new Date(`${formOuvert.date}T${formOuvert.heure}`).toISOString(),
+      duree_minutes: 60,
+      note_preparation: message || null,
+      statut: "confirme",
+      consultant_id: consultantId,
+    })
+
+    if (erreurAgenda) {
+      // La réservation client (disponibilites_consultant + rendez_vous_client)
+      // est déjà confirmée et prioritaire : on ne rollback pas pour un échec
+      // de duplication d'affichage, on log seulement pour investigation.
+      console.error("Échec duplication Agenda RDV:", erreurAgenda)
+    }
+
     setSucces(true)
     setEnvoiEnCours(false)
     charger()

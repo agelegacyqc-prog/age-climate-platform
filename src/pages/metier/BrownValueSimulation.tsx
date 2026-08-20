@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react"
-import { Home, MapPin, UploadCloud, Search, ArrowLeft, CheckCircle2, FileWarning, History, Eye, Pencil, Save, Paperclip } from "lucide-react"
+import { Home, MapPin, UploadCloud, Search, ArrowLeft, ArrowUpRight, CheckCircle2, FileWarning, History, Eye, Pencil, Save, Paperclip } from "lucide-react"
 import { supabase } from "../../lib/supabase"
 import BrownValueWizard from "../../components/BrownValueWizard"
 import { getImpactNetStyle, formatPct, formatEuros } from "../../lib/brownValueEngine"
@@ -81,19 +81,32 @@ function EcranChoix({ onChoisir, onHistorique }: { onChoisir: (m: Mode) => void;
               key={c.mode}
               onClick={() => onChoisir(c.mode)}
               style={{
-                textAlign: "left", background: T.white, border: `1px solid ${T.stone}`,
+                textAlign: "left", background: "#111C2E", borderLeft: `3px solid ${T.brown}`,
                 borderRadius: "12px", padding: "20px", cursor: "pointer",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.05)", fontFamily: "inherit",
-                display: "flex", flexDirection: "column", gap: "12px",
+                fontFamily: "inherit", display: "flex", flexDirection: "column", gap: "12px",
+                transition: "background 0.15s, box-shadow 0.15s",
               }}
-              onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)")}
-              onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.05)")}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = "#16233A"
+                ;(e.currentTarget as HTMLButtonElement).style.boxShadow = `inset 0 0 0 1px ${T.brown}60, 0 0 24px ${T.brown}25`
+                const halo = (e.currentTarget as HTMLButtonElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${T.brown}55`
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = "#111C2E"
+                ;(e.currentTarget as HTMLButtonElement).style.boxShadow = "none"
+                const halo = (e.currentTarget as HTMLButtonElement).querySelector<HTMLDivElement>("[data-halo]")
+                if (halo) halo.style.background = `${T.brown}2A`
+              }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: "8px", background: T.brownLight, display: "flex", alignItems: "center", justifyContent: "center", color: T.brown }}>
-                <Icn size={18} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div data-halo style={{ width: "36px", height: "36px", borderRadius: "8px", background: `${T.brown}2A`, display: "flex", alignItems: "center", justifyContent: "center", color: T.brown, transition: "background 0.15s" }}>
+                  <Icn size={18} />
+                </div>
+                <ArrowUpRight size={14} color="#94A3B8" />
               </div>
-              <div style={{ fontWeight: 700, fontSize: "14px", color: T.slate }}>{c.titre}</div>
-              <div style={{ fontSize: "12px", color: T.stone500, lineHeight: 1.4 }}>{c.desc}</div>
+              <div style={{ fontWeight: 700, fontSize: "14px", color: "#FFFFFF" }}>{c.titre}</div>
+              <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.4 }}>{c.desc}</div>
             </button>
           )
         })}

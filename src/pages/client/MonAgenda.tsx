@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import { resolveAffectationClient } from "../../lib/resolveAffectationClient"
 
 interface RdvConfirme {
   id: string
@@ -10,12 +12,18 @@ interface RdvConfirme {
   consultant_nom: string
 }
 
+type VueCalendrier = "semaine" | "mois"
+
 const COMPETENCE_LABELS: Record<string, string> = {
   csrd: "CSRD", tertiaire: "Décret Tertiaire", bilan_ges: "Bilan GES",
   audit_energetique: "Audit Énergétique", sfdr: "SFDR",
   eu_taxonomy: "Taxonomie européenne", bacs: "Décret BACS",
   iso50001: "ISO 50001", ifrs_s2: "IFRS S2", esrs: "ESRS",
 }
+
+const JOURS_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+const HEURES = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]
 
 function lundiDeLaSemaine(d: Date) {
   const jour = d.getDay()
@@ -26,6 +34,10 @@ function lundiDeLaSemaine(d: Date) {
   return lundi
 }
 
+function premierJourDuMois(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1)
+}
+
 function formatDateISO(d: Date) {
   return d.toISOString().split("T")[0]
 }
@@ -34,35 +46,55 @@ function formatDateAffichage(d: Date) {
   return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })
 }
 
-const HEURES = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]
+function isMemeJour(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
 
 export default function MonAgenda() {
+  const navigate = useNavigate()
   const [userId, setUserId] = useState<string | null>(null)
-  const [semaine, setSemaine] = useState(lundiDeLaSemaine(new Date()))
+  const [vue, setVue] = useState<VueCalendrier>("semaine")
+  const [dateRef, setDateRef] = useState(new Date())
   const [rdvs, setRdvs] = useState<RdvConfirme[]>([])
   const [loading, setLoading] = useState(true)
   const [detailOuvert, setDetailOuvert] = useState<RdvConfirme | null>(null)
+  const [consultantAttitre, setConsultantAttitre] = useState<string | null>(null)
 
+  const lundi = lundiDeLaSemaine(dateRef)
   const jours = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(semaine)
-    d.setDate(semaine.getDate() + i)
+    const d = new Date(lundi)
+    d.setDate(lundi.getDate() + i)
+    return d
+  })
+
+  // Grille mois : 42 cases à partir du lundi de la semaine du 1er du mois
+  const premier = premierJourDuMois(dateRef)
+  const lundiPremier = lundiDeLaSemaine(premier)
+  const joursGrilleMois = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(lundiPremier)
+    d.setDate(lundiPremier.getDate() + i)
     return d
   })
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) setUserId(user.id)
+      if (user) {
+        setUserId(user.id)
+        const affectation = await resolveAffectationClient(user.id)
+        setConsultantAttitre(affectation.consultant_id)
+      }
     })()
   }, [])
 
-  useEffect(() => { if (userId) charger() }, [userId, semaine])
+  useEffect(() => { if (userId) charger() }, [userId, vue, dateRef])
 
   async function charger() {
     if (!userId) return
     setLoading(true)
-    const debut = formatDateISO(jours[0])
-    const fin = formatDateISO(jours[4])
+
+    const debut = vue === "semaine" ? formatDateISO(jours[0]) : formatDateISO(joursGrilleMois[0])
+    const fin   = vue === "semaine" ? formatDateISO(jours[4]) : formatDateISO(joursGrilleMois[41])
 
     const { data } = await supabase
       .from("rendez_vous_client")
@@ -98,31 +130,74 @@ export default function MonAgenda() {
     return rdvs.find(r => r.date === dateStr && r.heure_debut.slice(0, 5) === heure)
   }
 
-  function semainePrecedente() {
-    const d = new Date(semaine)
-    d.setDate(d.getDate() - 7)
-    setSemaine(d)
+  function rdvsDuJour(jour: Date): RdvConfirme[] {
+    const dateStr = formatDateISO(jour)
+    return rdvs.filter(r => r.date === dateStr).sort((a, b) => a.heure_debut.localeCompare(b.heure_debut))
   }
 
-  function semaineSuivante() {
-    const d = new Date(semaine)
-    d.setDate(d.getDate() + 7)
-    setSemaine(d)
+  function precedent() {
+    const d = new Date(dateRef)
+    if (vue === "semaine") d.setDate(d.getDate() - 7)
+    else d.setMonth(d.getMonth() - 1)
+    setDateRef(d)
   }
+
+  function suivant() {
+    const d = new Date(dateRef)
+    if (vue === "semaine") d.setDate(d.getDate() + 7)
+    else d.setMonth(d.getMonth() + 1)
+    setDateRef(d)
+  }
+
+  const titrePeriode = vue === "semaine"
+    ? `${formatDateAffichage(jours[0])} — ${formatDateAffichage(jours[4])}`
+    : `${MOIS_FR[dateRef.getMonth()]} ${dateRef.getFullYear()}`
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Mon agenda</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {consultantAttitre ? (
+            <button
+              onClick={() => navigate(`/client/prise-rdv/${consultantAttitre}?mode=coordination`)}
+              style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <i className="ti ti-calendar-plus" aria-hidden="true" />
+              Prendre RDV
+            </button>
+          ) : (
+            <span style={{ fontSize: "12px", color: "#94A3B8" }}>Aucun consultant attitré pour l'instant</span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "4px" }}>
+          {(["semaine", "mois"] as VueCalendrier[]).map(v => (
+            <button
+              key={v}
+              onClick={() => setVue(v)}
+              style={{
+                padding: "6px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 500,
+                border: `1px solid ${vue === v ? "#0F6E56" : "#E2E8F0"}`,
+                background: vue === v ? "#ECFDF5" : "white",
+                color: vue === v ? "#0F6E56" : "#64748B", cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {v === "semaine" ? "Semaine" : "Mois"}
+            </button>
+          ))}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={semainePrecedente} style={{ width: "32px", height: "32px", border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer" }}>
+          <button onClick={precedent} style={{ width: "32px", height: "32px", border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer" }}>
             <i className="ti ti-chevron-left" aria-hidden="true" />
           </button>
-          <span style={{ fontSize: "13px", color: "#64748B", minWidth: "160px", textAlign: "center" }}>
-            {formatDateAffichage(jours[0])} — {formatDateAffichage(jours[4])}
+          <span style={{ fontSize: "13px", color: "#64748B", minWidth: "180px", textAlign: "center" }}>
+            {titrePeriode}
           </span>
-          <button onClick={semaineSuivante} style={{ width: "32px", height: "32px", border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer" }}>
+          <button onClick={suivant} style={{ width: "32px", height: "32px", border: "1px solid #E2E8F0", background: "white", borderRadius: "6px", cursor: "pointer" }}>
             <i className="ti ti-chevron-right" aria-hidden="true" />
           </button>
         </div>
@@ -133,9 +208,11 @@ export default function MonAgenda() {
       ) : rdvs.length === 0 ? (
         <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
           <i className="ti ti-calendar-off" style={{ fontSize: "32px", color: "#94A3B8", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Aucun rendez-vous cette semaine</div>
+          <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>
+            Aucun rendez-vous {vue === "semaine" ? "cette semaine" : "ce mois-ci"}
+          </div>
         </div>
-      ) : (
+      ) : vue === "semaine" ? (
         <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: "560px" }}>
             <thead>
@@ -174,6 +251,50 @@ export default function MonAgenda() {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+            {JOURS_FR.map(j => (
+              <div key={j} style={{ textAlign: "center", fontSize: "10px", fontWeight: 700, color: "#78716C", padding: "4px 0", letterSpacing: "0.05em" }}>
+                {j}
+              </div>
+            ))}
+            {joursGrilleMois.map((jour, i) => {
+              const horsMois = jour.getMonth() !== dateRef.getMonth()
+              const estAujourdhui = isMemeJour(jour, new Date())
+              const rdvsJour = rdvsDuJour(jour)
+              return (
+                <div
+                  key={i}
+                  style={{
+                    background: estAujourdhui ? "#F0FDF4" : horsMois ? "#FAFAFA" : "#fff",
+                    border: `1px solid ${estAujourdhui ? "#0F6E56" : "#E5E1DA"}`,
+                    borderRadius: "8px", padding: "4px 5px", minHeight: "72px",
+                    opacity: horsMois ? 0.4 : 1,
+                  }}
+                >
+                  <div style={{ fontSize: "11px", fontWeight: estAujourdhui ? 700 : 400, color: estAujourdhui ? "#0F6E56" : "#1F2937", marginBottom: "3px", textAlign: "right" }}>
+                    {jour.getDate()}
+                  </div>
+                  {rdvsJour.slice(0, 2).map(r => (
+                    <div
+                      key={r.id}
+                      onClick={() => setDetailOuvert(r)}
+                      style={{ background: "#B5D4F4", color: "#0C447C", borderRadius: "4px", padding: "2px 4px", marginBottom: "2px", fontSize: "9px", fontWeight: 600, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {r.heure_debut.slice(0, 5)} {r.consultant_nom}
+                    </div>
+                  ))}
+                  {rdvsJour.length > 2 && (
+                    <div style={{ fontSize: "9px", color: "#78716C", textAlign: "center" }}>
+                      +{rdvsJour.length - 2} autre{rdvsJour.length - 2 > 1 ? "s" : ""}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

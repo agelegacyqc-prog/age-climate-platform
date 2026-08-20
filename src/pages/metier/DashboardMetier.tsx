@@ -84,6 +84,12 @@ export default function DashboardMetier() {
   const [mesMissions, setMesMissions]   = useState<any[]>([])
   const [mesCampagnes, setMesCampagnes] = useState<any[]>([])
   const [mesAlertes, setMesAlertes]     = useState<any[]>([])
+  const [kpisConsultant, setKpisConsultant] = useState({
+    missionsActives: 0,
+    campagnesAgeActives: 0,
+    rdvAVenir: 0,
+    campagnesATraiter: 0,
+  })
 
   useEffect(() => { init() }, [])
 
@@ -246,23 +252,34 @@ export default function DashboardMetier() {
   }
 
 async function loadConsultant(uid: string) {
-    const [missRes, campRes] = await Promise.all([
+    const dateLimite = new Date()
+    dateLimite.setDate(dateLimite.getDate() - 5)
+
+    const aujourdHui = new Date().toISOString().slice(0, 10)
+    const dansSeptJours = new Date()
+    dansSeptJours.setDate(dansSeptJours.getDate() + 7)
+    const dansSeptJoursStr = dansSeptJours.toISOString().slice(0, 10)
+
+    const [missRes, campRes, missActivesRes, campAgeRes, rdvRes, campATraiterRes, bloqueesRes] = await Promise.all([
       supabase.from("missions").select("id, societe, statut, phase, updated_at, created_at").eq("consultant_id", uid).order("updated_at", { ascending: false }).limit(5),
-      supabase.from("campagnes").select("id, nom, statut, created_at").eq("consultant_id", uid).order("created_at", { ascending: false }).limit(5),
+      supabase.from("campagnes").select("id, nom, statut, origine, created_at").eq("consultant_id", uid).eq("origine", "age").order("created_at", { ascending: false }).limit(5),
+      supabase.from("missions").select("id", { count: "exact", head: true }).eq("consultant_id", uid).eq("statut", "en_cours"),
+      supabase.from("campagnes").select("id", { count: "exact", head: true }).eq("consultant_id", uid).eq("origine", "age").eq("statut", "en_cours"),
+      supabase.from("disponibilites_consultant").select("id", { count: "exact", head: true }).eq("consultant_id", uid).eq("statut", "reserve").gte("date", aujourdHui).lte("date", dansSeptJoursStr),
+      supabase.from("campagnes").select("id", { count: "exact", head: true }).eq("origine", "client").eq("statut", "soumise").is("responsable_id", null),
+      supabase.from("missions").select("id, societe").eq("consultant_id", uid).eq("statut", "en_cours").lte("updated_at", dateLimite.toISOString()),
     ])
 
     setMesMissions(missRes.data || [])
     setMesCampagnes(campRes.data || [])
+    setMesAlertes(bloqueesRes.data || [])
 
-    const dateLimite = new Date()
-    dateLimite.setDate(dateLimite.getDate() - 5)
-    const { data: bloquees } = await supabase
-      .from("missions")
-      .select("id, societe")
-      .eq("consultant_id", uid)
-      .eq("statut", "en_cours")
-      .lte("updated_at", dateLimite.toISOString())
-    setMesAlertes(bloquees || [])
+    setKpisConsultant({
+      missionsActives:     missActivesRes.count || 0,
+      campagnesAgeActives: campAgeRes.count || 0,
+      rdvAVenir:            rdvRes.count || 0,
+      campagnesATraiter:   campATraiterRes.count || 0,
+    })
   }
 
   if (loading) return (
@@ -597,92 +614,65 @@ async function loadConsultant(uid: string) {
       )}
 
       {/* KPIs consultant */}
-     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
         {[
-          { label: "Missions assignées", value: mesMissions.length,                                                              icon: "ti-briefcase",    color: "#B25C2A", route: "/metier/file-attente" },
-          { label: "Campagnes actives",  value: mesCampagnes.filter((c: any) => c.statut === "en_cours").length, icon: "ti-speakerphone", color: "#0369A1", route: "/metier/file-attente" },
+                    { label: "Missions en cours",     value: kpisConsultant.missionsActives,     icon: "ti-briefcase",    color: "#85B7EB",                                     route: "/metier/missions" },
+          { label: "Missions bloquées",     value: mesAlertes.length,                  icon: "ti-lock",         color: mesAlertes.length > 0 ? "#B91C1C" : "#94A3B8", route: "/metier/missions" },
+          { label: "Campagnes AGE actives", value: kpisConsultant.campagnesAgeActives, icon: "ti-speakerphone", color: "#F0997B",                                     route: "/metier/campagnes" },
+          { label: "RDV à venir (7j)",      value: kpisConsultant.rdvAVenir,           icon: "ti-calendar",     color: "#5DCAA5",                                     route: "/metier/disponibilites-rdv" },
         ].map((k, i) => (
           <div
             key={i}
             onClick={() => navigate(k.route)}
-            style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "12px", padding: "20px", cursor: "pointer" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = k.color }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#E2DDD8" }}
+            style={{ background: "#111C2E", borderLeft: `3px solid ${k.color}`, borderRadius: "12px", padding: "20px", cursor: "pointer", transition: "background 0.15s, box-shadow 0.15s" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLDivElement).style.background = "#16233A"
+              ;(e.currentTarget as HTMLDivElement).style.boxShadow = `inset 0 0 0 1px ${k.color}60, 0 0 24px ${k.color}25`
+              const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+              if (halo) halo.style.background = `${k.color}55`
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLDivElement).style.background = "#111C2E"
+              ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
+              const halo = (e.currentTarget as HTMLDivElement).querySelector<HTMLDivElement>("[data-halo]")
+              if (halo) halo.style.background = `${k.color}2A`
+            }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
-              <span className="label-section">{k.label}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div data-halo style={{ width: "32px", height: "32px", borderRadius: "8px", background: `${k.color}2A`, display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
+              </div>
+              <i className="ti ti-arrow-up-right" style={{ fontSize: "13px", color: "#94A3B8" }} />
             </div>
-            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "28px", fontWeight: 700, color: "#111827" }}>
+            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>
               {k.value}
             </div>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Mes missions + Campagnes */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-
-        {/* Mes missions */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", gap: "8px" }}>
-            <i className="ti ti-briefcase" style={{ fontSize: "15px", color: "#B25C2A" }} />
-            <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>Mes missions</span>
-          </div>
-          {mesMissions.length === 0 ? (
-            <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>Aucune mission assignée</div>
-          ) : mesMissions.map((m: any, i: number) => (
-            <div
-              key={m.id}
-              onClick={() => navigate("/metier/missions")}
-              style={{ padding: "12px 20px", borderBottom: i < mesMissions.length - 1 ? "1px solid #F4F3F0" : "none", cursor: "pointer" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{m.societe || "—"}</div>
-                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#9CA3AF" }}>Phase {m.phase || 1}/10</span>
-              </div>
-              <div style={{ marginTop: "4px", background: "#E2DDD8", borderRadius: "2px", height: "3px", overflow: "hidden" }}>
-                <div style={{ background: "#B25C2A", width: `${((m.phase || 1) / 10) * 100}%`, height: "100%" }} />
-              </div>
-            </div>
-          ))}
-        <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
-            <button onClick={() => navigate("/metier/file-attente")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-              Voir tout →
-            </button>
-          </div>
+      {/* Campagnes client à traiter (file globale, prospection) */}
+      <BlocDepliant
+        titre="Campagnes client à traiter"
+        icon="ti-inbox"
+        dotColor={kpisConsultant.campagnesATraiter > 0 ? "#D97706" : "#0369A1"}
+        texte={kpisConsultant.campagnesATraiter > 0 ? `· ${kpisConsultant.campagnesATraiter} en attente` : "· rien à signaler"}
+      >
+        <div style={{ padding: "16px 20px" }}>
+          <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "10px" }}>
+            File d'attente globale (non affectée à un consultant précis) — {kpisConsultant.campagnesATraiter} campagne{kpisConsultant.campagnesATraiter > 1 ? "s" : ""} client{kpisConsultant.campagnesATraiter > 1 ? "s" : ""} en attente de prise en charge.
+          </p>
+          <button
+            onClick={() => navigate("/metier/file-attente")}
+            style={{ fontSize: "12px", color: "#D97706", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+          >
+            Aller à la file d'attente →
+          </button>
         </div>
+      </BlocDepliant>
 
-        {/* Campagnes */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", gap: "8px" }}>
-            <i className="ti ti-speakerphone" style={{ fontSize: "15px", color: "#B25C2A" }} />
-            <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>Campagnes</span>
-          </div>
-        {mesCampagnes.length === 0 ? (
-            <div style={{ padding: "32px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>Aucune campagne</div>
-      ) : mesCampagnes.map((c: any, i: number) => (
-            <div
-              key={c.id}
-              onClick={() => navigate("/metier/file-attente")}
-              style={{ padding: "12px 20px", borderBottom: i < mesCampagnes.length - 1 ? "1px solid #F4F3F0" : "none", cursor: "pointer" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827", marginBottom: "2px" }}>{c.nom || `Campagne #${i + 1}`}</div>
-              <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{c.statut || "En cours"} · {formatDate(c.created_at)}</div>
-            </div>
-          ))}
-          <div style={{ padding: "10px 20px", borderTop: "1px solid #E2DDD8" }}>
-            <button onClick={() => navigate("/metier/file-attente")} style={{ fontSize: "12px", color: "#B25C2A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-              Voir tout →
-            </button>
-          </div>
-        </div>
 
-      </div>
     </div>
   )
 }

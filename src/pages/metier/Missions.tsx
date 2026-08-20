@@ -446,14 +446,14 @@ async function loadConsultants() {
       {/* Onglets */}
       {peutVoirRapports && (
         <div style={{ display: "flex", gap: "4px", background: "#F4F3F0", borderRadius: "9px", padding: "4px", width: "fit-content", marginBottom: "16px" }}>
-          <button onClick={() => setOnglet("missions")} style={{
+                 <button onClick={() => setOnglet("missions")} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "7px 16px", borderRadius: "7px", border: "none",
             background: onglet === "missions" ? "white" : "transparent", color: onglet === "missions" ? "#111827" : "#6B7280",
             fontSize: "13px", fontWeight: onglet === "missions" ? 500 : 400, cursor: "pointer", fontFamily: "inherit",
             boxShadow: onglet === "missions" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
           }}>
             <i className="ti ti-briefcase" style={{ fontSize: "14px" }} />
-            Missions
+            Nouvelles demandes
           </button>
           <button onClick={() => setOnglet("rapports")} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "7px 16px", borderRadius: "7px", border: "none",
@@ -462,7 +462,7 @@ async function loadConsultants() {
             boxShadow: onglet === "rapports" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
           }}>
             <i className="ti ti-file-analytics" style={{ fontSize: "14px" }} />
-            Rapports
+            Analyse du risque climat
             {rapportsEnAttente > 0 && (
               <span style={{ background: "#B91C1C", color: "white", fontSize: "10px", fontWeight: 600, padding: "1px 6px", borderRadius: "10px" }}>
                 {rapportsEnAttente}

@@ -18,6 +18,8 @@ type Statut =
   | "diagnostic_lance"
   | "cloture"
 
+type VuePipeline = "liste" | "kanban"
+
 interface Campagne {
   id: string
   nom: string
@@ -86,23 +88,21 @@ function formatDate(iso: string | null) {
 }
 
 function statutSuivant(s: Statut): Statut | null {
-  // non_interesse et cloture sont terminaux
   if (s === "non_interesse" || s === "cloture") return null
   const idx = STATUT_ORDRE.indexOf(s)
-  // Sauter non_interesse dans le flux normal
   const next = STATUT_ORDRE[idx + 1]
   if (next === "non_interesse") return STATUT_ORDRE[idx + 2] ?? null
   return next ?? null
 }
 
-// ─── Composant carte contact ──────────────────────────────────────────────────
+// ─── Composant carte contact (kanban) ─────────────────────────────────────────
 
 interface CarteContactProps {
   key?: string
   contact: Contact
   onAvancer: (id: string, statut: Statut) => void
   onDragStart: (e: React.DragEvent<HTMLDivElement>, contact: Contact) => void
-onOpenNote: (contact: Contact) => void
+  onOpenNote: (contact: Contact) => void
   onOpenQualif: (contact: Contact) => void
 }
 
@@ -142,7 +142,6 @@ function CarteContact({
         e.currentTarget.style.transform = "translateY(0)"
       }}
     >
-      {/* Adresse bien */}
       <div style={{ fontSize: "12px", fontWeight: 600, color: "#111827", marginBottom: "2px", lineHeight: 1.3 }}>
         {contact.bien?.adresse || "—"}
       </div>
@@ -151,7 +150,6 @@ function CarteContact({
         {contact.bien?.type_bien ? ` · ${contact.bien.type_bien}` : ""}
       </div>
 
-      {/* Score risque */}
       {contact.bien?.score_risque != null && (
         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
           <span style={{
@@ -169,7 +167,6 @@ function CarteContact({
         </div>
       )}
 
-      {/* Note */}
       {contact.note && (
         <div style={{
           fontSize: "11px", color: "#6B7280", background: "#F9F7F4",
@@ -180,15 +177,12 @@ function CarteContact({
         </div>
       )}
 
-      {/* Date mise à jour */}
       <div style={{ fontSize: "10px", color: "#C9C3BB", marginBottom: "8px" }}>
         <i className="ti ti-clock" style={{ fontSize: "10px", marginRight: "3px" }} />
         {formatDate(contact.statut_updated_at)}
       </div>
 
-      {/* Actions */}
       <div style={{ display: "flex", gap: "4px" }}>
-      {/* Bouton note */}
         <button
           onClick={e => { e.stopPropagation(); onOpenNote(contact) }}
           style={{
@@ -203,7 +197,6 @@ function CarteContact({
           <i className="ti ti-note" style={{ fontSize: "12px" }} />
         </button>
 
-        {/* Bouton qualification */}
         <button
           onClick={e => { e.stopPropagation(); onOpenQualif(contact) }}
           style={{
@@ -236,7 +229,6 @@ function CarteContact({
           )}
         </button>
 
-        {/* Bouton avancer */}
         {suivantCol && (
           <button
             onClick={e => { e.stopPropagation(); onAvancer(contact.id, suivant!) }}
@@ -256,7 +248,6 @@ function CarteContact({
           </button>
         )}
 
-        {/* Bouton Non intéressé (si pas déjà dans un état terminal) */}
         {contact.statut !== "non_interesse" && contact.statut !== "cloture" && contact.statut !== "mandat_signe" && contact.statut !== "diagnostic_lance" && (
           <button
             onClick={e => { e.stopPropagation(); onAvancer(contact.id, "non_interesse") }}
@@ -313,7 +304,6 @@ function Colonne({
       onDragLeave={() => setIsDragOver(false)}
       onDrop={e => { setIsDragOver(false); onDrop(e, config.statut) }}
     >
-      {/* En-tête colonne */}
       <div style={{
         padding: "10px 12px", display: "flex", alignItems: "center",
         justifyContent: "space-between", borderBottom: "1px solid #E2DDD8",
@@ -350,10 +340,8 @@ function Colonne({
             ) : null
           })()}
         </div>
-        
       </div>
 
-      {/* Cartes */}
       <div style={{
         flex: 1, overflowY: "auto", padding: "8px",
         display: "flex", flexDirection: "column", gap: "6px",
@@ -369,7 +357,7 @@ function Colonne({
             {isDragOver ? "Déposer ici" : "Aucun contact"}
           </div>
         )}
-      {contacts.map(c => (
+        {contacts.map(c => (
           <CarteContact
             key={c.id}
             contact={c}
@@ -379,6 +367,96 @@ function Colonne({
             onOpenQualif={onOpenQualif}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Composant ligne (vue liste) ──────────────────────────────────────────────
+
+function LigneContact({
+  contact,
+  onChangerStatut,
+  onOpenNote,
+  onOpenQualif,
+}: {
+  key?: string
+  contact: Contact
+  onChangerStatut: (id: string, statut: Statut) => void
+  onOpenNote: (contact: Contact) => void
+  onOpenQualif: (contact: Contact) => void
+}) {
+  const risque = contact.bien?.niveau_risque
+  const risqueCfg = risque ? RISQUE_CONFIG[risque] : null
+  const enRetard = !!(contact.qualification_relance_due_at &&
+    !contact.qualification_relance_traitee &&
+    new Date(contact.qualification_relance_due_at) < new Date())
+
+  return (
+    <div
+      style={{
+        display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: "12px",
+        padding: "12px 16px", borderTop: "1px solid #E2DDD8", alignItems: "center",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "#111827", marginBottom: "2px" }}>
+          {contact.bien?.adresse || "—"}
+        </div>
+        <div style={{ fontSize: "11px", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          <span>{contact.bien?.ville || ""}{contact.bien?.type_bien ? ` · ${contact.bien.type_bien}` : ""}</span>
+          {contact.bien?.score_risque != null && (
+            <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 6px", borderRadius: "4px", background: risqueCfg?.bg || "#F4F3F0", color: risqueCfg?.color || "#78716C" }}>
+              Score {contact.bien.score_risque}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <select
+        value={contact.statut}
+        onChange={e => onChangerStatut(contact.id, e.target.value as Statut)}
+        style={{ fontSize: "12px", padding: "6px 8px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "white", color: "#111827", fontFamily: "inherit", cursor: "pointer" }}
+      >
+        {COLONNES.map(c => (
+          <option key={c.statut} value={c.statut}>{c.label}</option>
+        ))}
+      </select>
+
+      <div style={{ fontSize: "12px", color: "#6B7280" }}>
+        {formatDate(contact.statut_updated_at)}
+      </div>
+
+      <div style={{ display: "flex", gap: "6px" }}>
+        <button
+          onClick={() => onOpenNote(contact)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "30px", height: "30px", borderRadius: "6px",
+            border: "1px solid #E2DDD8", background: "#F4F3F0",
+            color: contact.note ? "#B25C2A" : "#9CA3AF", cursor: "pointer",
+          }}
+          title="Ajouter une note"
+        >
+          <i className="ti ti-note" style={{ fontSize: "13px" }} />
+        </button>
+        <button
+          onClick={() => onOpenQualif(contact)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "30px", height: "30px", borderRadius: "6px", position: "relative",
+            border: `1px solid ${contact.qualification_statut === 'chaud' ? '#FECACA' : contact.qualification_statut === 'tiede' ? '#FDE68A' : '#E2DDD8'}`,
+            background: contact.qualification_statut === 'chaud' ? '#FEF2F2' : contact.qualification_statut === 'tiede' ? '#FFFBEB' : '#F4F3F0',
+            color: contact.qualification_statut === 'chaud' ? '#B91C1C' : contact.qualification_statut === 'tiede' ? '#D97706' : '#9CA3AF',
+            cursor: "pointer",
+          }}
+          title="Qualifier ce contact"
+        >
+          <i className="ti ti-flame" style={{ fontSize: "13px" }} />
+          {enRetard && (
+            <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, borderRadius: '50%', background: '#B91C1C', border: '1px solid #fff' }} />
+          )}
+        </button>
       </div>
     </div>
   )
@@ -395,16 +473,17 @@ export default function CampagnePipeline() {
   const [loading, setLoading]       = useState(true)
   const [toast, setToast]           = useState<{ message: string; type: "success" | "error" } | null>(null)
 
-  // Modal note
+  const [vue, setVue] = useState<VuePipeline>("liste")
+  const [filtreStatut, setFiltreStatut] = useState<Statut | "tous">("tous")
+  const [recherche, setRecherche] = useState("")
+
   const [noteModal, setNoteModal]   = useState<Contact | null>(null)
   const [qualifContact, setQualifContact] = useState<Contact | null>(null)
   const [noteTexte, setNoteTexte]   = useState("")
   const [noteSaving, setNoteSaving] = useState(false)
 
-  // Drag
   const dragContact = useRef<Contact | null>(null)
 
-  // Stats funnel
   const funnel = COLONNES.map(col => ({
     ...col,
     count: contacts.filter(c => c.statut === col.statut).length,
@@ -413,6 +492,17 @@ export default function CampagnePipeline() {
   const interesses   = contacts.filter(c => ["interesse","rdv_propose","rdv_confirme","mandat_signe","diagnostic_lance","cloture"].includes(c.statut)).length
   const mandats      = contacts.filter(c => c.statut === "mandat_signe" || c.statut === "diagnostic_lance" || c.statut === "cloture").length
   const tauxConversion = total > 0 ? Math.round((mandats / total) * 100) : 0
+
+  const contactsFiltres = contacts.filter(c => {
+    if (filtreStatut !== "tous" && c.statut !== filtreStatut) return false
+    if (recherche) {
+      const q = recherche.toLowerCase()
+      const matchAdresse = c.bien?.adresse?.toLowerCase().includes(q)
+      const matchVille = c.bien?.ville?.toLowerCase().includes(q)
+      if (!matchAdresse && !matchVille) return false
+    }
+    return true
+  })
 
   function showToast(message: string, type: "success" | "error" = "success") {
     setToast({ message, type })
@@ -423,7 +513,6 @@ export default function CampagnePipeline() {
 
   async function charger() {
     setLoading(true)
-    // Campagne
     const { data: camp } = await supabase
       .from("campagnes")
       .select("id, nom, type_campagne, statut, zone_geo, date_debut, date_fin")
@@ -431,7 +520,6 @@ export default function CampagnePipeline() {
       .maybeSingle()
     setCampagne(camp)
 
-    // Contacts pipeline
     const { data: cts } = await supabase
       .from("contacts_campagne")
       .select("*")
@@ -440,14 +528,12 @@ export default function CampagnePipeline() {
 
     if (!cts || cts.length === 0) { setContacts([]); setLoading(false); return }
 
-    // Enrichir avec les biens
     const bienIds = [...new Set(cts.map((c: Contact) => c.bien_id))]
     const { data: biens } = await supabase
       .from("biens")
       .select("id, adresse, ville, type_bien, niveau_risque, score_risque")
       .in("id", bienIds)
 
-    // Récupérer dernières qualifications par contact
     const contactIds = cts.map((c: Contact) => c.id)
     const { data: qualifs } = await supabase
       .from('qualifications')
@@ -455,7 +541,6 @@ export default function CampagnePipeline() {
       .in('contact_id', contactIds)
       .order('created_at', { ascending: false })
 
-    // Garder uniquement la plus récente par contact
     const dernieresQualifs = new Map<string, any>()
     ;(qualifs ?? []).forEach((q: any) => {
       if (!dernieresQualifs.has(q.contact_id)) dernieresQualifs.set(q.contact_id, q)
@@ -471,11 +556,10 @@ export default function CampagnePipeline() {
         qualification_relance_traitee: q?.relance_traitee ?? false,
       }
     })
-  setContacts(enriched)
+    setContacts(enriched)
     setLoading(false)
   }
 
-  // ── Changer statut ──
   async function changerStatut(contactId: string, nouveauStatut: Statut) {
     const { error } = await supabase
       .from("contacts_campagne")
@@ -484,15 +568,25 @@ export default function CampagnePipeline() {
 
     if (error) { showToast("Erreur lors de la mise à jour", "error"); return }
 
-    setContacts(prev => prev.map(c =>
+    const contactsMaj = contacts.map(c =>
       c.id === contactId
         ? { ...c, statut: nouveauStatut, statut_updated_at: new Date().toISOString() }
         : c
-    ))
+    )
+    setContacts(contactsMaj)
     showToast(`Statut mis à jour : ${COLONNES.find(col => col.statut === nouveauStatut)?.label}`)
+
+    // Recalcul des compteurs campagnes.rdv_pris / campagnes.diagnostics —
+    // par comptage (pas incrément), pour rester exact même si un contact
+    // change plusieurs fois de statut dans un sens ou l'autre.
+    const nbRdv = contactsMaj.filter(c => c.statut === "rdv_propose" || c.statut === "rdv_confirme").length
+    const nbDiagnostics = contactsMaj.filter(c => c.statut === "diagnostic_lance" || c.statut === "cloture").length
+    await supabase
+      .from("campagnes")
+      .update({ rdv_pris: nbRdv, diagnostics: nbDiagnostics })
+      .eq("id", id)
   }
 
-  // ── Drag & drop ──
   function handleDragStart(e: React.DragEvent, contact: Contact) {
     dragContact.current = contact
     e.dataTransfer.effectAllowed = "move"
@@ -511,7 +605,6 @@ export default function CampagnePipeline() {
     dragContact.current = null
   }
 
-  // ── Note ──
   function openNote(contact: Contact) {
     setNoteModal(contact)
     setNoteTexte(contact.note || "")
@@ -537,12 +630,10 @@ export default function CampagnePipeline() {
     setNoteModal(null)
   }
 
-  // ── Contacts par colonne ──
   function contactsPourStatut(statut: Statut) {
     return contacts.filter(c => c.statut === statut)
   }
 
-  // ── Render ──
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "200px", color: "#9CA3AF", fontSize: "14px" }}>
       <i className="ti ti-loader-2 ti-spin" style={{ fontSize: "20px", marginRight: "8px" }} />
@@ -553,7 +644,6 @@ export default function CampagnePipeline() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
 
-      {/* Toast */}
       {toast && (
         <div style={{
           position: "fixed", bottom: "24px", right: "24px", zIndex: 1000,
@@ -567,9 +657,7 @@ export default function CampagnePipeline() {
         </div>
       )}
 
-      {/* En-tête */}
       <div style={{ padding: "0 0 16px 0", flexShrink: 0 }}>
-        {/* Breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
           <button
             onClick={() => navigate("/metier/campagnes")}
@@ -584,7 +672,7 @@ export default function CampagnePipeline() {
           <span style={{ fontSize: "12px", color: "#B25C2A", fontWeight: 600 }}>Pipeline</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" as const }}>
           <div>
             <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", letterSpacing: "-0.02em", marginBottom: "4px" }}>
               {campagne?.nom}
@@ -602,8 +690,7 @@ export default function CampagnePipeline() {
             </div>
           </div>
 
-          {/* KPIs rapides */}
-          <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: "8px", flexShrink: 0, alignItems: "center" }}>
             {[
               { label: "Total",       value: total,          icon: "ti-users",      color: "#111827" },
               { label: "Intéressés",  value: interesses,     icon: "ti-thumb-up",   color: "#2F7D5C" },
@@ -623,20 +710,32 @@ export default function CampagnePipeline() {
                 </div>
               </div>
             ))}
+
+            <div style={{ display: "flex", gap: "4px", background: "#F4F3F0", borderRadius: "8px", padding: "3px", marginLeft: "4px" }}>
+              <button
+                onClick={() => setVue("liste")}
+                style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "6px", border: "none", background: vue === "liste" ? "white" : "transparent", color: vue === "liste" ? "#B25C2A" : "#6B7280", fontSize: "12px", fontWeight: vue === "liste" ? 600 : 400, cursor: "pointer", fontFamily: "inherit", boxShadow: vue === "liste" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
+              >
+                <i className="ti ti-list" style={{ fontSize: "13px" }} />
+                Liste
+              </button>
+              <button
+                onClick={() => setVue("kanban")}
+                style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 12px", borderRadius: "6px", border: "none", background: vue === "kanban" ? "white" : "transparent", color: vue === "kanban" ? "#B25C2A" : "#6B7280", fontSize: "12px", fontWeight: vue === "kanban" ? 600 : 400, cursor: "pointer", fontFamily: "inherit", boxShadow: vue === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
+              >
+                <i className="ti ti-layout-kanban" style={{ fontSize: "13px" }} />
+                Kanban
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Funnel barre */}
         <div style={{ marginTop: "12px", display: "flex", height: "6px", borderRadius: "4px", overflow: "hidden", background: "#F4F3F0", gap: "1px" }}>
           {funnel.filter(f => f.count > 0).map(f => (
             <div
               key={f.statut}
               title={`${f.label} : ${f.count}`}
-              style={{
-                flex: f.count,
-                background: f.color,
-                transition: "flex 0.3s",
-              }}
+              style={{ flex: f.count, background: f.color, transition: "flex 0.3s" }}
             />
           ))}
         </div>
@@ -650,7 +749,6 @@ export default function CampagnePipeline() {
         </div>
       </div>
 
-      {/* Message vide */}
       {contacts.length === 0 && (
         <div style={{
           flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -664,8 +762,57 @@ export default function CampagnePipeline() {
         </div>
       )}
 
-      {/* Kanban */}
-      {contacts.length > 0 && (
+      {/* ── Vue Liste ── */}
+      {contacts.length > 0 && vue === "liste" && (
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center", flexWrap: "wrap" as const }}>
+            <select
+              value={filtreStatut}
+              onChange={e => setFiltreStatut(e.target.value as Statut | "tous")}
+              style={{ fontSize: "12px", padding: "7px 10px", borderRadius: "7px", border: "1px solid #E2DDD8", background: "white", color: "#111827", fontFamily: "inherit", cursor: "pointer", width: "200px" }}
+            >
+              <option value="tous">Tous les statuts</option>
+              {COLONNES.map(c => (
+                <option key={c.statut} value={c.statut}>{c.label}</option>
+              ))}
+            </select>
+            <input
+              value={recherche}
+              onChange={e => setRecherche(e.target.value)}
+              placeholder="Rechercher une adresse ou une ville…"
+              style={{ fontSize: "13px", padding: "7px 12px", borderRadius: "7px", border: "1px solid #E2DDD8", flex: 1, minWidth: "180px", fontFamily: "inherit" }}
+            />
+            <span style={{ fontSize: "12px", color: "#9CA3AF", marginLeft: "auto" }}>
+              {contactsFiltres.length} contact{contactsFiltres.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "10px", overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: "12px", padding: "10px 16px", background: "#F4F3F0", fontSize: "11px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: "#6B7280" }}>
+              <div>Bien</div>
+              <div>Statut</div>
+              <div>Mise à jour</div>
+              <div></div>
+            </div>
+            {contactsFiltres.length === 0 ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>
+                Aucun contact ne correspond aux filtres
+              </div>
+            ) : contactsFiltres.map(c => (
+              <LigneContact
+                key={c.id}
+                contact={c}
+                onChangerStatut={changerStatut}
+                onOpenNote={openNote}
+                onOpenQualif={contact => setQualifContact(contact)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Vue Kanban ── */}
+      {contacts.length > 0 && vue === "kanban" && (
         <div style={{
           flex: 1, overflowX: "auto", overflowY: "hidden",
           display: "flex", gap: "8px", paddingBottom: "16px",
@@ -679,7 +826,7 @@ export default function CampagnePipeline() {
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-             onAvancer={changerStatut}
+              onAvancer={changerStatut}
               onOpenNote={openNote}
               onOpenQualif={c => setQualifContact(c)}
             />
@@ -687,7 +834,6 @@ export default function CampagnePipeline() {
         </div>
       )}
 
-      {/* Modal note */}
       {noteModal && (
         <>
           <div
@@ -750,7 +896,6 @@ export default function CampagnePipeline() {
         </>
       )}
 
-      {/* Drawer qualification */}
       {qualifContact && (
         <QualificationDrawer
           contact={qualifContact}

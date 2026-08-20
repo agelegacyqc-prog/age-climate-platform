@@ -660,9 +660,11 @@ export default function RDVConsultant() {
 
   async function charger() {
     setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('rendez_vous')
       .select('*')
+      .eq('consultant_id', user?.id ?? '')
       .order('date_debut', { ascending: true })
     setRdvs(data ?? [])
     setLoading(false)

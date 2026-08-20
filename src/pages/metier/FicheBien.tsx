@@ -668,18 +668,15 @@ export default function FicheBien() {
 <PreDiagDrawer
         open={prediagOpen}
         onClose={() => setPrediagOpen(false)}
-        source="bien"
-        bien={{
+        source="actif"
+        actif={{
           id: actif.id,
+          nom: actif.nom || actif.raison_sociale,
           adresse: actif.adresse,
           ville: actif.ville,
           type_bien: actif.type_batiment || actif.type_bien,
-          score_risque: actif.score_climatique || actif.score_risque,
-          niveau_risque: score >= 70 ? "eleve" : score >= 40 ? "moyen" : "faible",
-          zone_rga: actif.zone_rga,
-          zone_ppri: actif.zone_ppri,
-          categorie: actif.categorie,
-          nom_client: actif.nom_client || actif.raison_sociale,
+          score_climatique: actif.score_climatique ?? score,
+          georisques_data: actif.georisques_data,
         }}
       />
     </div>

@@ -164,9 +164,28 @@ export default function PreDiagDrawer({ open, onClose, source, bien, actif }: Pr
           }),
         }
       )
-      const json = await res.json()
-      if (json.error) throw new Error(json.error)
+         const json = await res.json()
+      if (json.error) {
+        console.error("Détail erreur génération:", JSON.stringify(json, null, 2))
+        throw new Error(json.error)
+      }
       setRapport(json.rapport)
+
+      // Persistance pour affichage structuré côté client (FicheActif.tsx,
+      // onglet Synthèse) — le rapport n'existait auparavant qu'en mémoire
+      // de ce drawer, perdu à la fermeture.
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error: erreurSauvegarde } = await supabase.from("pre_diagnostics_ia").insert({
+        source,
+        bien_id: source === "bien" ? bien?.id : null,
+        actif_id: source === "actif" ? actif?.id : null,
+        rapport: json.rapport,
+        structure: json.structure ?? null,
+        generated_by: user?.id,
+      })
+      if (erreurSauvegarde) {
+        console.error("Échec sauvegarde pré-diagnostic:", erreurSauvegarde)
+      }
     } catch (e: any) {
       setError(e.message || "Erreur lors de la génération.")
     }
