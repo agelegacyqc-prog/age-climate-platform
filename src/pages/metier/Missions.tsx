@@ -22,6 +22,11 @@ interface Mission {
   origine: string
   region: string | null
   consultant?: { prenom: string; nom: string } | null
+  montant_ht: number | null
+  travaux_generes: number | null
+  pertes_evitees: number | null
+  client_id: string | null
+  client?: { raison_sociale: string } | null
 }
 
 interface Rapport {
@@ -136,7 +141,16 @@ export default function Missions() {
   const [drawerOpen, setDrawerOpen]     = useState(false)
   const [selected, setSelected]         = useState<Mission | null>(null)
   const [savingPhase, setSavingPhase]   = useState(false)
-  const [savingStatut, setSavingStatut] = useState(false)
+    const [savingStatut, setSavingStatut] = useState(false)
+
+  // Clôture financière
+  const [clotureFinanciere, setClotureFinanciere] = useState({ montant_ht: "", travaux_generes: "", pertes_evitees: "" })
+    const [savingCloture, setSavingCloture]         = useState(false)
+
+  // Client (organisation)
+  const [rechercheOrga, setRechercheOrga]         = useState("")
+  const [resultatsOrga, setResultatsOrga]         = useState<{ id: string; raison_sociale: string }[]>([])
+  const [orgaEditOuverte, setOrgaEditOuverte]     = useState(false)
 
   // Drawer rapport
   const [rapportDrawerOpen, setRapportDrawerOpen] = useState(false)
@@ -146,7 +160,17 @@ export default function Missions() {
   const [kpisEdit, setKpisEdit]                   = useState<{ cle: string; valeur: string }[]>([])
   const [erreurRapport, setErreurRapport]         = useState("")
 
-  useEffect(() => { init() }, [])
+    useEffect(() => { init() }, [])
+
+  useEffect(() => {
+    if (selected) {
+      setClotureFinanciere({
+        montant_ht:       selected.montant_ht?.toString().replace(".", ",") ?? "",
+        travaux_generes:  selected.travaux_generes?.toString().replace(".", ",") ?? "",
+        pertes_evitees:   selected.pertes_evitees?.toString().replace(".", ",") ?? "",
+      })
+    }
+  }, [selected?.id])
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -173,9 +197,9 @@ export default function Missions() {
   }
 
   async function loadMissions(uid: string, role?: string, region?: string | null) {
-    let query = supabase
+      let query = supabase
       .from("missions")
-      .select("*, consultant:consultant_id(prenom, nom)")
+      .select("*, consultant:consultant_id(prenom, nom), client:client_id(raison_sociale)")
       .order("created_at", { ascending: false })
 
     if (role === "consultant") {
@@ -324,6 +348,58 @@ async function loadConsultants() {
     const consultant = consultants.find(c => c.id === consultantId)
     setMissions(prev => prev.map(m => m.id === missionId ? { ...m, consultant_id: consultantId, consultant } : m))
     if (selected?.id === missionId) setSelected(prev => prev ? { ...prev, consultant_id: consultantId, consultant } : null)
+  }
+
+  function normaliserNombre(str: string): number | null {
+    const nettoye = str.trim().replace(",", ".")
+    if (nettoye === "") return null
+    const val = parseFloat(nettoye)
+    return isNaN(val) ? null : val
+  }
+
+  async function sauvegarderClotureFinanciere() {
+    if (!selected) return
+    setSavingCloture(true)
+    const payload = {
+      montant_ht:      normaliserNombre(clotureFinanciere.montant_ht),
+      travaux_generes: normaliserNombre(clotureFinanciere.travaux_generes),
+      pertes_evitees:  normaliserNombre(clotureFinanciere.pertes_evitees),
+    }
+    const { error } = await supabase.from("missions").update(payload).eq("id", selected.id)
+    setSavingCloture(false)
+    if (error) { console.error("Erreur clôture financière:", error); return }
+     setMissions(prev => prev.map(m => m.id === selected.id ? { ...m, ...payload } : m))
+    setSelected(prev => prev ? { ...prev, ...payload } : null)
+  }
+
+  useEffect(() => {
+    if (rechercheOrga.trim().length < 2) { setResultatsOrga([]); return }
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase
+        .from("organisations")
+        .select("id, raison_sociale")
+        .ilike("raison_sociale", `%${rechercheOrga.trim()}%`)
+        .limit(8)
+      setResultatsOrga(data || [])
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [rechercheOrga])
+
+  async function selectionnerOrganisation(org: { id: string; raison_sociale: string }) {
+    if (!selected) return
+    await supabase.from("missions").update({ client_id: org.id }).eq("id", selected.id)
+    setMissions(prev => prev.map(m => m.id === selected.id ? { ...m, client_id: org.id, client: { raison_sociale: org.raison_sociale } } : m))
+    setSelected(prev => prev ? { ...prev, client_id: org.id, client: { raison_sociale: org.raison_sociale } } : null)
+    setRechercheOrga("")
+    setResultatsOrga([])
+    setOrgaEditOuverte(false)
+  }
+
+  async function retirerOrganisation() {
+    if (!selected) return
+    await supabase.from("missions").update({ client_id: null }).eq("id", selected.id)
+    setMissions(prev => prev.map(m => m.id === selected.id ? { ...m, client_id: null, client: null } : m))
+    setSelected(prev => prev ? { ...prev, client_id: null, client: null } : null)
   }
 
   // ── Rapports : actions ───────────────────────────────────────────────────
@@ -764,6 +840,50 @@ async function loadConsultants() {
                 </div>
               )}
 
+                            {(isAdmin || isResponsable) && (
+                <div>
+                  <div style={sectionTitleStyle}>Client (organisation)</div>
+                  {selected.client && !orgaEditOuverte ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{selected.client.raison_sociale}</span>
+                      <button onClick={() => setOrgaEditOuverte(true)} style={{ fontSize: "12px", color: "#0369A1", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                        Modifier
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ position: "relative" }}>
+                      <input
+                        className="input"
+                        placeholder="Rechercher une organisation…"
+                        value={rechercheOrga}
+                        onChange={e => setRechercheOrga(e.target.value)}
+                      />
+                      {resultatsOrga.length > 0 && (
+                        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", zIndex: 10, overflow: "hidden" }}>
+                          {resultatsOrga.map(o => (
+                            <button
+                              key={o.id}
+                              onClick={() => selectionnerOrganisation(o)}
+                              style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#111827", fontFamily: "inherit" }}
+                              onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
+                              onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                            >
+                              {o.raison_sociale}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {selected.client && (
+                        <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+                          <button onClick={retirerOrganisation} style={{ fontSize: "11px", color: "#B91C1C", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Retirer le lien actuel</button>
+                          <button onClick={() => { setOrgaEditOuverte(false); setRechercheOrga("") }} style={{ fontSize: "11px", color: "#6B7280", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {(isAdmin || isResponsable) && (
                 <div>
                   <div style={sectionTitleStyle}>Consultant assigné</div>
@@ -842,6 +962,59 @@ async function loadConsultants() {
                   })}
                 </div>
               </div>
+
+                    {((selected.phase || 1) >= 9 || selected.statut === "terminee") && (() => {
+                const peutEditerCloture = userRole === "consultant" && selected.consultant_id === userId
+                return (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", paddingBottom: "6px", borderBottom: "1px solid #F4F3F0" }}>
+                      <span style={sectionTitleStyle as any}>Clôture financière</span>
+                      {!peutEditerCloture && (
+                        <span style={{ fontSize: "11px", color: "#9CA3AF" }}>Lecture seule</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {[
+                        { key: "montant_ht" as const,      label: "Montant HT facturé" },
+                        { key: "travaux_generes" as const, label: "Travaux générés" },
+                        { key: "pertes_evitees" as const,  label: "Pertes évitées" },
+                      ].map(champ => (
+                        <div key={champ.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                          <span style={{ fontSize: "13px", color: "#6B7280" }}>{champ.label}</span>
+                          {peutEditerCloture ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <input
+                                className="input"
+                                style={{ width: "130px", fontFamily: "JetBrains Mono, monospace", fontSize: "13px", textAlign: "right" }}
+                                value={clotureFinanciere[champ.key]}
+                                onChange={e => setClotureFinanciere(prev => ({ ...prev, [champ.key]: e.target.value }))}
+                                placeholder="0,00"
+                              />
+                              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>€</span>
+                            </div>
+                          ) : (
+                            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px", fontWeight: 500, color: "#111827" }}>
+                              {selected[champ.key] != null
+                                ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(selected[champ.key] as number) + " €"
+                                : "—"}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {peutEditerCloture && (
+                      <button
+                        onClick={sauvegarderClotureFinanciere}
+                        disabled={savingCloture}
+                        style={{ marginTop: "10px", display: "inline-flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "7px", border: "none", background: "#0F6E56", color: "white", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", opacity: savingCloture ? 0.7 : 1 }}
+                      >
+                        <i className="ti ti-device-floppy" style={{ fontSize: "14px" }} />
+                        {savingCloture ? "Sauvegarde…" : "Enregistrer la clôture"}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
             </div>
 

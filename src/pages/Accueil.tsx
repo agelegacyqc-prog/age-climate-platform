@@ -183,7 +183,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { val: "3",      label: "Rapports produits",       tendance: "Ce trimestre",    tendanceColor: "#94A3B8" },
     ],
     raccourcis: [
-      { route: "/metier/portefeuille", icon: "ti-map",            titre: "Mon territoire",             desc: "Vue géographique de vos sites et bâtiments" },
+      { route: "/client/actifs", icon: "ti-map", titre: "Mon territoire", desc: "Vue géographique de vos sites et bâtiments" },
       { route: "/client/reporting",    icon: "ti-file-analytics", titre: "Reporting & Suivi",          desc: "Conformité et suivi des prestations commandées" },
       { route: "/marketplace",         icon: "ti-building-store", titre: "Marketplace",                desc: "Experts en énergie, carbone et prévention climatique" },
       { route: "/client/demandes",     icon: "ti-clipboard-list", titre: "Mes demandes",               desc: "Suivez vos demandes passées sur la marketplace" },

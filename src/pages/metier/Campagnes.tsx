@@ -23,7 +23,8 @@ interface Campagne {
   client_id: string | null
   region: string | null
   responsable_id: string | null
-  consultant_id?: string | null
+    consultant_id?: string | null
+  cout_campagne?: number | null
   created_at: string
   client?: { prenom: string; nom: string; profil: string } | null
   campagnes_actifs?: any[]
@@ -167,8 +168,9 @@ const [biensParCampagne, setBiensParCampagne] = useState<Record<string, any[]>>(
   const [recherche, setRecherche]         = useState("")
   const [filtreStatut, setFiltreStatut]   = useState("tous")
   const [filtreType, setFiltreType]       = useState("tous")
-  const [roleAGE, setRoleAGE]             = useState<string>("")
+    const [roleAGE, setRoleAGE]             = useState<string>("")
   const [regionAGE, setRegionAGE]         = useState<string | null>(null)
+  const [userIdAGE, setUserIdAGE]         = useState<string>("")
 
   // Drawer
   const [drawerOpen, setDrawerOpen]       = useState(false)
@@ -194,10 +196,11 @@ function showToast(message: string, type: "success" | "error" = "success") {
       .select("role, region")
       .eq("id", user.id)
       .single()
-    if (profil) {
+      if (profil) {
       setRoleAGE(profil.role)
       setRegionAGE(profil.region || null)
     }
+    setUserIdAGE(user.id)
      await Promise.all([
       loadCampagnes(profil?.role, profil?.region, user.id),
       loadDemandesClient(profil?.role, profil?.region, user.id),
@@ -919,10 +922,41 @@ async function lancerAnalyse(campagne: Campagne) {
                     </div>
                   ))}
                 </div>
-                <div style={{ marginTop: "8px", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                           <div style={{ marginTop: "8px", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: "12px", color: "#6B7280" }}>Taux de réponse</span>
                   <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "16px", fontWeight: 600, color: "#B25C2A" }}>{taux(selected)} %</span>
                 </div>
+                {(() => {
+                  const peutEditerCout = isAdmin || roleAGE === "responsable_regional" || selected.consultant_id === userIdAGE
+                  return (
+                    <div style={{ marginTop: "8px", padding: "10px 12px", background: "#F4F3F0", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "12px", color: "#6B7280" }}>Coût de la campagne</span>
+                      {peutEditerCout ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <input
+                            className="input"
+                            style={{ width: "110px", fontFamily: "JetBrains Mono, monospace", fontSize: "13px", textAlign: "right", padding: "4px 8px" }}
+                            defaultValue={selected.cout_campagne?.toString().replace(".", ",") ?? ""}
+                            onBlur={async e => {
+                              const nettoye = e.target.value.trim().replace(",", ".")
+                              const val = nettoye === "" ? null : parseFloat(nettoye)
+                              const coutFinal = val !== null && isNaN(val) ? null : val
+                              await supabase.from("campagnes").update({ cout_campagne: coutFinal }).eq("id", selected.id)
+                              setCampagnes(prev => prev.map(c => c.id === selected.id ? { ...c, cout_campagne: coutFinal } : c))
+                              setSelected(prev => prev ? { ...prev, cout_campagne: coutFinal } : null)
+                            }}
+                            placeholder="0,00"
+                          />
+                          <span style={{ fontSize: "12px", color: "#9CA3AF" }}>€</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "16px", fontWeight: 600, color: "#B25C2A" }}>
+                          {selected.cout_campagne != null ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(selected.cout_campagne) + " €" : "—"}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div>
                 <div style={sectionTitleStyle}>Répartition</div>

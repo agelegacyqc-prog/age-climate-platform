@@ -83,10 +83,17 @@ export default function Reporting() {
   const [nbMissions,      setNbMissions]      = useState(0)
   const [caParMois,       setCaParMois]       = useState<{ mois: string; ca: number }[]>([])
   const [dataPie,         setDataPie]         = useState<{ name: string; value: number; color: string }[]>([])
-  const [tauxTransformation, setTauxTransformation] = useState(0)
+   const [tauxTransformation, setTauxTransformation] = useState(0)
   const [pertesEvitees,      setPertesEvitees]      = useState(0)
   const [travauxGeneres,     setTravauxGeneres]      = useState(0)
   const [roi,                setRoi]                = useState(0)
+    const [caOrphelin,         setCaOrphelin]         = useState(0)
+
+  // ── Onglets + Performance par client ────────────────────────────────────
+  const [ongletReporting, setOngletReporting] = useState<"global" | "clients">("global")
+  const [missionsParClient, setMissionsParClient] = useState<{ nom: string; nbMissions: number; montantHt: number; travauxGeneres: number; pertesEvitees: number }[]>([])
+  const [campagnesParClient, setCampagnesParClient] = useState<{ nom: string; nbCampagnes: number; cout: number; courriers: number; diagnostics: number }[]>([])
+  const [loadingClients, setLoadingClients] = useState(false)
 
   // ── Init rôle utilisateur ──────────────────────────────────────────────────
   useEffect(() => {
@@ -147,7 +154,12 @@ export default function Reporting() {
       .lte("date_emission", finISO.split("T")[0])
     const { data: facturesData } = await factQuery
 
-    let factures = facturesData || []
+       let factures = facturesData || []
+
+    // ── CA non rattaché à une région (ni mission_id ni campagne_id) ────────
+    const orphelines = (facturesData || []).filter((f: any) => !f.mission_id && !f.campagne_id)
+    setCaOrphelin(orphelines.reduce((s, f) => s + (f.total_ht || 0), 0))
+
     if (region) {
       const [{ data: missionsRegion }, { data: campagnesRegion }] = await Promise.all([
         supabase.from("missions").select("id").eq("region", region),
@@ -248,7 +260,73 @@ export default function Reporting() {
     setLoading(false)
   }, [filtreRegion, filtrePeriode, filtreAnnee, filtreTrimestre, filtreMois])
 
-  useEffect(() => { loadData() }, [loadData])
+   useEffect(() => { loadData() }, [loadData])
+
+  const loadPerformanceClients = useCallback(async () => {
+    setLoadingClients(true)
+    const { debut, fin } = getPlageDates()
+    const debutISO = debut.toISOString()
+    const finISO   = fin.toISOString()
+    const region   = filtreRegion === "toutes" ? null : filtreRegion
+
+    // ── Missions par organisation (pipeline B2B) ─────────────────────────
+    let missQuery = supabase.from("missions")
+      .select("client_id, montant_ht, travaux_generes, pertes_evitees")
+      .not("client_id", "is", null)
+      .gte("created_at", debutISO).lte("created_at", finISO)
+    if (region) missQuery = missQuery.eq("region", region)
+    const { data: missionsData } = await missQuery
+
+    const orgIds = [...new Set((missionsData || []).map((m: any) => m.client_id))]
+    const { data: orgsData } = orgIds.length > 0
+      ? await supabase.from("organisations").select("id, raison_sociale").in("id", orgIds)
+      : { data: [] }
+    const orgMap: Record<string, string> = {}
+    orgsData?.forEach((o: any) => { orgMap[o.id] = o.raison_sociale })
+
+    const missionsAgg: Record<string, { nom: string; nbMissions: number; montantHt: number; travauxGeneres: number; pertesEvitees: number }> = {}
+    ;(missionsData || []).forEach((m: any) => {
+      const key = m.client_id
+      if (!missionsAgg[key]) missionsAgg[key] = { nom: orgMap[key] || "Organisation inconnue", nbMissions: 0, montantHt: 0, travauxGeneres: 0, pertesEvitees: 0 }
+      missionsAgg[key].nbMissions      += 1
+      missionsAgg[key].montantHt       += m.montant_ht || 0
+      missionsAgg[key].travauxGeneres  += m.travaux_generes || 0
+      missionsAgg[key].pertesEvitees   += m.pertes_evitees || 0
+    })
+    setMissionsParClient(Object.values(missionsAgg).sort((a, b) => b.montantHt - a.montantHt))
+
+    // ── Campagnes par compte portail ─────────────────────────────────────
+    let campQuery = supabase.from("campagnes")
+      .select("client_id, cout_campagne, courriers_envoyes, diagnostics")
+      .not("client_id", "is", null)
+      .gte("created_at", debutISO).lte("created_at", finISO)
+    if (region) campQuery = campQuery.eq("region", region)
+    const { data: campagnesData } = await campQuery
+
+    const clientIds = [...new Set((campagnesData || []).map((c: any) => c.client_id))]
+    const { data: profilsData } = clientIds.length > 0
+      ? await supabase.from("profils").select("id, prenom, nom").in("id", clientIds)
+      : { data: [] }
+    const profilMap: Record<string, string> = {}
+    profilsData?.forEach((p: any) => { profilMap[p.id] = `${p.prenom || ""} ${p.nom || ""}`.trim() || "Client" })
+
+    const campAgg: Record<string, { nom: string; nbCampagnes: number; cout: number; courriers: number; diagnostics: number }> = {}
+    ;(campagnesData || []).forEach((c: any) => {
+      const key = c.client_id
+      if (!campAgg[key]) campAgg[key] = { nom: profilMap[key] || "Client inconnu", nbCampagnes: 0, cout: 0, courriers: 0, diagnostics: 0 }
+      campAgg[key].nbCampagnes += 1
+      campAgg[key].cout        += c.cout_campagne || 0
+      campAgg[key].courriers   += c.courriers_envoyes || 0
+      campAgg[key].diagnostics += c.diagnostics || 0
+    })
+    setCampagnesParClient(Object.values(campAgg).sort((a, b) => b.cout - a.cout))
+
+    setLoadingClients(false)
+  }, [filtreRegion, filtrePeriode, filtreAnnee, filtreTrimestre, filtreMois])
+
+  useEffect(() => {
+    if (ongletReporting === "clients") loadPerformanceClients()
+  }, [ongletReporting, loadPerformanceClients])
 
     const caMaxMois        = Math.max(...caParMois.map(d => d.ca), 1)
   const caCumule = caParMois.reduce<{ mois: string; cumul: number }[]>((acc, d) => {
@@ -268,6 +346,31 @@ export default function Reporting() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+      {/* ── Onglets ──────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", background: "#F4F3F0", borderRadius: "9px", padding: "4px", width: "fit-content" }}>
+        <button onClick={() => setOngletReporting("global")} style={{
+          display: "flex", alignItems: "center", gap: "6px", padding: "7px 16px", borderRadius: "7px", border: "none",
+          background: ongletReporting === "global" ? "white" : "transparent", color: ongletReporting === "global" ? "#0F172A" : "#6B7280",
+          fontSize: "13px", fontWeight: ongletReporting === "global" ? 500 : 400, cursor: "pointer", fontFamily: "inherit",
+          boxShadow: ongletReporting === "global" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+        }}>
+          <i className="ti ti-chart-bar" style={{ fontSize: "14px" }} />
+          Vue globale
+        </button>
+        <button onClick={() => setOngletReporting("clients")} style={{
+          display: "flex", alignItems: "center", gap: "6px", padding: "7px 16px", borderRadius: "7px", border: "none",
+          background: ongletReporting === "clients" ? "white" : "transparent", color: ongletReporting === "clients" ? "#0F172A" : "#6B7280",
+          fontSize: "13px", fontWeight: ongletReporting === "clients" ? 500 : 400, cursor: "pointer", fontFamily: "inherit",
+          boxShadow: ongletReporting === "clients" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+        }}>
+          <i className="ti ti-building-community" style={{ fontSize: "14px" }} />
+          Performance par client
+        </button>
+      </div>
+
+      {ongletReporting === "global" && (
+      <>
 
       {/* ── Barre de filtres ─────────────────────────────────────────────── */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
@@ -399,8 +502,13 @@ export default function Reporting() {
                   <i className={`ti ${k.icon}`} style={{ fontSize: "16px", color: k.color }} />
                 </div>
               </div>
-              <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: i === 0 ? "22px" : "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>{k.val}</div>
+                           <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: i === 0 ? "22px" : "28px", fontWeight: 700, color: "#FFFFFF", marginBottom: "4px" }}>{k.val}</div>
               <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</div>
+              {i === 0 && filtreRegion !== "toutes" && caOrphelin > 0 && (
+                <div style={{ fontSize: "10px", color: "#F0997B", marginTop: "6px", fontStyle: "italic" }}>
+                  dont {formatEur(caOrphelin)} non rattachés à une région
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -527,6 +635,89 @@ export default function Reporting() {
           ))}
         </div>
       </div>
+
+      </>
+      )}
+
+      {ongletReporting === "clients" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+          {/* Missions par organisation */}
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: "8px" }}>
+              <i className="ti ti-building-community" style={{ fontSize: "15px", color: "#B25C2A" }} />
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Missions par organisation</span>
+              <span style={{ marginLeft: "8px", fontSize: "11px", color: "#94A3B8" }}>Pipeline B2B</span>
+            </div>
+            {loadingClients ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>Chargement…</div>
+            ) : missionsParClient.length === 0 ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>Aucune mission rattachée à une organisation sur la période</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                    {["Organisation", "Missions", "Montant HT", "Travaux générés", "Pertes évitées"].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6B7280", textAlign: h === "Organisation" ? "left" : "right" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {missionsParClient.map((m, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                      <td style={{ padding: "10px 16px", fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{m.nom}</td>
+                      <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0F172A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{m.nbMissions}</td>
+                      <td style={{ padding: "10px 16px", fontSize: "13px", color: "#B25C2A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(m.montantHt)}</td>
+                      <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0F172A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(m.travauxGeneres)}</td>
+                      <td style={{ padding: "10px 16px", fontSize: "13px", color: "#2F7D5C", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(m.pertesEvitees)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Campagnes par compte portail */}
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: "8px" }}>
+              <i className="ti ti-speakerphone" style={{ fontSize: "15px", color: "#0369A1" }} />
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>Campagnes par compte portail</span>
+              <span style={{ marginLeft: "8px", fontSize: "11px", color: "#94A3B8" }}>Comptes clients actifs</span>
+            </div>
+            {loadingClients ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>Chargement…</div>
+            ) : campagnesParClient.length === 0 ? (
+              <div style={{ padding: "32px", textAlign: "center", color: "#94A3B8", fontSize: "13px" }}>Aucune campagne rattachée à un compte client sur la période</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                    {["Client", "Campagnes", "Coût", "Courriers", "Diagnostics", "Taux transfo."].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6B7280", textAlign: h === "Client" ? "left" : "right" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {campagnesParClient.map((c, i) => {
+                    const taux = c.courriers > 0 ? (c.diagnostics / c.courriers) * 100 : 0
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{c.nom}</td>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0F172A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{c.nbCampagnes}</td>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0369A1", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(c.cout)}</td>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0F172A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{c.courriers}</td>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#0F172A", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{c.diagnostics}</td>
+                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#7C3AED", textAlign: "right", fontFamily: "JetBrains Mono, monospace" }}>{taux > 0 ? `${taux.toFixed(1).replace(".", ",")} %` : "—"}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+        </div>
+      )}
 
     </div>
   )

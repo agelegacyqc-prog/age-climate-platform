@@ -137,11 +137,14 @@ export default function DashboardMetier() {
     setLoading(false)
   }
 
-  async function loadKpisReporting() {
-    const [missRes, campRes] = await Promise.all([
-      supabase.from("missions").select("travaux_generes, pertes_evitees, montant_ht"),
-      supabase.from("campagnes").select("cout_campagne, courriers_envoyes, diagnostics"),
-    ])
+  async function loadKpisReporting(userRegion?: string | null) {
+    let missQuery = supabase.from("missions").select("travaux_generes, pertes_evitees, montant_ht")
+    let campQuery = supabase.from("campagnes").select("cout_campagne, courriers_envoyes, diagnostics")
+    if (userRegion) {
+      missQuery = missQuery.eq("region", userRegion)
+      campQuery = campQuery.eq("region", userRegion)
+    }
+    const [missRes, campRes] = await Promise.all([missQuery, campQuery])
 
     const missions  = missRes.data || []
     const campagnes = campRes.data || []
@@ -227,8 +230,8 @@ export default function DashboardMetier() {
     missRecentes.data?.forEach((m: any) => activite.push({ icon: "ti-briefcase", color: "#0369A1", texte: `Mission ${m.societe || "—"} — mise à jour`, temps: tempsEcoule(m.updated_at || m.created_at), route: "/metier/missions" }))
     clientsRecents.data?.forEach((c: any) => activite.push({ icon: "ti-user", color: "#2F7D5C", texte: `Nouveau client ${c.prenom || ""} ${c.nom || ""}`.trim(), temps: tempsEcoule(c.created_at), route: "/metier/clients" }))
 
-    setActiviteRecente(activite.slice(0, 5))
-    await loadKpisReporting()
+      setActiviteRecente(activite.slice(0, 5))
+    await loadKpisReporting(null)
   }
 
   async function loadResponsable(userRegion: string | null, uid: string) {
@@ -269,6 +272,8 @@ export default function DashboardMetier() {
     const { data: bloquData } = await bloquQuery
     setAlertes(prev => ({ ...prev, missionsBloquees: bloquData?.length || 0 }))
     setMissionsBloqueesListe((bloquData || []).map((m: any) => ({ id: m.id, societe: m.societe || "Mission sans nom" })))
+
+    await loadKpisReporting(userRegion)
   }
 
 async function loadConsultant(uid: string) {

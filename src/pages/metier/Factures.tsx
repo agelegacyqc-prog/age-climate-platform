@@ -840,7 +840,20 @@ export default function Factures() {
                   >
                     <td style={{ padding: "14px 16px" }}><span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "13px", fontWeight: 600, color: "#B25C2A" }}>{f.numero}</span></td>
                     <td style={{ padding: "14px 16px" }}><span style={{ fontSize: "11px", color: "#64748B", background: "#F1F5F9", padding: "2px 8px", borderRadius: "4px" }}>{f.type === "AGE_client" ? "AGE → Client" : "Partenaire → AGE"}</span></td>
-                    <td style={{ padding: "14px 16px", fontSize: "13px", color: "#0F172A", fontWeight: 500 }}>{f.destinataire_raison_sociale || "—"}</td>
+                                        <td style={{ padding: "14px 16px", fontSize: "13px", color: "#0F172A", fontWeight: 500 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {f.destinataire_raison_sociale || "—"}
+                        {!f.mission_id && !f.campagne_id && (
+                          <span
+                            title="Facture non rattachée à une mission ni à une campagne — exclue des totaux régionaux du Reporting"
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#FFFBEB", color: "#D97706", border: "1px solid #FDE68A", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 600, whiteSpace: "nowrap" }}
+                          >
+                            <i className="ti ti-alert-triangle" style={{ fontSize: "10px" }} />
+                            Non rattachée
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding: "14px 16px", fontSize: "13px", color: "#64748B" }}>{formatDate(f.date_emission)}</td>
                     <td style={{ padding: "14px 16px", fontSize: "13px", color: f.statut === "en_retard" ? "#991B1B" : "#64748B", fontWeight: f.statut === "en_retard" ? 600 : 400 }}>{formatDate(f.date_echeance)}</td>
                     <td style={{ padding: "14px 16px", textAlign: "right", fontFamily: "JetBrains Mono, monospace", fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>{formatEur(f.total_ttc)}</td>
