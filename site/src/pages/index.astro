@@ -35,7 +35,7 @@ const solutions = [
       <div class="hero-copy">
         <h1>La valeur de vos actifs, ajustée au risque climatique.</h1>
         <p class="lead">
-          AGE-QC vous accompagne sur toute la chaîne de valeur climatique — de la donnée
+          AGE-QC vous accompagne sur toute la chaîne de valeur climatique de la donnée
           à l'action. Diagnostic, adaptation, travaux.
         </p>
         <div class="hero-actions">
@@ -44,7 +44,7 @@ const solutions = [
         </div>
       </div>
 
-      <div class="hero-visual">
+        <div class="hero-visual">
    <video
           class="hero-video"
           src="/videos/hero.mp4"
@@ -54,6 +54,18 @@ const solutions = [
           playsinline
           aria-label="Présentation AGE-QC"
         ></video>
+        <div class="hero-counters">
+          <div class="counter-card">
+            <span class="counter-value">1 284</span>
+            <span class="counter-label">tonnes CO2 évitées</span>
+            <span class="counter-period">depuis 2024</span>
+          </div>
+          <div class="counter-card counter-card-current">
+            <span class="counter-value">324</span>
+            <span class="counter-label">tonnes CO2 évitées</span>
+            <span class="counter-period">en 2026</span>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -71,12 +83,12 @@ const solutions = [
         <li>
           <span class="step-number mono">02</span>
           <h3>Décote &amp; risque</h3>
-          <p>Chiffrage de la décote climatique — Brown Value.</p>
+          <p>Chiffrage de la décote climatique Brown Value.</p>
         </li>
         <li>
           <span class="step-number mono">03</span>
           <h3>Adaptation</h3>
-          <p>Plan d'action et devis — AGEadapt.</p>
+          <p>Plan d'action et devis AGEadapt.</p>
         </li>
         <li>
           <span class="step-number mono">04</span>
@@ -223,6 +235,46 @@ const solutions = [
     border-radius: var(--radius-card);
     object-fit: cover;
     display: block;
+  }
+  .hero-counters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .counter-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .counter-card-current {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid #3FCDA0;
+  }
+  .counter-value {
+    display: block;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 30px;
+    font-weight: 600;
+    color: #3FCDA0;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .counter-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(242,242,240,0.6);
+  }
+  .counter-period {
+    display: block;
+    font-size: 11px;
+    color: rgba(242,242,240,0.45);
+    margin-top: 4px;
   }
 </style>
 

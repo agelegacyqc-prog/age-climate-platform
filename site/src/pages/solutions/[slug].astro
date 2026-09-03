@@ -11,29 +11,31 @@ export function getStaticPaths() {
 const { slug } = Astro.params;
 const s = solutions[slug];
 
-const slugsOrder = Object.keys(solutions);
-const currentIndex = slugsOrder.indexOf(slug);
-const nextSlug = slugsOrder[(currentIndex + 1) % slugsOrder.length];
-const nextSolution = solutions[nextSlug];
+const familySlugs = Object.keys(solutions).filter((key) => key !== 'dematerialisation-decarbonation');
+const currentIndex = familySlugs.indexOf(slug);
+const nextSlug = currentIndex === -1 ? null : familySlugs[(currentIndex + 1) % familySlugs.length];
+const nextSolution = nextSlug ? solutions[nextSlug] : null;
 ---
 
 <Layout title={`${s.nom} — AGE-QC`} description={s.intro}>
-   {s.nouveauDesign ? (
+  {s.nouveauDesign ? (
     <>
       <section class="hero-v2">
         <div class="badge-v2">{s.numero}</div>
-                {s.badgePartenaire && <p class="partner-badge-v2">{s.badgePartenaire}</p>}
+        {s.badgePartenaire && <p class="partner-badge-v2">{s.badgePartenaire}</p>}
         {s.etape && <p class="eyebrow-v2">{s.etape}</p>}
         <h1>{s.nom}</h1>
         <p class="tagline-v2">{s.tagline}</p>
         <p class="intro-v2">{s.intro}</p>
         {s.citation && <blockquote class="citation-v2">{s.citation}</blockquote>}
-        <a href={`/solutions/${nextSolution.slug}`} class="next-link-v2">
-          <span class="next-label-v2">Solution suivante</span>
-          <span class="next-name-v2">{nextSolution.nom} →</span>
-        </a>
+        {nextSolution && (
+          <a href={`/solutions/${nextSolution.slug}`} class="next-link-v2">
+            <span class="next-label-v2">Solution suivante</span>
+            <span class="next-name-v2">{nextSolution.nom} →</span>
+          </a>
+        )}
       </section>
-           {!s.sansImageHero && (
+      {!s.sansImageHero && (
         <section class="hero-image-v2">
           <img src={`/images/solutions/${s.slug}-1.jpg`} alt={s.nom} loading="lazy" />
         </section>
@@ -48,12 +50,15 @@ const nextSolution = solutions[nextSlug];
       <p class="tagline">{s.tagline}</p>
     <p class="intro">{s.intro}</p>
       {s.citation && <blockquote class="citation">{s.citation}</blockquote>}
-      <a href={`/solutions/${nextSolution.slug}`} class="next-link">
-        <span class="next-label">Solution suivante</span>
-        <span class="next-name">{nextSolution.nom} →</span>
-      </a>
+      {nextSolution && (
+        <a href={`/solutions/${nextSolution.slug}`} class="next-link">
+          <span class="next-label">Solution suivante</span>
+          <span class="next-name">{nextSolution.nom} →</span>
+        </a>
+      )}
     </section>
   )}
+
   {s.constat && (
     <section class="constat">
       <div class="constat-grid">
@@ -70,15 +75,39 @@ const nextSolution = solutions[nextSlug];
   {s.methode && (
     <section class="methode">
       <h2>Notre méthode</h2>
-      <div class="methode-grid">
-        {s.methode.map((etape) => (
-          <div class="methode-step">
-            <div class="step-num">{etape.numero}</div>
-            <h4>{etape.titre}</h4>
-            <p class="step-desc">{etape.description}</p>
-            <p class="step-indicateur">{etape.indicateur}</p>
-          </div>
-        ))}
+      <div class="methode-line-wrap">
+        <div class="methode-line"></div>
+        <div class="methode-grid">
+          {s.methode.map((etape, i) => (
+            <div class="methode-step">
+              <div class={`step-icon ${i === s.methode.length - 1 ? 'step-icon-last' : ''}`}>
+                {etape.icone === 'audit' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.35-4.35"/></svg>
+                )}
+                {etape.icone === 'scan' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16"/></svg>
+                )}
+                {etape.icone === 'dedoublonnage' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="11" height="11" rx="2"/><path d="M4 14V5a2 2 0 0 1 2-2h9"/></svg>
+                )}
+                {etape.icone === 'archive' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                )}
+                {etape.icone === 'recyclage' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L4.5 12M6.5 6.5 9 2l2.5 4.5M17 19h2.185a1.83 1.83 0 0 0 1.57-.881 1.785 1.785 0 0 0 .004-1.784L19.5 12M9 22l2.5-4.5L14 22"/></svg>
+                )}
+                {etape.icone === 'reporting' && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 15l3-3 2 2 4-4"/></svg>
+                )}
+              </div>
+              <div class={`step-card ${i === s.methode.length - 1 ? 'step-card-last' : ''}`}>
+                <div class="step-num">{etape.numero}</div>
+                <h4>{etape.titre}</h4>
+                <p class="step-desc">{etape.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       {s.methodePrincipe && <p class="methode-principe">{s.methodePrincipe}</p>}
       {s.livrable && <p class="livrable"><strong>Ce que vous recevez :</strong> {s.livrable}</p>}
@@ -112,7 +141,8 @@ const nextSolution = solutions[nextSlug];
       </div>
     </section>
   )}
-    {s.nouveauDesign && s.sections.length > 0 ? (
+
+  {s.nouveauDesign && s.sections.length > 0 ? (
     <section class="sections-v2">
       <div class="sections-v2-grid">
         {s.sections.map((block) => (
@@ -207,139 +237,6 @@ const nextSolution = solutions[nextSlug];
     margin: 0 auto;
     line-height: 1.6;
   }
-
-  .block {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 56px;
-    align-items: center;
-    background: #111111;
-    color: #fff;
-    padding: 64px 24px;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  .block.reverse {
-    direction: rtl;
-  }
-  .block.reverse > * {
-    direction: ltr;
-  }
-  .block-text h2 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    margin-bottom: 14px;
-  }
-  .block-text p {
-    font-family: 'Inter', sans-serif;
-    font-size: 15px;
-    color: rgba(255,255,255,0.75);
-    line-height: 1.6;
-    margin-bottom: 20px;
-  }
-  .block-text ul {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .block-text li {
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #fff;
-    padding-left: 26px;
-    position: relative;
-  }
-  .block-text li::before {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    color: #3FCDA0;
-    font-weight: 700;
-  }
-.block-visual {
-    border-radius: 20px;
-    overflow: hidden;
-    min-height: 260px;
-  }
-  .block-visual img {
-    width: 100%;
-    height: 100%;
-    min-height: 260px;
-    object-fit: cover;
-    display: block;
-  }
-
-   .closing {
-    background: linear-gradient(180deg, #111111 0%, #183328 100%);
-    color: #fff;
-    text-align: center;
-    padding: 72px 24px;
-  }
-  .closing p {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 24px;
-    font-weight: 600;
-    max-width: 680px;
-    margin: 0 auto;
-    line-height: 1.4;
-  }
-
- .next-link {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    text-decoration: none;
-    margin-top: 32px;
-    padding: 14px 28px;
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 8px;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-  .next-link:hover {
-    background: rgba(255,255,255,0.06);
-    border-color: #3FCDA0;
-  }
-  .next-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #3FCDA0;
-  }
-  .next-name {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: #fff;
-  }
-  .cta {
-    text-align: center;
-    padding: 72px 24px;
-    background: #F2F2F0;
-  }
-  .cta h2 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: #111111;
-    margin-bottom: 20px;
-  }
-  .btn-primary {
-    display: inline-block;
-    background: #3F7A5D;
-    color: #fff;
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 15px;
-    padding: 12px 28px;
-    border-radius: 8px;
-    text-decoration: none;
-  }
-
   .partner-badge {
     display: inline-block;
     background: #F2F2F0;
@@ -360,111 +257,6 @@ const nextSolution = solutions[nextSlug];
     font-size: 14px;
     color: rgba(255,255,255,0.85);
     background: rgba(255,255,255,0.04);
-  }
-
-  .constat, .methode, .methodologie, .cas-usage {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 64px 24px;
-  }
-  .constat h2, .methode h2, .methodologie h2, .cas-usage h2 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: #111111;
-    margin-bottom: 28px;
-    text-align: center;
-  }
-  .constat-grid, .methodologie-grid, .cas-usage-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-  .constat-card, .cas-usage-card {
-    background: #F2F2F0;
-    border-radius: 12px;
-    padding: 20px 24px;
-  }
-  .constat-card h3, .cas-usage-card h3 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 15px;
-    color: #3F7A5D;
-    margin-bottom: 8px;
-  }
-  .constat-card p, .cas-usage-card p, .methodologie-grid p {
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #444;
-    line-height: 1.6;
-  }
-  .methodologie-grid h3 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 15px;
-    color: #111111;
-    margin-bottom: 8px;
-  }
-
-  .methode-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 12px;
-  }
-  .methode-step {
-    background: #F2F2F0;
-    border-radius: 12px;
-    padding: 16px 12px;
-    text-align: center;
-  }
-  .step-num {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: #3F7A5D;
-    color: #fff;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 10px;
-  }
-  .methode-step h4 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 13px;
-    color: #111111;
-    margin-bottom: 4px;
-  }
-  .step-desc {
-    font-size: 11px;
-    color: #666;
-    line-height: 1.4;
-    margin-bottom: 6px;
-  }
-  .step-indicateur {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: #3F7A5D;
-  }
-  .methode-principe {
-    margin-top: 32px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-style: italic;
-    color: #444;
-    text-align: center;
-    max-width: 720px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .livrable {
-    margin-top: 20px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #111111;
-    text-align: center;
   }
 
   .hero-v2 {
@@ -579,6 +371,217 @@ const nextSolution = solutions[nextSlug];
     border-radius: 20px;
     display: block;
   }
+
+  .block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+    background: #111111;
+    color: #fff;
+    padding: 64px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .block.reverse {
+    direction: rtl;
+  }
+  .block.reverse > * {
+    direction: ltr;
+  }
+  .block-text h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .block-text p {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .block-text ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .block-text li {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #fff;
+    padding-left: 26px;
+    position: relative;
+  }
+  .block-text li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #3FCDA0;
+    font-weight: 700;
+  }
+  .block-visual {
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 260px;
+  }
+  .block-visual img {
+    width: 100%;
+    height: 100%;
+    min-height: 260px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .constat, .methodologie, .cas-usage {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 64px 24px;
+  }
+  .constat h2, .methode h2, .methodologie h2, .cas-usage h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #111111;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .constat-grid, .methodologie-grid, .cas-usage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .constat-card, .cas-usage-card {
+    background: #F2F2F0;
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .constat-card h3, .cas-usage-card h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    color: #3F7A5D;
+    margin-bottom: 8px;
+  }
+  .constat-card p, .cas-usage-card p, .methodologie-grid p {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #444;
+    line-height: 1.6;
+  }
+  .methodologie-grid h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    color: #111111;
+    margin-bottom: 8px;
+  }
+
+  .methode {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
+    border-radius: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 32px;
+  }
+  .methode h2 {
+    color: #F2F2F0;
+  }
+  .methode-line-wrap {
+    position: relative;
+    padding: 0 8px;
+  }
+  .methode-line {
+    position: absolute;
+    top: 26px;
+    left: 5%;
+    right: 5%;
+    height: 2px;
+    background: #3FCDA0;
+    opacity: 0.5;
+  }
+  .methode-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    position: relative;
+  }
+  .methode-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .step-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #3FCDA0;
+    color: #0a2e21;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    margin-bottom: 14px;
+  }
+  .step-icon-last {
+    background: #F2F2F0;
+    color: #111111;
+  }
+  .step-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 14px 10px;
+    width: 100%;
+    min-height: 120px;
+  }
+  .step-card-last {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid #3FCDA0;
+  }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #3FCDA0;
+    margin-bottom: 4px;
+  }
+  .step-card h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: #F2F2F0;
+    margin-bottom: 6px;
+  }
+  .step-desc {
+    font-size: 10.5px;
+    color: rgba(242,242,240,0.65);
+    line-height: 1.4;
+  }
+  .methode-principe {
+    margin-top: 24px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-style: italic;
+    color: rgba(242,242,240,0.75);
+    text-align: center;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 8px;
+  }
+  .livrable {
+    margin-top: 4px;
+    padding: 0 24px 40px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: rgba(242,242,240,0.85);
+    text-align: center;
+  }
+
   .sections-v2 {
     max-width: 1100px;
     margin: 0 auto;
@@ -630,10 +633,80 @@ const nextSolution = solutions[nextSlug];
     color: #3F7A5D;
     font-weight: 700;
   }
+
+  .closing {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
+    color: #fff;
+    text-align: center;
+    padding: 72px 24px;
+  }
+  .closing p {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.4;
+  }
+
+  .next-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    margin-top: 32px;
+    padding: 14px 28px;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .next-link:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: #3FCDA0;
+  }
+  .next-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #3FCDA0;
+  }
+  .next-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .cta {
+    text-align: center;
+    padding: 72px 24px;
+    background: #F2F2F0;
+  }
+  .cta h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #111111;
+    margin-bottom: 20px;
+  }
+  .btn-primary {
+    display: inline-block;
+    background: #3F7A5D;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    padding: 12px 28px;
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
   @media (max-width: 768px) {
     .block, .block.reverse { direction: ltr; grid-template-columns: 1fr; }
     .constat-grid, .methodologie-grid, .cas-usage-grid { grid-template-columns: 1fr; }
     .methode-grid { grid-template-columns: repeat(2, 1fr); }
+    .methode-line { display: none; }
     .sections-v2-grid { grid-template-columns: 1fr; }
   }
 </style>
