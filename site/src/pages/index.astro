@@ -105,6 +105,7 @@ const solutions = [
 
 <style>
   .hero {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
     padding: var(--space-16) 0;
   }
   .hero-grid {
@@ -115,10 +116,11 @@ const solutions = [
   }
   .hero h1 {
     font-size: var(--fs-hero);
+    color: #F2F2F0;
   }
   .lead {
     font-size: 1.125rem;
-    color: var(--color-text-secondary);
+    color: rgba(242,242,240,0.75);
     max-width: 46ch;
     margin-bottom: var(--space-8);
   }
@@ -126,6 +128,15 @@ const solutions = [
     display: flex;
     gap: var(--space-4);
     flex-wrap: wrap;
+  }
+  .hero .btn-secondary {
+    background: transparent;
+    color: #F2F2F0;
+    border: 1px solid rgba(242,242,240,0.3);
+  }
+  .hero .btn-secondary:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: #3FCDA0;
   }
 .value-chain {
     padding: var(--space-16) 0;

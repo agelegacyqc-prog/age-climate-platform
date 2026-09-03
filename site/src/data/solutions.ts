@@ -5,7 +5,8 @@ export const solutions = {
     nom: 'AGEprévention',
     tagline: 'Anticiper les aléas avant qu\'ils ne coûtent',
     etape: 'AGE prévention',
-    intro: 'Une méthodologie d\'anticipation des aléas climatiques pour identifier les risques avant qu\'ils n\'impactent la valeur de vos actifs.',
+       intro: 'Une méthodologie d\'anticipation des aléas climatiques pour identifier les risques avant qu\'ils n\'impactent la valeur de vos actifs.',
+    nouveauDesign: true,
     sections: [
       {
         titre: 'Analyse préalable par la plateforme',
@@ -43,7 +44,8 @@ export const solutions = {
     nom: 'AGEadapt',
     tagline: 'Passer du diagnostic à l\'action',
     etape: 'AGE Adaptation',
-    intro: 'Le module d\'adaptation qui transforme les risques identifiés en plans d\'action concrets et chiffrés.',
+        intro: 'Le module d\'adaptation qui transforme les risques identifiés en plans d\'action concrets et chiffrés.',
+    nouveauDesign: true,
     sections: [
       {
         titre: 'Mesurer l\'impact à l\'ère du changement climatique',
@@ -84,7 +86,8 @@ export const solutions = {
     nom: 'AGEcarbone',
     tagline: 'Mesurer l\'empreinte, piloter la trajectoire',
     etape: 'AGE CARBONE',
-    intro: 'Le calculateur carbone dédié à l\'immobilier, pour mesurer et réduire l\'empreinte de vos actifs.',
+        intro: 'Le calculateur carbone dédié à l\'immobilier, pour mesurer et réduire l\'empreinte de vos actifs.',
+    nouveauDesign: true,
     sections: [
      {
         titre: 'Calcul des émissions',
@@ -125,7 +128,8 @@ export const solutions = {
     nom: 'AGEplace',
     tagline: 'Des experts, au bon moment',
     etape: 'AGE place',
-    intro: 'Un réseau de consultants climat en régie pour vous accompagner sur le terrain, à chaque étape.',
+        intro: 'Un réseau de consultants climat en régie pour vous accompagner sur le terrain, à chaque étape.',
+    nouveauDesign: true,
     sections: [
       {
         titre: 'Publication du besoin',
@@ -159,11 +163,12 @@ export const solutions = {
   },
     'dematerialisation-decarbonation': {
     slug: 'dematerialisation-decarbonation',
-    numero: '05',
+      numero: '05',
     nom: 'Dématérialisation & Décarbonation',
     tagline: 'De vos archives papier à votre bilan carbone',
-    etape: 'Solution partenaire',
-    badgePartenaire: 'AGE Legacy by CAPTB',
+        badgePartenaire: 'AGE Legacy by CAPTB',
+    nouveauDesign: true,
+    sansImageHero: true,
     intro: 'Une chaîne de valeur complète, une empreinte mesurée à chaque étape : de l\'audit documentaire au reporting carbone.',
     citation: 'Vous savez que numériser réduit votre impact. Nous, on vous dit de combien — et comment on le calcule.',
     constat: [

@@ -18,19 +18,42 @@ const nextSolution = solutions[nextSlug];
 ---
 
 <Layout title={`${s.nom} — AGE-QC`} description={s.intro}>
-  <section class="hero">
-    <div class="badge">{s.numero}</div>
-        <p class="eyebrow">{s.etape}</p>
-    {s.badgePartenaire && <p class="partner-badge">{s.badgePartenaire}</p>}
-    <h1>{s.nom}</h1>
-    <p class="tagline">{s.tagline}</p>
-  <p class="intro">{s.intro}</p>
-    {s.citation && <blockquote class="citation">{s.citation}</blockquote>}
-    <a href={`/solutions/${nextSolution.slug}`} class="next-link">
-      <span class="next-label">Solution suivante</span>
-      <span class="next-name">{nextSolution.nom} →</span>
-    </a>
-  </section>
+   {s.nouveauDesign ? (
+    <>
+      <section class="hero-v2">
+        <div class="badge-v2">{s.numero}</div>
+                {s.badgePartenaire && <p class="partner-badge-v2">{s.badgePartenaire}</p>}
+        {s.etape && <p class="eyebrow-v2">{s.etape}</p>}
+        <h1>{s.nom}</h1>
+        <p class="tagline-v2">{s.tagline}</p>
+        <p class="intro-v2">{s.intro}</p>
+        {s.citation && <blockquote class="citation-v2">{s.citation}</blockquote>}
+        <a href={`/solutions/${nextSolution.slug}`} class="next-link-v2">
+          <span class="next-label-v2">Solution suivante</span>
+          <span class="next-name-v2">{nextSolution.nom} →</span>
+        </a>
+      </section>
+           {!s.sansImageHero && (
+        <section class="hero-image-v2">
+          <img src={`/images/solutions/${s.slug}-1.jpg`} alt={s.nom} loading="lazy" />
+        </section>
+      )}
+    </>
+  ) : (
+    <section class="hero">
+      <div class="badge">{s.numero}</div>
+      <p class="eyebrow">{s.etape}</p>
+      {s.badgePartenaire && <p class="partner-badge">{s.badgePartenaire}</p>}
+      <h1>{s.nom}</h1>
+      <p class="tagline">{s.tagline}</p>
+    <p class="intro">{s.intro}</p>
+      {s.citation && <blockquote class="citation">{s.citation}</blockquote>}
+      <a href={`/solutions/${nextSolution.slug}`} class="next-link">
+        <span class="next-label">Solution suivante</span>
+        <span class="next-name">{nextSolution.nom} →</span>
+      </a>
+    </section>
+  )}
   {s.constat && (
     <section class="constat">
       <div class="constat-grid">
@@ -89,24 +112,40 @@ const nextSolution = solutions[nextSlug];
       </div>
     </section>
   )}
-  {s.sections.map((block, i) => (
-    <section class={`block ${i % 2 === 1 ? 'reverse' : ''}`}>
-      <div class="block-text">
-        <h2>{block.titre}</h2>
-        <p>{block.description}</p>
-        <ul>
-          {block.checklist.map((item) => <li>{item}</li>)}
-        </ul>
-      </div>
-     <div class="block-visual">
-        <img
-          src={`/images/solutions/${s.slug}-${i + 1}.jpg`}
-          alt={block.titre}
-          loading="lazy"
-        />
+    {s.nouveauDesign && s.sections.length > 0 ? (
+    <section class="sections-v2">
+      <div class="sections-v2-grid">
+        {s.sections.map((block) => (
+          <div class="section-card-v2">
+            <h3>{block.titre}</h3>
+            <p>{block.description}</p>
+            <ul>
+              {block.checklist.map((item) => <li>{item}</li>)}
+            </ul>
+          </div>
+        ))}
       </div>
     </section>
-  ))}
+  ) : (
+    s.sections.map((block, i) => (
+      <section class={`block ${i % 2 === 1 ? 'reverse' : ''}`}>
+        <div class="block-text">
+          <h2>{block.titre}</h2>
+          <p>{block.description}</p>
+          <ul>
+            {block.checklist.map((item) => <li>{item}</li>)}
+          </ul>
+        </div>
+       <div class="block-visual">
+          <img
+            src={`/images/solutions/${s.slug}-${i + 1}.jpg`}
+            alt={block.titre}
+            loading="lazy"
+          />
+        </div>
+      </section>
+    ))
+  )}
 
   <section class="closing">
     <p>{s.closing}</p>
@@ -233,8 +272,8 @@ const nextSolution = solutions[nextSlug];
     display: block;
   }
 
-  .closing {
-    background: #3F7A5D;
+   .closing {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
     color: #fff;
     text-align: center;
     padding: 72px 24px;
@@ -428,9 +467,173 @@ const nextSolution = solutions[nextSlug];
     text-align: center;
   }
 
+  .hero-v2 {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
+    color: #F2F2F0;
+    padding: 96px 24px 56px;
+    text-align: center;
+  }
+  .badge-v2 {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #3FCDA0;
+    color: #111111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .partner-badge-v2 {
+    display: inline-block;
+    background: #F2F2F0;
+    color: #111111;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .eyebrow-v2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #3FCDA0;
+    margin-bottom: 12px;
+  }
+  .hero-v2 h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 42px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #F2F2F0;
+  }
+  .tagline-v2 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 18px;
+    color: #3FCDA0;
+    margin-bottom: 20px;
+  }
+  .intro-v2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    color: rgba(242,242,240,0.75);
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  .citation-v2 {
+    max-width: 620px;
+    margin: 28px auto 0;
+    padding: 12px 20px;
+    border-left: 3px solid #3FCDA0;
+    text-align: left;
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(242,242,240,0.85);
+    background: rgba(255,255,255,0.04);
+  }
+  .next-link-v2 {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    margin-top: 32px;
+    padding: 14px 28px;
+    border: 1px solid rgba(242,242,240,0.25);
+    border-radius: 8px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .next-link-v2:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: #3FCDA0;
+  }
+  .next-label-v2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #3FCDA0;
+  }
+  .next-name-v2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #F2F2F0;
+  }
+  .hero-image-v2 {
+    max-width: 1100px;
+    margin: -32px auto 0;
+    padding: 0 24px 48px;
+  }
+  .hero-image-v2 img {
+    width: 100%;
+    max-height: 360px;
+    object-fit: cover;
+    border-radius: 20px;
+    display: block;
+  }
+  .sections-v2 {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 24px 64px;
+  }
+  .sections-v2-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .section-card-v2 {
+    background: #FFFFFF;
+    border: 1px solid #E2E2DE;
+    border-radius: 16px;
+    padding: 28px 24px;
+  }
+  .section-card-v2 h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111111;
+    margin-bottom: 10px;
+  }
+  .section-card-v2 p {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .section-card-v2 ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .section-card-v2 li {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #333;
+    padding-left: 22px;
+    position: relative;
+  }
+  .section-card-v2 li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #3F7A5D;
+    font-weight: 700;
+  }
   @media (max-width: 768px) {
     .block, .block.reverse { direction: ltr; grid-template-columns: 1fr; }
     .constat-grid, .methodologie-grid, .cas-usage-grid { grid-template-columns: 1fr; }
     .methode-grid { grid-template-columns: repeat(2, 1fr); }
+    .sections-v2-grid { grid-template-columns: 1fr; }
   }
 </style>

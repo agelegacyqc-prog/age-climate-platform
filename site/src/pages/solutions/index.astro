@@ -35,7 +35,6 @@ const solutions = [
     nom: 'Dématérialisation & Décarbonation',
     tagline: 'De vos archives papier à votre bilan carbone',
     description: 'Une chaîne de valeur complète, une empreinte mesurée à chaque étape : de l\'audit documentaire au reporting carbone.',
-    etape: 'Solution partenaire',
     badge: 'AGE Legacy by CAPTB',
   },
 ];
@@ -56,8 +55,8 @@ const solutions = [
 
   <section class="solutions-grid">
     {solutions.map((s) => (
-           <a href={`/solutions/${s.slug}`} class="solution-card">
-        <span class="solution-step">{s.etape}</span>
+                   <a href={`/solutions/${s.slug}`} class="solution-card">
+        {s.etape && <span class="solution-step">{s.etape}</span>}
         <h2>{s.nom}</h2>
         {s.badge && <span class="solution-badge">{s.badge}</span>}
         <p class="tagline">{s.tagline}</p>
