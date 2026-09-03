@@ -30,6 +30,14 @@ const solutions = [
     description: 'Un réseau de consultants climat en régie pour vous accompagner sur le terrain, à chaque étape.',
     etape: 'Consultants climat',
   },
+  {
+    slug: 'dematerialisation-decarbonation',
+    nom: 'Dématérialisation & Décarbonation',
+    tagline: 'De vos archives papier à votre bilan carbone',
+    description: 'Une chaîne de valeur complète, une empreinte mesurée à chaque étape : de l\'audit documentaire au reporting carbone.',
+    etape: 'Solution partenaire',
+    badge: 'AGE Legacy by CAPTB',
+  },
 ];
 ---
 
@@ -48,9 +56,10 @@ const solutions = [
 
   <section class="solutions-grid">
     {solutions.map((s) => (
-      <a href={`/solutions/${s.slug}`} class="solution-card">
+           <a href={`/solutions/${s.slug}`} class="solution-card">
         <span class="solution-step">{s.etape}</span>
         <h2>{s.nom}</h2>
+        {s.badge && <span class="solution-badge">{s.badge}</span>}
         <p class="tagline">{s.tagline}</p>
         <p class="description">{s.description}</p>
         <span class="cta">En savoir plus →</span>
@@ -90,17 +99,16 @@ const solutions = [
     color: #444;
     line-height: 1.6;
   }
-
  .solutions-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 24px;
     max-width: 1400px;
     margin: 0 auto;
     padding: 32px 24px 96px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     .solutions-grid {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -129,12 +137,24 @@ const solutions = [
     border-color: #3F7A5D;
   }
 
-  .solution-step {
+   .solution-step {
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #3FCDA0;
+  }
+
+  .solution-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #111111;
+    background: #F2F2F0;
+    padding: 3px 10px;
+    border-radius: 12px;
+    width: fit-content;
+    margin-top: 6px;
   }
 
   .solution-card h2 {

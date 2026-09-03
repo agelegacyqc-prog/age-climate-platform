@@ -157,4 +157,56 @@ export const solutions = {
     ],
     closing: 'Des experts terrain, mobilisables au bon moment, pour chaque mission.',
   },
+    'dematerialisation-decarbonation': {
+    slug: 'dematerialisation-decarbonation',
+    numero: '05',
+    nom: 'Dématérialisation & Décarbonation',
+    tagline: 'De vos archives papier à votre bilan carbone',
+    etape: 'Solution partenaire',
+    badgePartenaire: 'AGE Legacy by CAPTB',
+    intro: 'Une chaîne de valeur complète, une empreinte mesurée à chaque étape : de l\'audit documentaire au reporting carbone.',
+    citation: 'Vous savez que numériser réduit votre impact. Nous, on vous dit de combien — et comment on le calcule.',
+    constat: [
+      {
+        titre: 'Un impact réel, rarement quantifié',
+        description: 'Le papier et le stockage physique pèsent sur le bilan carbone des organisations, mais restent rarement quantifiés dans les démarches actuelles.',
+      },
+      {
+        titre: 'Des obligations qui s\'accélèrent',
+        description: 'Loi REEN, CSRD, bilans GES réglementaires : il faut désormais prouver son impact, pas seulement l\'affirmer.',
+      },
+    ],
+    methode: [
+      { numero: '1', titre: 'Audit', description: 'Identifier ce qui peut être évité avant même d\'être numérisé.', indicateur: 'Volume papier concerné' },
+      { numero: '2', titre: 'Numérisation', description: 'Substituer le cycle papier par un flux numérique sobre.', indicateur: 'Tonnage papier évité' },
+      { numero: '3', titre: 'GED IA', description: 'Éliminer les doublons, éviter la sur-conservation de données.', indicateur: 'Taux de doublons éliminés' },
+      { numero: '4', titre: 'Archivage', description: 'Ne garder physiquement que ce qui doit l\'être.', indicateur: 'm² de stockage libérés' },
+      { numero: '5', titre: 'Déchets', description: 'Recyclage certifié du papier, reconditionnement du matériel.', indicateur: 'Tonnage recyclé' },
+      { numero: '6', titre: 'Reporting', description: 'Un bilan chiffré et sourcé, intégrable à votre reporting RSE.', indicateur: 'tCO2e évitées' },
+    ],
+    methodePrincipe: 'Éviter, puis réduire, puis prouver. C\'est souvent à l\'étape d\'audit que se trouve le plus gros gisement de gain — avant toute action technique.',
+    livrable: 'Un certificat de destruction et de traçabilité, et une synthèse annuelle chiffrée — prête à intégrer dans votre propre bilan GES.',
+    methodologie: [
+      {
+        titre: 'Des facteurs sourcés',
+        description: 'Les facteurs d\'émission utilisés (papier, transport, stockage, datacenter) sont sourcés Base Empreinte ADEME. Aucun pourcentage générique : le gain est calculé sur le périmètre exact de chaque client.',
+      },
+      {
+        titre: 'Un numérique assumé',
+        description: 'Le stockage numérique a lui-même une empreinte : fabrication des serveurs, électricité. Nous la reconnaissons et la maîtrisons — datacenters sobres, purge régulière des données.',
+      },
+    ],
+    casUsage: [
+      {
+        secteur: 'Collectivités',
+        description: 'Dématérialisation des actes administratifs et des archives publiques : moins de stockage municipal climatisé, traçabilité renforcée, conformité loi REEN.',
+      },
+      {
+        secteur: 'Entreprises',
+        description: 'Flux RH, comptables et contractuels : suppression des redondances, GED IA pour piloter la conservation, bilan carbone intégrable à votre reporting RSE.',
+      },
+    ],
+    sections: [],
+    closing: 'Une empreinte mesurée, une trajectoire prouvée — pas seulement promise.',
+  },
 };
