@@ -6,14 +6,6 @@ const solutions = [
   { href: '/solutions/ageplace', label: 'AGEplace' },
 ];
 
-const audiences = [
-  { href: '/vous-etes/particulier', label: 'Particulier' },
-  { href: '/vous-etes/notaire', label: 'Notaire' },
-  { href: '/vous-etes/assureur', label: 'Assureur' },
-  { href: '/vous-etes/banque', label: 'Banque' },
-  { href: '/vous-etes/collectivite', label: 'Collectivité' },
-  { href: '/vous-etes/entreprise', label: 'Entreprise' },
-];
 ---
 
 <header class="site-header">
@@ -34,17 +26,7 @@ const audiences = [
             ))}
           </ul>
         </li>
-        <li><a href="/solutions/dematerialisation-decarbonation">Dématérialisation & Décarbonation</a></li>
-        <li class="has-dropdown">
-          <button class="dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-            Vous êtes <span class="chevron" aria-hidden="true">⌄</span>
-          </button>
-          <ul class="dropdown-menu">
-            {audiences.map((item) => (
-              <li><a href={item.href}>{item.label}</a></li>
-            ))}
-          </ul>
-        </li>
+             <li><a href="/solutions/dematerialisation-decarbonation">Dématérialisation & Décarbonation</a></li>
       <li><a href="/blog">Blog</a></li>
         <li><a href="/a-propos">À propos</a></li>
         <li><a href="/contact">Contact</a></li>
@@ -83,19 +65,7 @@ const audiences = [
         </ul>
       </div>
 
-      <a class="mobile-link" href="/solutions/dematerialisation-decarbonation">Dématérialisation & Décarbonation</a>
-
-      <div class="mobile-group">
-        <button class="mobile-accordion-trigger" type="button" aria-expanded="false" aria-controls="mobile-audiences">
-          Vous êtes <span class="chevron" aria-hidden="true">⌄</span>
-        </button>
-        <ul class="mobile-submenu" id="mobile-audiences" hidden>
-          {audiences.map((item) => (
-            <li><a href={item.href}>{item.label}</a></li>
-          ))}
-        </ul>
-      </div>
-
+        <a class="mobile-link" href="/solutions/dematerialisation-decarbonation">Dématérialisation & Décarbonation</a>
       <a class="mobile-link" href="/blog">Blog</a>
       <a class="mobile-link" href="/a-propos">À propos</a>
       <a class="mobile-link" href="/contact">Contact</a>

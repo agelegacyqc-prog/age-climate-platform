@@ -34,7 +34,7 @@ const infos = [
 <footer class="site-footer">
   <div class="container footer-inner">
     <div>
-      <img src="/images/logo.png" alt="AGE-QC" class="footer-logo-img" />
+            <img src="/images/logo-light.png" alt="AGE-QC" class="footer-logo-img" />
       <p class="tagline">Décote climatique, adaptation et carbone pour l'immobilier.</p>
     </div>
 
@@ -80,10 +80,11 @@ const infos = [
 
 <style>
   .site-footer {
-    border-top: 1px solid var(--color-border);
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
+    border-top: none;
     margin-top: var(--space-16);
     padding: var(--space-12) 0;
-    color: var(--color-text-secondary);
+    color: rgba(242,242,240,0.7);
   }
 .footer-inner {
     display: grid;
@@ -95,14 +96,14 @@ const infos = [
     width: auto;
     display: block;
   }
-  .tagline { font-size: var(--fs-small); max-width: 32ch; }
+  .tagline { font-size: var(--fs-small); max-width: 32ch; color: rgba(242,242,240,0.65); }
 
   .nav-title {
     font-size: var(--fs-small);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: var(--color-secondary);
+    color: #F2F2F0;
     margin: 0 0 var(--space-4);
   }
 
@@ -115,7 +116,7 @@ const infos = [
     margin: 0;
   }
   nav a {
-    color: var(--color-primary);
+    color: #3FCDA0;
     text-decoration: none;
     font-size: var(--fs-small);
   }
@@ -124,6 +125,7 @@ const infos = [
   .legal {
     grid-column: 1 / -1;
     font-size: var(--fs-small);
+    color: rgba(242,242,240,0.5);
     margin: var(--space-8) 0 0;
   }
 

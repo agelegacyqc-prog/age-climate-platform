@@ -2,27 +2,13 @@
 import Layout from '../layouts/Layout.astro';
 import DecayCurve from '../components/DecayCurve.astro';
 
-const solutions = [
-  {
-    name: 'AGEprévention',
-    desc: "Anticiper les aléas avant qu'ils ne coûtent.",
-    href: '/solutions/ageprevention',
-  },
-  {
-    name: 'AGEadapt',
-    desc: 'Passer du diagnostic à l\'action.',
-    href: '/solutions/ageadapt',
-  },
-  {
-    name: 'AGEcarbone',
-    desc: "Mesurer l'empreinte, piloter la trajectoire.",
-    href: '/solutions/agecarbone',
-  },
-  {
-    name: 'AGEplace',
-    desc: 'Des experts, au bon moment.',
-    href: '/solutions/ageplace',
-  },
+const audiences = [
+  { slug: 'particulier', label: 'Particulier', icon: 'user' },
+  { slug: 'notaire', label: 'Notaire', icon: 'scale' },
+  { slug: 'assureur', label: 'Assureur', icon: 'shield' },
+  { slug: 'banque', label: 'Banque', icon: 'building-bank' },
+  { slug: 'collectivite', label: 'Collectivité', icon: 'building-community' },
+  { slug: 'entreprise', label: 'Entreprise', icon: 'briefcase' },
 ];
 ---
 
@@ -35,7 +21,7 @@ const solutions = [
       <div class="hero-copy">
         <h1>La valeur de vos actifs, ajustée au risque climatique.</h1>
         <p class="lead">
-          AGE-QC vous accompagne sur toute la chaîne de valeur climatique de la donnée
+          AGE-QC vous accompagne sur toute la chaîne de valeur climatique — de la donnée
           à l'action. Diagnostic, adaptation, travaux.
         </p>
         <div class="hero-actions">
@@ -44,7 +30,7 @@ const solutions = [
         </div>
       </div>
 
-        <div class="hero-visual">
+      <div class="hero-visual">
    <video
           class="hero-video"
           src="/videos/hero.mp4"
@@ -70,6 +56,39 @@ const solutions = [
     </div>
   </section>
 
+  <section class="audiences">
+    <div class="container">
+      <h2>Un accompagnement adapté à votre profil</h2>
+      <div class="audiences-grid">
+        {audiences.map((a) => (
+          <a class="audience-btn" href={`/vous-etes/${a.slug}`}>
+            <span class="audience-icon">
+              {a.icon === 'user' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+              )}
+              {a.icon === 'scale' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0l-3-6ZM19 7l-3 6a3 3 0 0 0 6 0l-3-6ZM5 7h14M9 21h6"/></svg>
+              )}
+              {a.icon === 'shield' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3Z"/></svg>
+              )}
+              {a.icon === 'building-bank' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M4 21V10M20 21V10M2 10l10-6 10 6M6 14v3M10 14v3M14 14v3M18 14v3"/></svg>
+              )}
+              {a.icon === 'building-community' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l5-4 5 4v12M15 21v-8l5-3v11M9 21v-4M4 21h16"/></svg>
+              )}
+              {a.icon === 'briefcase' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              )}
+            </span>
+            <span class="audience-label">{a.label}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
   <section class="value-chain">
     <div class="container">
       <h2>De la donnée à l'action</h2>
@@ -83,12 +102,12 @@ const solutions = [
         <li>
           <span class="step-number mono">02</span>
           <h3>Décote &amp; risque</h3>
-          <p>Chiffrage de la décote climatique Brown Value.</p>
+          <p>Chiffrage de la décote climatique — Brown Value.</p>
         </li>
         <li>
           <span class="step-number mono">03</span>
           <h3>Adaptation</h3>
-          <p>Plan d'action et devis AGEadapt.</p>
+          <p>Plan d'action et devis — AGEadapt.</p>
         </li>
         <li>
           <span class="step-number mono">04</span>
@@ -96,21 +115,6 @@ const solutions = [
           <p>Mise en œuvre terrain, suivi de dossier.</p>
         </li>
       </ol>
-    </div>
-  </section>
-
- <section class="modules-teaser">
-    <div class="container">
-      <h2>Les briques technologiques qui outillent cette chaîne</h2>
-      <div class="modules-grid">
-        {solutions.map((s) => (
-          <a class="card module-card" href={s.href}>
-            <h3>{s.name}</h3>
-            <p>{s.desc}</p>
-            <span class="module-link mono">En savoir plus →</span>
-          </a>
-        ))}
-      </div>
     </div>
   </section>
 </Layout>
@@ -150,6 +154,80 @@ const solutions = [
     background: rgba(255,255,255,0.06);
     border-color: #3FCDA0;
   }
+  .audiences {
+    background: linear-gradient(180deg, #111111 0%, #183328 100%);
+    padding: var(--space-16) 24px;
+    text-align: center;
+  }
+  .audiences h2 {
+    font-size: var(--fs-h2);
+    color: #F2F2F0;
+    margin-bottom: var(--space-8);
+  }
+  .audiences-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+  .audience-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: #F2F2F0;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 22px 12px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .audience-btn:hover {
+    transform: translateY(-8px) scale(1.04);
+    background: #FFFFFF;
+    border-color: #3FCDA0;
+    box-shadow: 0 12px 24px rgba(63,205,160,0.3);
+  }
+  .audience-btn:hover .audience-icon {
+    background: #3F7A5D;
+    color: #FFFFFF;
+  }
+  .audience-btn:active {
+    transform: translateY(-1px) scale(0.97);
+    background: #E8E8E4;
+  }
+  .audience-btn:focus-visible {
+    outline: 2px solid #3FCDA0;
+    outline-offset: 3px;
+  }
+  .audience-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(63,122,93,0.12);
+    color: #3F7A5D;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .audience-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #111111;
+    text-align: center;
+  }
+  @media (max-width: 768px) {
+    .audiences-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  @media (max-width: 480px) {
+    .audiences-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
 .value-chain {
     padding: var(--space-16) 0;
     border-top: 1px solid var(--color-border);
@@ -187,43 +265,6 @@ const solutions = [
     font-size: var(--fs-small);
     color: var(--color-text-secondary);
     margin: 0;
-  }
-  .modules-teaser {
-    padding: var(--space-16) 0;
-  }
-  .modules-teaser h2 {
-    font-size: var(--fs-h2);
-    margin-bottom: var(--space-8);
-  }
-  .modules-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--space-6);
-  }
-  .module-card {
-    padding: var(--space-6);
-    text-decoration: none;
-    color: var(--color-text);
-    display: block;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .module-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(17,17,17,0.08);
-  }
-  .module-card h3 {
-    font-size: var(--fs-h3);
-    margin-bottom: var(--space-2);
-  }
-  .module-card p {
-    font-size: var(--fs-small);
-    color: var(--color-text-secondary);
-    margin-bottom: var(--space-4);
-  }
-  .module-link {
-    font-size: var(--fs-small);
-    color: var(--color-accent-text);
-    font-weight: 600;
   }
 
   @media (max-width: 900px) {
@@ -277,4 +318,3 @@ const solutions = [
     margin-top: 4px;
   }
 </style>
-
