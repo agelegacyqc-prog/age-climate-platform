@@ -14,8 +14,16 @@ const solutions = [
       <img src="/images/logo.png" alt="AGE-QC" class="logo-img" />
     </a>
 
-    <nav class="main-nav" aria-label="Navigation principale">
+       <nav class="main-nav" aria-label="Navigation principale">
       <ul>
+        <li>
+          <a href="/" class="nav-home" aria-label="Accueil">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9.5 12 3l9 6.5" />
+              <path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10" />
+            </svg>
+          </a>
+        </li>
         <li class="has-dropdown">
           <button class="dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
             Solutions <span class="chevron" aria-hidden="true">⌄</span>
@@ -53,7 +61,14 @@ const solutions = [
   </div>
 
   <div class="mobile-nav" id="mobile-nav" hidden>
-    <nav aria-label="Navigation mobile">
+      <nav aria-label="Navigation mobile">
+      <a class="mobile-link mobile-home" href="/">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9.5 12 3l9 6.5" />
+          <path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10" />
+        </svg>
+        Accueil
+      </a>
       <div class="mobile-group">
         <button class="mobile-accordion-trigger" type="button" aria-expanded="false" aria-controls="mobile-solutions">
           Solutions <span class="chevron" aria-hidden="true">⌄</span>
@@ -343,5 +358,19 @@ const solutions = [
     .mobile-nav {
       display: none;
     }
+  }
+
+  .nav-home {
+    display: flex;
+    align-items: center;
+    color: var(--color-text-secondary);
+  }
+  .nav-home:hover {
+    color: var(--color-primary);
+  }
+  .mobile-home {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 </style>
