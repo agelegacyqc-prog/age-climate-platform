@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import loginBackground from "../../assets/login-background.jpg"
 
 export default function PartenaireLogin() {
   const navigate = useNavigate()
@@ -28,14 +29,22 @@ export default function PartenaireLogin() {
   const iStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", color: "#0F172A", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+    <div style={{
+      minHeight: "100vh",
+      backgroundImage: `linear-gradient(180deg, rgba(15,30,20,0.55) 0%, rgba(15,30,20,0.35) 100%), url(${loginBackground})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "inherit"
+    }}>
       <div style={{ width: "100%", maxWidth: "400px", padding: "0 16px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
             <i className="ti ti-leaf" style={{ fontSize: "26px", color: "#0F6E56" }} aria-hidden="true" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Espace Partenaire</div>
-          <div style={{ fontSize: "13px", color: "#64748B" }}>AGE Climate Platform</div>
+          <div style={{ fontSize: "20px", fontWeight: 500, color: "#FFFFFF", marginBottom: "4px" }}>Espace Partenaire</div>
+          <div style={{ fontSize: "13px", color: "#E2E8F0" }}>AGE Climate Platform</div>
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "28px" }}>
           {erreur && (
