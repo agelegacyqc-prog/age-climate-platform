@@ -113,6 +113,20 @@ export default function PrescripteursRecrutement() {
     return error
   }
 
+  async function modifierProspect(p: Prescripteur, payload: { raison_sociale: string; email: string; telephone: string; segment_prescripteur: string }) {
+    const { error } = await supabase
+      .from("prescripteurs")
+      .update({
+        raison_sociale: payload.raison_sociale,
+        email: payload.email,
+        telephone: payload.telephone || null,
+        segment_prescripteur: payload.segment_prescripteur,
+      })
+      .eq("id", p.id)
+    if (!error) { init(); setFicheOuverte(prev => prev ? { ...prev, ...payload } : null) }
+    return error
+  }
+
   if (loading) return <div style={{ color: "#6B7280", fontSize: "14px" }}>Chargement…</div>
 
   return (
@@ -210,7 +224,14 @@ export default function PrescripteursRecrutement() {
       )}
 
       {formNouveau && <ModalNouveauProspect onFermer={() => setFormNouveau(false)} onCreer={creerProspect} />}
-      {ficheOuverte && <ModalFiche prescripteur={ficheOuverte} onFermer={() => setFicheOuverte(null)} onChangerEtape={changerEtape} />}
+      {ficheOuverte && (
+        <ModalFiche
+          prescripteur={ficheOuverte}
+          onFermer={() => setFicheOuverte(null)}
+          onChangerEtape={changerEtape}
+          onModifier={modifierProspect}
+        />
+      )}
     </div>
   )
 }
@@ -264,10 +285,50 @@ function ModalNouveauProspect({ onFermer, onCreer }: { onFermer: () => void; onC
   )
 }
 
-function ModalFiche({ prescripteur, onFermer, onChangerEtape }: { prescripteur: Prescripteur; onFermer: () => void; onChangerEtape: (p: Prescripteur, e: EtapeId, extra?: any) => Promise<any> }) {
+function ModalFiche({
+  prescripteur,
+  onFermer,
+  onChangerEtape,
+  onModifier,
+}: {
+  prescripteur: Prescripteur
+  onFermer: () => void
+  onChangerEtape: (p: Prescripteur, e: EtapeId, extra?: any) => Promise<any>
+  onModifier: (p: Prescripteur, payload: { raison_sociale: string; email: string; telephone: string; segment_prescripteur: string }) => Promise<any>
+}) {
   const [dateContrat, setDateContrat] = useState("")
   const [erreur, setErreur] = useState("")
   const etapeActuelleIndex = ETAPES.findIndex(e => e.id === prescripteur.etape_pipeline)
+
+  const [edition, setEdition] = useState(false)
+  const [formEdit, setFormEdit] = useState({
+    raison_sociale: prescripteur.raison_sociale,
+    email: prescripteur.email,
+    telephone: prescripteur.telephone || "",
+    segment_prescripteur: prescripteur.segment_prescripteur,
+  })
+  const [erreurEdition, setErreurEdition] = useState("")
+  const [loadingEdition, setLoadingEdition] = useState(false)
+
+  function ouvrirEdition() {
+    setFormEdit({
+      raison_sociale: prescripteur.raison_sociale,
+      email: prescripteur.email,
+      telephone: prescripteur.telephone || "",
+      segment_prescripteur: prescripteur.segment_prescripteur,
+    })
+    setErreurEdition("")
+    setEdition(true)
+  }
+
+  async function enregistrerEdition() {
+    if (!formEdit.raison_sociale || !formEdit.email) { setErreurEdition("Raison sociale et email sont obligatoires."); return }
+    setLoadingEdition(true)
+    const error = await onModifier(prescripteur, formEdit)
+    setLoadingEdition(false)
+    if (error) { setErreurEdition(error.message); return }
+    setEdition(false)
+  }
 
   async function progresser() {
     const prochaine = ETAPES[etapeActuelleIndex + 1]
@@ -297,14 +358,52 @@ function ModalFiche({ prescripteur, onFermer, onChangerEtape }: { prescripteur: 
             <div style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>{prescripteur.raison_sociale}</div>
             <div style={{ fontSize: "12px", fontFamily: "JetBrains Mono, monospace", color: "#8B5E34" }}>{prescripteur.identifiant_prescripteur}</div>
           </div>
-          <button onClick={onFermer} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}><i className="ti ti-x" style={{ fontSize: "18px" }} /></button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {!edition && (
+              <button onClick={ouvrirEdition} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "1px solid #E2DDD8", borderRadius: "6px", padding: "5px 10px", cursor: "pointer", color: "#6B7280", fontSize: "12px", fontFamily: "inherit" }}>
+                <i className="ti ti-pencil" style={{ fontSize: "13px" }} />
+                Modifier
+              </button>
+            )}
+            <button onClick={onFermer} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}><i className="ti ti-x" style={{ fontSize: "18px" }} /></button>
+          </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#374151", marginBottom: "18px" }}>
-          <div><i className="ti ti-mail" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{prescripteur.email}</div>
-          <div><i className="ti ti-phone" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{prescripteur.telephone || "—"}</div>
-          <div><i className="ti ti-tag" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{SEGMENTS[prescripteur.segment_prescripteur]}</div>
-        </div>
+        {edition ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
+            {erreurEdition && <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", color: "#B91C1C" }}>{erreurEdition}</div>}
+            <div>
+              <label style={labelStyle}>Raison sociale *</label>
+              <input style={iStyle} value={formEdit.raison_sociale} onChange={e => setFormEdit({ ...formEdit, raison_sociale: e.target.value })} />
+            </div>
+            <div>
+              <label style={labelStyle}>Email *</label>
+              <input style={iStyle} type="email" value={formEdit.email} onChange={e => setFormEdit({ ...formEdit, email: e.target.value })} />
+            </div>
+            <div>
+              <label style={labelStyle}>Téléphone</label>
+              <input style={iStyle} value={formEdit.telephone} onChange={e => setFormEdit({ ...formEdit, telephone: e.target.value })} />
+            </div>
+            <div>
+              <label style={labelStyle}>Segment</label>
+              <select style={iStyle} value={formEdit.segment_prescripteur} onChange={e => setFormEdit({ ...formEdit, segment_prescripteur: e.target.value })}>
+                {Object.entries(SEGMENTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button onClick={() => setEdition(false)} style={{ padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2DDD8", background: "white", color: "#6B7280", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+              <button onClick={enregistrerEdition} disabled={loadingEdition} style={{ padding: "7px 14px", borderRadius: "7px", border: "none", background: "#A9713F", color: "white", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                {loadingEdition ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#374151", marginBottom: "18px" }}>
+            <div><i className="ti ti-mail" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{prescripteur.email}</div>
+            <div><i className="ti ti-phone" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{prescripteur.telephone || "—"}</div>
+            <div><i className="ti ti-tag" style={{ fontSize: "13px", color: "#9CA3AF", marginRight: "6px" }} />{SEGMENTS[prescripteur.segment_prescripteur]}</div>
+          </div>
+        )}
 
         {/* Stepper étapes */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
@@ -339,7 +438,7 @@ function ModalFiche({ prescripteur, onFermer, onChangerEtape }: { prescripteur: 
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
           <button onClick={onFermer} style={{ padding: "8px 16px", borderRadius: "7px", border: "1px solid #E2DDD8", background: "white", color: "#6B7280", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>Fermer</button>
-          {etapeActuelleIndex < ETAPES.length - 1 && (
+          {etapeActuelleIndex < ETAPES.length - 1 && !edition && (
             <button onClick={progresser} style={{ padding: "8px 16px", borderRadius: "7px", border: "none", background: "#A9713F", color: "white", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
               Passer à « {ETAPES[etapeActuelleIndex + 1].label} »
             </button>
