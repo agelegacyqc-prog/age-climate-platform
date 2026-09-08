@@ -73,6 +73,12 @@ import PartenaireDocuments from "./pages/partenaire/PartenaireDocuments"
 import PartenaireLivrables from "./pages/partenaire/PartenaireLivrables"
 import PartenaireFactures from "./pages/partenaire/PartenaireFactures"
 import PartenaireLayout from "./components/PartenaireLayout"
+import PrescripteurLogin from "./pages/prescripteur/PrescripteurLogin"
+import PrescripteurNouvelleDemande from "./pages/prescripteur/PrescripteurNouvelleDemande"
+import PrescripteurMesDemandes from "./pages/prescripteur/PrescripteurMesDemandes"
+import PrescripteurLayout from "./components/PrescripteurLayout"
+import PrescripteursRecrutement from "./pages/metier/PrescripteursRecrutement"
+import PrescripteursDiagnostics from "./pages/metier/PrescripteursDiagnostics"
 
 export default function App() {
   return (
@@ -147,6 +153,8 @@ export default function App() {
 <Route path="metier/rdv" element={<ProtectedRoute><RDVConsultant /></ProtectedRoute>} />
 <Route path="metier/disponibilites-rdv" element={<ProtectedRoute><DisponibilitesRDV /></ProtectedRoute>} />
 <Route path="metier/mandats" element={<ProtectedRoute><Mandats /></ProtectedRoute>} />
+<Route path="metier/prescripteurs/recrutement" element={<ProtectedRoute><PrescripteursRecrutement /></ProtectedRoute>} />
+<Route path="metier/prescripteurs/diagnostics" element={<ProtectedRoute><PrescripteursDiagnostics /></ProtectedRoute>} />
         </Route>
         <Route path="metier/utilisateurs" element={<ProtectedRoute><Utilisateurs /></ProtectedRoute>} />
 
@@ -160,6 +168,13 @@ export default function App() {
           <Route path="documents" element={<PartenaireDocuments />} />
           <Route path="livrables" element={<PartenaireLivrables />} />
 <Route path="factures" element={<PartenaireFactures />} />
+        </Route>
+
+        {/* ── Portail Prescripteur RGA ── */}
+        <Route path="/prescripteur/login" element={<PrescripteurLogin />} />
+        <Route path="/prescripteur" element={<PrescripteurLayout />}>
+          <Route path="nouvelle-demande" element={<PrescripteurNouvelleDemande />} />
+          <Route path="mes-demandes" element={<PrescripteurMesDemandes />} />
         </Route>
 
       </Routes>

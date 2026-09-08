@@ -37,7 +37,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/rdv":                 "Agenda RDV",
   "/metier/mandats":             "Mandats",
   "/metier/ged":                 "Documents",
-  "/metier/admin":               "Administration",
+    "/metier/admin":               "Administration",
+  "/metier/prescripteurs/recrutement": "Pipeline recrutement — Prescripteurs RGA",
+  "/metier/prescripteurs/diagnostics":  "Suivi diagnostics — Prescripteurs RGA",
 }
 
 // ─── Libellés catégories documents (pop-up client) ────────────────────────────
@@ -202,6 +204,52 @@ function FinanceMenu({ roleAGE }: { roleAGE: string }) {
           >
             <Home className="nav-item__icon" style={{ width: '14px', height: '14px' }} />
             <span className="nav-item__label">Brown Value</span>
+          </NavLink>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PrescripteursMenu() {
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const isActive = location.pathname.startsWith('/metier/prescripteurs')
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          width: '100%', padding: '8px 12px', border: 'none',
+          background: isActive ? 'rgba(169,113,63,0.10)' : 'transparent',
+          borderRadius: '8px', cursor: 'pointer',
+          color: isActive ? '#A9713F' : '#78716C',
+          fontSize: '13px', fontWeight: isActive ? 600 : 400,
+        }}
+      >
+        <i className="ti ti-handshake" style={{ fontSize: '16px' }} />
+        <span style={{ flex: 1, textAlign: 'left' }}>Prescripteurs RGA</span>
+        <i className={`ti ${open || isActive ? 'ti-chevron-down' : 'ti-chevron-right'}`} style={{ fontSize: '12px' }} />
+      </button>
+      {(open || isActive) && (
+        <div style={{ paddingLeft: '28px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <NavLink
+            to="/metier/prescripteurs/recrutement"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-user-plus nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Pipeline recrutement</span>
+          </NavLink>
+          <NavLink
+            to="/metier/prescripteurs/diagnostics"
+            className={({ isActive }) => isActive ? 'nav-item nav-item--active' : 'nav-item'}
+            style={{ fontSize: '12px', padding: '6px 10px' }}
+          >
+            <i className="ti ti-clipboard-list nav-item__icon" style={{ fontSize: '14px' }} />
+            <span className="nav-item__label">Suivi diagnostics</span>
           </NavLink>
         </div>
       )}
@@ -919,9 +967,14 @@ if (role === "consultant") {
               {/* Environnement */}
               <EnvironnementMenu />
 
-              {/* Prospection */}
+                        {/* Prospection */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <ProspectionMenu />
+              )}
+
+              {/* Prescripteurs RGA */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
+                <PrescripteursMenu />
               )}
 
               {/* Documents */}

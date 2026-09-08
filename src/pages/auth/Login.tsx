@@ -23,23 +23,21 @@ export default function Login() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    // Vérifier si c'est un profil AGE (admin/consultant)
     const { data: profilAGE } = await supabase
       .from("profils")
       .select("role")
       .eq("id", user.id)
       .single()
 
-  if (profilAGE) {
-  if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
-    navigate("/metier")
-  } else {
-    navigate("/")
-  }
-  return
-}
+    if (profilAGE) {
+      if (profilAGE.role === "admin" || profilAGE.role === "consultant") {
+        navigate("/metier")
+      } else {
+        navigate("/")
+      }
+      return
+    }
 
-    // Vérifier si c'est un client
     const { data: profilClient } = await supabase
       .from("profils_client")
       .select("onboarding_complete")
@@ -55,12 +53,11 @@ export default function Login() {
       return
     }
 
-    // Nouveau client sans profil → onboarding
     navigate("/onboarding")
   }
 
   return (
-        <div style={{
+    <div style={{
       minHeight: "100vh",
       backgroundImage: `linear-gradient(180deg, rgba(15,30,20,0.55) 0%, rgba(15,30,20,0.35) 100%), url(${loginBackground})`,
       backgroundSize: "cover",
@@ -69,24 +66,34 @@ export default function Login() {
       display: "flex", alignItems: "center", justifyContent: "center"
     }}>
       <div style={{ background: "white", padding: "2.5rem", borderRadius: "16px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", width: "100%", maxWidth: "400px" }}>
-              <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <h1 style={{ color: "#1a3a2a", fontSize: "1.5rem", fontWeight: 800 }}>AGE Platform</h1>
           <p style={{ color: "#666", fontSize: "0.9rem" }}>La donnée oriente la décision. Le terrain la concrétise.</p>
         </div>
+
         {error && (
-          <div style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.9rem" }}>{error}</div>
+          <div style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.9rem" }}>
+            {error}
+          </div>
         )}
+
         <div style={{ marginBottom: "1rem" }}>
           <label style={{ display: "block", marginBottom: "0.5rem", color: "#1a3a2a", fontWeight: 600, fontSize: "0.9rem" }}>Email</label>
           <input value={email} onChange={e => setEmail(e.target.value)} type="email" onKeyDown={e => e.key === "Enter" && handleLogin()} style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #e5e1da", fontSize: "1rem", outline: "none", boxSizing: "border-box" }} />
         </div>
+
         <div style={{ marginBottom: "1.5rem" }}>
           <label style={{ display: "block", marginBottom: "0.5rem", color: "#1a3a2a", fontWeight: 600, fontSize: "0.9rem" }}>Mot de passe</label>
           <input value={password} onChange={e => setPassword(e.target.value)} type="password" onKeyDown={e => e.key === "Enter" && handleLogin()} style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid #e5e1da", fontSize: "1rem", outline: "none", boxSizing: "border-box" }} />
         </div>
+
         <button onClick={handleLogin} disabled={loading} style={{ width: "100%", padding: "0.875rem", background: "#1a3a2a", color: "white", border: "none", borderRadius: "8px", fontSize: "1rem", fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}>
           {loading ? "Connexion…" : "Se connecter"}
         </button>
+
+        <div style={{ textAlign: "center", marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #e5e1da" }}>
+          <a href="/prescripteur/login" style={{ fontSize: "0.85rem", color: "#A9713F", fontWeight: 600, textDecoration: "none" }}>PRESCRIPTEURS</a>
+        </div>
       </div>
     </div>
   )
