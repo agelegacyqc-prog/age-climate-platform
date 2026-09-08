@@ -91,8 +91,12 @@ export default function Login() {
           {loading ? "Connexion…" : "Se connecter"}
         </button>
 
-        <div style={{ textAlign: "center", marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #e5e1da" }}>
-          <a href="/prescripteur/login" style={{ fontSize: "0.85rem", color: "#A9713F", fontWeight: 600, textDecoration: "none" }}>PRESCRIPTEURS</a>
+           <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #e5e1da" }}>
+          <a href="/prescripteur/login" style={{ display: "block", width: "100%", textAlign: "center", padding: "0.6rem", border: "1px solid #A9713F", borderRadius: "8px", color: "#A9713F", fontSize: "0.85rem", fontWeight: 600, textDecoration: "none", boxSizing: "border-box" }}>Prescripteurs</a>
+        </div>
+
+        <div style={{ marginTop: "0.75rem" }}>
+          <a href="/partenaire/login" style={{ display: "block", width: "100%", textAlign: "center", padding: "0.6rem", border: "1px solid #0F6E56", borderRadius: "8px", color: "#0F6E56", fontSize: "0.85rem", fontWeight: 600, textDecoration: "none", boxSizing: "border-box" }}>Espace Partenaire</a>
         </div>
       </div>
     </div>
