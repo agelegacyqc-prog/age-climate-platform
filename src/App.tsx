@@ -79,6 +79,7 @@ import PrescripteurMesDemandes from "./pages/prescripteur/PrescripteurMesDemande
 import PrescripteurLayout from "./components/PrescripteurLayout"
 import PrescripteursRecrutement from "./pages/metier/PrescripteursRecrutement"
 import PrescripteursDiagnostics from "./pages/metier/PrescripteursDiagnostics"
+import PrescripteurCommission from "./pages/prescripteur/PrescripteurCommission"
 
 export default function App() {
   return (
@@ -172,9 +173,10 @@ export default function App() {
 
         {/* ── Portail Prescripteur RGA ── */}
         <Route path="/prescripteur/login" element={<PrescripteurLogin />} />
-        <Route path="/prescripteur" element={<PrescripteurLayout />}>
+              <Route path="/prescripteur" element={<PrescripteurLayout />}>
           <Route path="nouvelle-demande" element={<PrescripteurNouvelleDemande />} />
           <Route path="mes-demandes" element={<PrescripteurMesDemandes />} />
+          <Route path="commission" element={<PrescripteurCommission />} />
         </Route>
 
       </Routes>

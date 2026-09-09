@@ -20,11 +20,21 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
 }
 
 const ONGLETS = [
-  { id: "partenaires",  label: "Partenaires",   icon: "ti-briefcase" },
-  { id: "parametres",   label: "Paramètres",     icon: "ti-settings" },
-  { id: "workflows",    label: "Workflows",      icon: "ti-git-branch" },
-  { id: "documents",    label: "Modèles",        icon: "ti-file-text" },
+  { id: "partenaires",     label: "Partenaires",       icon: "ti-briefcase" },
+  { id: "parametres",      label: "Paramètres",        icon: "ti-settings" },
+  { id: "workflows",       label: "Workflows",         icon: "ti-git-branch" },
+  { id: "documents",       label: "Modèles",           icon: "ti-file-text" },
+  { id: "commissionnement", label: "Commissionnement", icon: "ti-coin" },
 ]
+
+interface TauxCommission {
+  id: string
+  taux_eur: number
+  date_effet: string
+  date_fin: string | null
+  motif: string | null
+  created_at: string
+}
 
 const risques = ["RGA", "PPRI", "Feux de forêt", "Submersion", "Tempête"]
 
@@ -58,6 +68,14 @@ export default function Administration() {
   const [partenaires, setPartenaires] = useState<any[]>([])
   const [loadingP, setLoadingP]       = useState(false)
   const [actionId, setActionId]       = useState<string | null>(null)
+
+  const [tauxHistorique, setTauxHistorique] = useState<TauxCommission[]>([])
+  const [loadingTaux, setLoadingTaux]       = useState(false)
+  const [nouveauTaux, setNouveauTaux]       = useState("")
+  const [dateEffet, setDateEffet]           = useState("")
+  const [motif, setMotif]                   = useState("")
+  const [erreurTaux, setErreurTaux]         = useState("")
+  const [soumissionTaux, setSoumissionTaux] = useState(false)
 
 
 
@@ -102,6 +120,46 @@ useEffect(() => {
     } finally {
       setActionId(null)
     }
+  }
+
+  async function chargerTauxHistorique() {
+    setLoadingTaux(true)
+    const { data } = await supabase
+      .from("commissionnement_config")
+      .select("*")
+      .order("date_effet", { ascending: false })
+    setTauxHistorique(data || [])
+    setLoadingTaux(false)
+  }
+
+  useEffect(() => {
+    if (onglet === "commissionnement") chargerTauxHistorique()
+  }, [onglet])
+
+  async function ajouterAvenant() {
+    setErreurTaux("")
+    const taux = parseFloat(nouveauTaux.replace(",", "."))
+    if (Number.isNaN(taux) || taux <= 0) {
+      setErreurTaux("Montant invalide.")
+      return
+    }
+    if (!dateEffet) {
+      setErreurTaux("Date d'effet requise.")
+      return
+    }
+    setSoumissionTaux(true)
+    const { error } = await supabase
+      .from("commissionnement_config")
+      .insert({ taux_eur: taux, date_effet: dateEffet, motif: motif || null })
+    setSoumissionTaux(false)
+    if (error) {
+      setErreurTaux(error.message.includes("row-level security") ? "Droits insuffisants — réservé aux administrateurs." : error.message)
+      return
+    }
+    setNouveauTaux("")
+    setDateEffet("")
+    setMotif("")
+    chargerTauxHistorique()
   }
 
   return (
@@ -352,6 +410,84 @@ useEffect(() => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Commissionnement */}
+      {onglet === "commissionnement" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>Historique des taux</div>
+            {loadingTaux ? (
+              <div style={{ fontSize: "13px", color: "#94A3B8" }}>Chargement…</div>
+            ) : tauxHistorique.length === 0 ? (
+              <div style={{ fontSize: "13px", color: "#94A3B8" }}>Aucun taux configuré.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {tauxHistorique.map(t => (
+                  <div key={t.id} style={{ padding: "10px 12px", background: t.date_fin === null ? "#F9F0EA" : "#F8FAFC", borderRadius: "7px", border: `1px solid ${t.date_fin === null ? "#E9D9C5" : "#E2E8F0"}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A", fontFamily: "'DM Mono', monospace" }}>
+                        {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(t.taux_eur)}
+                      </span>
+                      {t.date_fin === null && (
+                        <span style={{ background: "#F0FDF4", color: "#2F7D5C", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500 }}>En vigueur</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>
+                      Depuis le {new Date(t.date_effet).toLocaleDateString("fr-FR")}
+                      {t.date_fin && ` — jusqu'au ${new Date(t.date_fin).toLocaleDateString("fr-FR")}`}
+                    </div>
+                    {t.motif && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{t.motif}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>Nouvel avenant</div>
+            <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>
+              Réservé aux rôles admin / admin national. Un nouvel avenant ferme automatiquement le taux précédent — il ne s'applique qu'aux diagnostics réalisés après la date d'effet.
+            </div>
+            {erreurTaux && <div style={{ fontSize: "12px", color: "#B91C1C", marginBottom: "12px" }}>{erreurTaux}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>Montant (€ / diagnostic réalisé)</label>
+                <input
+                  value={nouveauTaux}
+                  onChange={e => setNouveauTaux(e.target.value)}
+                  placeholder="180,00"
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", fontFamily: "'DM Mono', monospace", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>Date d'effet</label>
+                <input
+                  type="date"
+                  value={dateEffet}
+                  onChange={e => setDateEffet(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>Motif (optionnel)</label>
+                <input
+                  value={motif}
+                  onChange={e => setMotif(e.target.value)}
+                  placeholder="Avenant trimestriel Q1 2027"
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+              </div>
+              <button
+                onClick={ajouterAvenant}
+                disabled={soumissionTaux}
+                style={{ background: "#B25C2A", color: "white", border: "none", padding: "9px 16px", borderRadius: "7px", cursor: soumissionTaux ? "default" : "pointer", fontSize: "13px", fontWeight: 500, fontFamily: "inherit", opacity: soumissionTaux ? 0.6 : 1 }}
+              >
+                {soumissionTaux ? "Enregistrement…" : "Enregistrer l'avenant"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

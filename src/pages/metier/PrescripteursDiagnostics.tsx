@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
 import { REGIONS_FRANCE } from "../../lib/ageadaptRegions"
+import CommissionnementSection from "./CommissionnementSection"
 
 const STATUTS = [
   { id: "contact_identifie",   label: "Contact identifié",   color: "#6B7280", bg: "#F3F4F6" },
@@ -9,6 +10,7 @@ const STATUTS = [
   { id: "rdv_realise",         label: "RDV réalisé",         color: "#0369A1", bg: "#DBEAFE" },
   { id: "contrat_envoye",      label: "Contrat envoyé",      color: "#8B5E34", bg: "#F5ECE1" },
   { id: "contrat_signe",       label: "Contrat signé",       color: "#2F7D5C", bg: "#F0FDF4" },
+  { id: "diagnostic_realise",  label: "Diagnostic réalisé",  color: "#0F6E56", bg: "#E1F5EE" },
   { id: "sans_suite",          label: "Sans suite",          color: "#B91C1C", bg: "#FEF2F2" },
 ] as const
 
@@ -31,7 +33,7 @@ interface Demande {
   created_at: string
 }
 
-interface Prescripteur { id: string; raison_sociale: string; identifiant_prescripteur: string }
+interface Prescripteur { id: string; raison_sociale: string; identifiant_prescripteur: string; segment_prescripteur: string }
 interface HistoriqueLigne { id: string; statut_precedent: string | null; statut_nouveau: string; origine: string; changed_at: string }
 
 function statutInfo(id: string) {
@@ -61,17 +63,21 @@ export default function PrescripteursDiagnostics() {
   const [recherche, setRecherche] = useState("")
 
   const [ficheOuverte, setFicheOuverte] = useState<Demande | null>(null)
+  const [vue, setVue] = useState<"diagnostics" | "commissionnement">("diagnostics")
+  const [tauxActuel, setTauxActuel] = useState<number | null>(null)
 
   useEffect(() => { init() }, [])
 
   async function init() {
     setLoading(true)
-    const [demRes, presRes] = await Promise.all([
+    const [demRes, presRes, tauxRes] = await Promise.all([
       supabase.from("demandes_diagnostic").select("*").order("created_at", { ascending: false }),
-      supabase.from("prescripteurs").select("id, raison_sociale, identifiant_prescripteur"),
+      supabase.from("prescripteurs").select("id, raison_sociale, identifiant_prescripteur, segment_prescripteur"),
+      supabase.from("commissionnement_config").select("taux_eur").is("date_fin", null).maybeSingle(),
     ])
     setDemandes(demRes.data || [])
     setPrescripteurs(presRes.data || [])
+    setTauxActuel(tauxRes.data?.taux_eur ?? null)
     setLoading(false)
   }
 
@@ -108,8 +114,35 @@ export default function PrescripteursDiagnostics() {
         <div style={{ fontSize: "13px", color: "#6B7280" }}>Demandes de diagnostic soumises par les prescripteurs partenaires.</div>
       </div>
 
+            <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid #E2DDD8" }}>
+        {[
+          { id: "diagnostics" as const, label: "Suivi diagnostics" },
+          { id: "commissionnement" as const, label: "Commissionnement" },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setVue(t.id)}
+            style={{
+              padding: "10px 14px",
+              fontSize: "13px",
+              fontWeight: 500,
+              background: "none",
+              border: "none",
+              borderBottom: vue === t.id ? "2px solid #A9713F" : "2px solid transparent",
+              color: vue === t.id ? "#A9713F" : "#6B7280",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {vue === "diagnostics" && (
+      <>
       {/* KPIs par statut */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "10px" }}>
         {kpisParStatut.map(s => (
           <div
             key={s.id}
@@ -198,6 +231,16 @@ export default function PrescripteursDiagnostics() {
           nomPrescripteur={nomPrescripteur(ficheOuverte.prescripteur_id)}
           onFermer={() => setFicheOuverte(null)}
           onChangerStatut={changerStatut}
+        />
+      )}
+      </>
+      )}
+
+      {vue === "commissionnement" && (
+        <CommissionnementSection
+          demandes={demandes}
+          prescripteurs={prescripteurs}
+          tauxActuel={tauxActuel}
         />
       )}
     </div>

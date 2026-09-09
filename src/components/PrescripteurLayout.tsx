@@ -42,6 +42,7 @@ export default function PrescripteurLayout() {
   const navItems = [
     { to: "/prescripteur/nouvelle-demande", icon: "ti-file-plus",  label: "Nouvelle demande" },
     { to: "/prescripteur/mes-demandes",     icon: "ti-list-check", label: "Mes demandes" },
+    { to: "/prescripteur/commission",       icon: "ti-coin",       label: "Ma commission" },
   ]
 
   return (
@@ -108,8 +109,8 @@ export default function PrescripteurLayout() {
             Partenaire Global Expertises
           </span>
         </header>
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          <Outlet />
+              <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          <Outlet context={prescripteur} />
         </div>
       </main>
     </div>
