@@ -22,7 +22,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/metier/campagnes":           "Campagnes",
   "/metier/portefeuille":        "Portefeuille",
   "/metier/missions":            "Missions",
-  "/metier/clients":             "Clients",
+    "/metier/clients":             "Clients",
+  "/metier/trajectoire":         "Trajectoire",
   "/metier/equipe":              "Mon équipe",
   "/metier/utilisateurs":        "Utilisateurs",
   "/metier/messagerie":          "Messagerie",
@@ -931,9 +932,14 @@ if (role === "consultant") {
                 <NavItem to="/metier/portefeuille" icon="ti-building" label="Portefeuille" />
               )}
 
-            {/* Clients */}
+                     {/* Clients */}
               {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
                 <NavItem to="/metier/clients" icon="ti-building-community" label="Clients" />
+              )}
+
+            {/* Trajectoire */}
+              {(roleAGE === "admin_national" || roleAGE === "responsable_regional" || roleAGE === "consultant") && (
+                <NavItem to="/metier/trajectoire" icon="ti-route" label="Trajectoire" />
               )}
 
             {/* Mes missions — acces direct consultant (distinct de File d'attente) */}
