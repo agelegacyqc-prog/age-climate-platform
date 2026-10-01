@@ -674,26 +674,29 @@ if (role === "consultant") {
         .subscribe()
     }
 
-        // Messages non lus (tous rôles AGE)
-        const { count: countMsg } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .eq("lu", false)
-          .neq("expediteur_id", user.id)
-          .or(`destinataire_id.eq.${user.id},destinataire_id.is.null`)
-        setNbMessagesAGE(countMsg || 0)
+        // Messages non lus (tous rôles AGE) — client : lecture par personne (messages_lectures), interne : destinataire
+        async function chargerNbMessagesAGE(userId: string) {
+          const { data: nbClient } = await supabase.rpc("nb_messages_client_non_lus")
+          const { count: nbInterne } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("type_conversation", "interne")
+            .eq("destinataire_id", userId)
+            .eq("lu", false)
+          setNbMessagesAGE((typeof nbClient === "number" ? nbClient : 0) + (nbInterne || 0))
+        }
 
+        await chargerNbMessagesAGE(user.id)
+
+        // La RLS ne livre à chacun que les messages qu'il peut voir
         supabase
           .channel(`messages-non-lus-${Date.now()}`)
-          .on("postgres_changes", {
-            event: "INSERT",
-            schema: "public",
-            table: "messages",
-            filter: `destinataire_id=eq.${user.id}`,
-          }, () => {
-            setNbMessagesAGE(prev => prev + 1)
-          })
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
+            () => { chargerNbMessagesAGE(user.id) })
           .subscribe()
+
+        // Déclenché par la Messagerie après lecture d'une conversation
+        window.addEventListener("messagerie-lue", () => { chargerNbMessagesAGE(user.id) })
 
         setAuthChecked(true)
         return

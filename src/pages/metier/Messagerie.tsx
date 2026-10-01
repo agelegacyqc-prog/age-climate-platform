@@ -145,7 +145,6 @@ export default function Messagerie() {
 
       const convs = Array.from(map.values())
       setConversations(convs)
-      if (convs.length > 0 && !selected) setSelected(convs[0])
 
     } else {
       // Messages avec clients — filtrés par destinataire ou expéditeur
@@ -157,6 +156,10 @@ export default function Messagerie() {
         .order("created_at", { ascending: false })
 
       if (!msgs) { setConversations([]); return }
+
+      const { data: lectures } = await supabase
+        .from("messages_lectures").select("message_id").eq("user_id", userId)
+      const lusParMoi = new Set((lectures || []).map((l: { message_id: string }) => l.message_id))
 
       const map = new Map<string, Conversation>()
       for (const msg of msgs) {
@@ -177,7 +180,7 @@ export default function Messagerie() {
         } else continue
 
         if (!map.has(key)) map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0, clientId })
-        if (!msg.lu && msg.expediteur_id !== userId) map.get(key)!.nbNonLus++
+        if (msg.expediteur_id === msg.client_id && !lusParMoi.has(msg.id)) map.get(key)!.nbNonLus++
       }
 
 // Enrichir avec raison sociale client + vérifier l'affectation (responsable/consultant)
@@ -222,7 +225,6 @@ export default function Messagerie() {
         convs = convs.filter(c => c.clientId && clientsAutorises!.has(c.clientId))
       }
       setConversations(convs)
-      if (convs.length > 0 && !selected) setSelected(convs[0])
     }
 
     // Compter non lus
@@ -233,15 +235,9 @@ export default function Messagerie() {
       .eq("destinataire_id", userId)
       .eq("lu", false)
 
-    const { count: nbClients } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("type_conversation", "client")
-      .or(`destinataire_id.eq.${userId},destinataire_id.is.null`)
-      .neq("expediteur_id", userId)
-      .eq("lu", false)
+    const { data: nbClients } = await supabase.rpc("nb_messages_client_non_lus")
 
-    setNbNonLus({ interne: nbInterne || 0, clients: nbClients || 0 })
+    setNbNonLus({ interne: nbInterne || 0, clients: typeof nbClients === "number" ? nbClients : 0 })
   }
 
   async function loadMessages() {
@@ -276,6 +272,19 @@ export default function Messagerie() {
     if (selected.contexte === "demande")  upd = upd.eq("demande_id",  selected.refId)
     if (selected.contexte === "actif")    upd = upd.eq("actif_id",    selected.refId)
     await upd
+
+    // Lecture par personne (messages client) : le badge de chacun reste actif tant qu'il n'a pas lu lui-même
+    if (onglet === "clients") {
+      const aMarquer = (data || [])
+        .filter((m: { expediteur_id: string; client_id: string | null }) => m.expediteur_id === m.client_id)
+        .map((m: { id: string }) => ({ message_id: m.id, user_id: userId }))
+      if (aMarquer.length > 0) {
+        await supabase.from("messages_lectures")
+          .upsert(aMarquer, { onConflict: "message_id,user_id", ignoreDuplicates: true })
+        window.dispatchEvent(new Event("messagerie-lue"))
+        await loadConversations()
+      }
+    }
 
     // Charger profils expéditeurs
     const ids = [...new Set((dedup || []).map((m: any) => m.expediteur_id))]
