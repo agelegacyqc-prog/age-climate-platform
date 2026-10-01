@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
+import loginBackground from "../../assets/login-background.jpg"
 
 // Page publique /prescripteur/definir-mot-de-passe
 // Sert à deux cas : première activation (lien d'invitation) et mot de passe oublié (lien de récupération).
@@ -66,15 +67,23 @@ export default function PrescripteurMotDePasse() {
   const btnStyle: React.CSSProperties = { width: "100%", padding: "10px", background: "#A9713F", color: "white", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1, marginTop: "4px" }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+    <div style={{
+      minHeight: "100vh",
+      backgroundImage: `linear-gradient(180deg, rgba(15,30,20,0.55) 0%, rgba(15,30,20,0.35) 100%), url(${loginBackground})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "inherit"
+    }}>
       <style>{`.presc-input:focus-visible, .presc-btn:focus-visible { outline: 2px solid #A9713F; outline-offset: 2px; }`}</style>
       <div style={{ width: "100%", maxWidth: "400px", padding: "0 16px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#F5ECE1", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
             <i className="ti ti-handshake" style={{ fontSize: "26px", color: "#A9713F" }} aria-hidden="true" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Portail Prescripteur</div>
-          <div style={{ fontSize: "13px", color: "#64748B" }}>AGE-QC</div>
+          <div style={{ fontSize: "20px", fontWeight: 500, color: "#FFFFFF", marginBottom: "4px" }}>Portail Prescripteur</div>
+          <div style={{ fontSize: "13px", color: "#E2E8F0" }}>AGE-QC</div>
         </div>
 
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "28px" }}>
