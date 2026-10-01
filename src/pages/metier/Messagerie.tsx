@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 
 type OngletPrincipal = "interne" | "clients"
-type ContexteType = "campagne" | "mission" | "demande" | "actif"
+type ContexteType = "campagne" | "mission" | "demande" | "actif" | "direct"
 
 interface Conversation {
   id: string
@@ -34,6 +34,17 @@ interface ObjetNM {
   titre: string
 }
 
+interface MessageInterneInsert {
+  expediteur_id: string
+  destinataire_id: string
+  contenu: string
+  lu: boolean
+  type_conversation: "interne"
+  campagne_id?: string
+  mission_id?: string
+  demande_id?: string
+}
+
 const ROLE_CONFIG: Record<string, { label: string; bg: string; color: string; initBg: string; initColor: string }> = {
   admin_national:       { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
   admin:                { label: "Admin national",  bg: "#F5F3FF", color: "#7C3AED", initBg: "#F5F3FF", initColor: "#7C3AED" },
@@ -42,11 +53,12 @@ const ROLE_CONFIG: Record<string, { label: string; bg: string; color: string; in
   client:               { label: "Client",          bg: "#F0FDF4", color: "#2F7D5C", initBg: "#F0FDF4", initColor: "#2F7D5C" },
 }
 
-const CONTEXTE_CONFIG: Record<ContexteType, { label: string; bg: string; color: string }> = {
+const CONTEXTE_CONFIG: Record<ContexteType, { label: string; bg: string; color: string; pluriel?: string }> = {
   campagne: { label: "Campagne", bg: "#F9F0EA", color: "#B25C2A" },
   mission:  { label: "Mission",  bg: "#EFF6FF", color: "#0369A1" },
   demande:  { label: "Demande",  bg: "#F0FDF4", color: "#2F7D5C" },
   actif:    { label: "Actif",    bg: "#F5F3FF", color: "#7C3AED" },
+  direct:   { label: "Direct",   bg: "#F1F5F9", color: "#475569", pluriel: "Conversations directes" },
 }
 
 function initiales(prenom: string, nom: string) {
@@ -91,6 +103,20 @@ export default function Messagerie() {
   const [objetSelectionneNM, setObjetSelectionneNM]     = useState<ObjetNM | null>(null)
   const [contenuNM, setContenuNM]                       = useState("")
   const [envoiNM, setEnvoiNM]                           = useState(false)
+
+  // ── Nouveau message interne (membre AGE + objet facultatif) ──
+  const [showNouveauInterne, setShowNouveauInterne]     = useState(false)
+  const [etapeNI, setEtapeNI]                           = useState<1 | 2>(1)
+  const [membresNI, setMembresNI]                       = useState<ProfilCache[]>([])
+  const [rechercheMembreNI, setRechercheMembreNI]       = useState("")
+  const [chargementMembresNI, setChargementMembresNI]   = useState(false)
+  const [membreSelectionneNI, setMembreSelectionneNI]   = useState<ProfilCache | null>(null)
+  const [objetsNI, setObjetsNI]                         = useState<ObjetNM[]>([])
+  const [rechercheObjetNI, setRechercheObjetNI]         = useState("")
+  const [chargementObjetsNI, setChargementObjetsNI]     = useState(false)
+  const [objetSelectionneNI, setObjetSelectionneNI]     = useState<ObjetNM | null>(null) // null = conversation libre
+  const [contenuNI, setContenuNI]                       = useState("")
+  const [envoiNI, setEnvoiNI]                           = useState(false)
 
   useEffect(() => { init() }, [])
   useEffect(() => { if (userId) loadConversations() }, [onglet, userId])
@@ -137,14 +163,32 @@ export default function Messagerie() {
           key = `mission_${msg.mission_id}`;   titre = (msg.mission as any)?.societe || "Mission"; sousTitre = "Mission"; contexte = "mission"; refId = msg.mission_id
         } else if (msg.demande_id) {
           key = `demande_${msg.demande_id}`;   titre = (msg.demande as any)?.type_prestation || "Demande"; sousTitre = "Demande"; contexte = "demande"; refId = msg.demande_id
+        } else if (!msg.actif_id && msg.destinataire_id) {
+          // Conversation directe (sans objet rattaché) entre deux membres AGE
+          const autreId = msg.expediteur_id === userId ? msg.destinataire_id : msg.expediteur_id
+          key = `direct_${autreId}`; titre = "Conversation directe"; sousTitre = "Direct"; contexte = "direct"; refId = autreId
         } else continue
 
         if (!map.has(key)) map.set(key, { id: key, titre, sousTitre, contexte, refId, nbNonLus: 0 })
         if (!msg.lu && msg.expediteur_id !== userId) map.get(key)!.nbNonLus++
       }
 
+      // Nom de l'interlocuteur pour les conversations directes
+      const directIds = Array.from(map.values()).filter(c => c.contexte === "direct").map(c => c.refId)
+      if (directIds.length > 0) {
+        const { data: autres } = await supabase.from("profils").select("id, prenom, nom").in("id", directIds)
+        const nomMap: Record<string, string> = {}
+        autres?.forEach(a => { nomMap[a.id] = `${a.prenom || ""} ${a.nom || ""}`.trim() })
+        map.forEach((conv, key) => {
+          if (conv.contexte === "direct") map.set(key, { ...conv, titre: nomMap[conv.refId] || "Membre AGE" })
+        })
+      }
+
       const convs = Array.from(map.values())
       setConversations(convs)
+      // Ouverture automatique de la première conversation : onglet Interne uniquement
+      // (onglet Clients : lecture par personne, pas de marquage sans clic)
+      if (convs.length > 0) setSelected(prev => prev ?? convs[0])
 
     } else {
       // Messages avec clients — filtrés par destinataire ou expéditeur
@@ -248,6 +292,12 @@ export default function Messagerie() {
     if (selected.contexte === "mission")  query = query.eq("mission_id",  selected.refId)
     if (selected.contexte === "demande")  query = query.eq("demande_id",  selected.refId)
     if (selected.contexte === "actif")    query = query.eq("actif_id",    selected.refId)
+    if (selected.contexte === "direct") {
+      // Échanges entre moi et l'interlocuteur, sans objet rattaché
+      query = query
+        .is("campagne_id", null).is("mission_id", null).is("demande_id", null).is("actif_id", null)
+        .or(`and(expediteur_id.eq.${userId},destinataire_id.eq.${selected.refId}),and(expediteur_id.eq.${selected.refId},destinataire_id.eq.${userId})`)
+    }
     if (onglet === "interne") query = query.eq("type_conversation", "interne")
     if (onglet === "clients") query = query.eq("type_conversation", "client")
 
@@ -271,7 +321,13 @@ export default function Messagerie() {
     if (selected.contexte === "mission")  upd = upd.eq("mission_id",  selected.refId)
     if (selected.contexte === "demande")  upd = upd.eq("demande_id",  selected.refId)
     if (selected.contexte === "actif")    upd = upd.eq("actif_id",    selected.refId)
+    if (selected.contexte === "direct") {
+      upd = upd
+        .eq("expediteur_id", selected.refId).eq("destinataire_id", userId).eq("type_conversation", "interne")
+        .is("campagne_id", null).is("mission_id", null).is("demande_id", null).is("actif_id", null)
+    }
     await upd
+    if (onglet === "interne") window.dispatchEvent(new Event("messagerie-lue"))
 
     // Lecture par personne (messages client) : le badge de chacun reste actif tant qu'il n'a pas lu lui-même
     if (onglet === "clients") {
@@ -333,8 +389,9 @@ export default function Messagerie() {
       client_id:         selected.clientId || null,
     }
 
-    if (onglet === "interne" && destinataireId) {
-      payload.destinataire_id = destinataireId
+    if (onglet === "interne") {
+      if (selected.contexte === "direct") payload.destinataire_id = selected.refId
+      else if (destinataireId) payload.destinataire_id = destinataireId
     }
 
     if (selected.contexte === "campagne") payload.campagne_id = selected.refId
@@ -495,8 +552,114 @@ export default function Messagerie() {
     await loadConversations()
   }
 
+  // ── Nouveau message interne : ouverture / fermeture ──
+  function ouvrirNouveauInterne() {
+    setShowNouveauInterne(true)
+    setEtapeNI(1)
+    setMembreSelectionneNI(null)
+    setObjetSelectionneNI(null)
+    setObjetsNI([])
+    setContenuNI("")
+    setRechercheMembreNI("")
+    setRechercheObjetNI("")
+    chargerMembresNI()
+  }
+
+  function fermerNouveauInterne() {
+    setShowNouveauInterne(false)
+  }
+
+  // ── Nouveau message interne : étape 1, tout le personnel AGE ──
+  async function chargerMembresNI() {
+    setChargementMembresNI(true)
+    const { data } = await supabase
+      .from("profils").select("id, prenom, nom, role")
+      .in("role", ["admin_national", "admin", "responsable_regional", "consultant"])
+      .neq("id", userId)
+    const membres = ((data || []) as ProfilCache[])
+      .sort((a, b) => `${a.prenom || ""} ${a.nom || ""}`.localeCompare(`${b.prenom || ""} ${b.nom || ""}`, "fr"))
+    setMembresNI(membres)
+    setChargementMembresNI(false)
+  }
+
+  // ── Nouveau message interne : étape 2, objet facultatif (la RLS limite à ce que je peux voir) ──
+  async function selectionnerMembreNI(membre: ProfilCache) {
+    setMembreSelectionneNI(membre)
+    setEtapeNI(2)
+    setObjetSelectionneNI(null)
+    setRechercheObjetNI("")
+    setChargementObjetsNI(true)
+
+    const [campagnesR, missionsR, demandesR] = await Promise.all([
+      supabase.from("campagnes").select("id, nom").limit(200),
+      supabase.from("missions").select("id, societe").limit(200),
+      supabase.from("demandes_marketplace").select("id, type_prestation").limit(200),
+    ])
+
+    const objets: ObjetNM[] = [
+      ...(campagnesR.data || []).map((c: { id: string; nom: string | null }) => ({ contexte: "campagne" as ContexteType, refId: c.id, titre: c.nom || "Campagne" })),
+      ...(missionsR.data || []).map((m: { id: string; societe: string | null }) => ({ contexte: "mission" as ContexteType, refId: m.id, titre: m.societe || "Mission" })),
+      ...(demandesR.data || []).map((d: { id: string; type_prestation: string | null }) => ({ contexte: "demande" as ContexteType, refId: d.id, titre: d.type_prestation || "Demande" })),
+    ].sort((a, b) => a.titre.localeCompare(b.titre, "fr"))
+
+    setObjetsNI(objets)
+    setChargementObjetsNI(false)
+  }
+
+  // ── Nouveau message interne : envoi ──
+  async function envoyerNouveauInterne() {
+    if (!membreSelectionneNI || !contenuNI.trim() || !userId) return
+    setEnvoiNI(true)
+
+    const payload: MessageInterneInsert = {
+      expediteur_id:     userId,
+      destinataire_id:   membreSelectionneNI.id,
+      contenu:           contenuNI.trim(),
+      lu:                false,
+      type_conversation: "interne",
+    }
+    if (objetSelectionneNI?.contexte === "campagne") payload.campagne_id = objetSelectionneNI.refId
+    if (objetSelectionneNI?.contexte === "mission")  payload.mission_id  = objetSelectionneNI.refId
+    if (objetSelectionneNI?.contexte === "demande")  payload.demande_id  = objetSelectionneNI.refId
+
+    const { error } = await supabase.from("messages").insert(payload)
+
+    if (error) {
+      console.error("Erreur envoi message interne :", error)
+      alert("Échec de l'envoi : " + error.message)
+      setEnvoiNI(false)
+      return
+    }
+
+    const nomMembre = `${membreSelectionneNI.prenom || ""} ${membreSelectionneNI.nom || ""}`.trim() || "Membre AGE"
+    const nouvelleConv: Conversation = objetSelectionneNI
+      ? {
+          id:        `${objetSelectionneNI.contexte}_${objetSelectionneNI.refId}`,
+          titre:     objetSelectionneNI.titre,
+          sousTitre: CONTEXTE_CONFIG[objetSelectionneNI.contexte].label,
+          contexte:  objetSelectionneNI.contexte,
+          refId:     objetSelectionneNI.refId,
+          nbNonLus:  0,
+        }
+      : {
+          id:        `direct_${membreSelectionneNI.id}`,
+          titre:     nomMembre,
+          sousTitre: "Direct",
+          contexte:  "direct",
+          refId:     membreSelectionneNI.id,
+          nbNonLus:  0,
+        }
+
+    setEnvoiNI(false)
+    setShowNouveauInterne(false)
+    setOnglet("interne")
+    setSelected(nouvelleConv)
+    await loadConversations()
+  }
+
   // Grouper conversations par contexte
   const groupes: Record<ContexteType, Conversation[]> = {
+    direct:   conversations.filter(c => c.contexte === "direct"),
     campagne: conversations.filter(c => c.contexte === "campagne"),
     mission:  conversations.filter(c => c.contexte === "mission"),
     demande:  conversations.filter(c => c.contexte === "demande"),
@@ -505,6 +668,8 @@ export default function Messagerie() {
 
   const nbNonLusTotal = nbNonLus.interne + nbNonLus.clients
   const clientsNMFiltres = clientsNM.filter(c => c.nom.toLowerCase().includes(rechercheClientNM.toLowerCase()))
+  const membresNIFiltres = membresNI.filter(m => `${m.prenom || ""} ${m.nom || ""}`.toLowerCase().includes(rechercheMembreNI.toLowerCase()))
+  const objetsNIFiltres  = objetsNI.filter(o => o.titre.toLowerCase().includes(rechercheObjetNI.toLowerCase()))
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF", fontSize: "14px" }}>
@@ -554,9 +719,9 @@ export default function Messagerie() {
             ))}
           </div>
 
-          {onglet === "clients" && (
+          {(onglet === "clients" || onglet === "interne") && (
             <button
-              onClick={ouvrirNouveauMessage}
+              onClick={onglet === "clients" ? ouvrirNouveauMessage : ouvrirNouveauInterne}
               style={{
                 marginTop: "10px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
                 background: "#B25C2A", color: "white", border: "none", padding: "8px 12px", borderRadius: "8px",
@@ -583,7 +748,7 @@ export default function Messagerie() {
             return (
               <div key={type}>
                 <div style={{ padding: "8px 16px 4px", fontSize: "10px", fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {cfg.label}s
+                  {cfg.pluriel || `${cfg.label}s`}
                 </div>
                 {convs.map(c => (
                   <div key={c.id} onClick={() => setSelected(c)} style={{
@@ -693,7 +858,12 @@ export default function Messagerie() {
           </div>
 
           <div style={{ padding: "12px 20px", borderTop: "1px solid #E2DDD8", display: "flex", flexDirection: "column", gap: "8px" }}>
-            {onglet === "interne" && interlocuteurs.length > 0 && (
+            {onglet === "interne" && selected.contexte === "direct" && (
+              <div style={{ fontSize: "11px", color: "#6B7280" }}>
+                À : <strong style={{ color: "#111827" }}>{selected.titre}</strong>
+              </div>
+            )}
+            {onglet === "interne" && selected.contexte !== "direct" && interlocuteurs.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "11px", color: "#6B7280", flexShrink: 0 }}>À :</span>
                 <select
@@ -856,6 +1026,169 @@ export default function Messagerie() {
                 >
                   <i className="ti ti-send" style={{ fontSize: "14px" }} />
                   {envoiNM ? "Envoi…" : "Envoyer"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* ── Modale Nouveau message interne ── */}
+    {showNouveauInterne && (
+      <div
+        onClick={fermerNouveauInterne}
+        style={{ position: "fixed", inset: 0, background: "rgba(17,24,39,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Nouveau message interne"
+          onClick={e => e.stopPropagation()}
+          style={{ background: "#FFFFFF", borderRadius: "12px", width: "480px", maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}
+        >
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>
+              {etapeNI === 1 ? "Nouveau message — choisir un membre de l'équipe" : "Nouveau message — objet et message"}
+            </span>
+            <button onClick={fermerNouveauInterne} aria-label="Fermer" style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "18px", lineHeight: 1, padding: "4px" }}>
+              <i className="ti ti-x" />
+            </button>
+          </div>
+
+          {etapeNI === 1 ? (
+            <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
+              <input
+                autoFocus
+                value={rechercheMembreNI}
+                onChange={e => setRechercheMembreNI(e.target.value)}
+                placeholder="Rechercher un membre…"
+                aria-label="Rechercher un membre"
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", marginBottom: "12px", outline: "none", boxSizing: "border-box" }}
+              />
+              {chargementMembresNI ? (
+                <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>Chargement…</div>
+              ) : membresNIFiltres.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "24px 0" }}>Aucun membre trouvé</div>
+              ) : membresNIFiltres.map(m => {
+                const cfgRole = ROLE_CONFIG[m.role] || ROLE_CONFIG.client
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => selectionnerMembreNI(m)}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#111827", display: "flex", alignItems: "center", gap: "10px", background: "transparent", border: "none", fontFamily: "inherit", textAlign: "left" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "#F9F7F4" }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}
+                  >
+                    <span style={{ width: "30px", height: "30px", borderRadius: "50%", background: cfgRole.initBg, color: cfgRole.initColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 600, flexShrink: 0 }}>
+                      {initiales(m.prenom || "", m.nom || "")}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{`${m.prenom || ""} ${m.nom || ""}`.trim() || "Membre AGE"}</span>
+                    <span style={{ background: cfgRole.bg, color: cfgRole.color, fontSize: "9px", padding: "1px 6px", borderRadius: "8px", fontWeight: 500, flexShrink: 0 }}>
+                      {cfgRole.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div>
+                  <button
+                    onClick={() => setEtapeNI(1)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px", padding: 0, fontFamily: "inherit" }}
+                  >
+                    <i className="ti ti-arrow-left" /> Changer de destinataire
+                  </button>
+                </div>
+                <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                  À : <strong style={{ color: "#111827" }}>{`${membreSelectionneNI?.prenom || ""} ${membreSelectionneNI?.nom || ""}`.trim()}</strong>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setObjetSelectionneNI(null)}
+                  aria-pressed={objetSelectionneNI === null}
+                  style={{
+                    padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                    border: `1px solid ${objetSelectionneNI === null ? "#B25C2A" : "#E2DDD8"}`,
+                    background: objetSelectionneNI === null ? "#F9F0EA" : "transparent",
+                    display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#111827",
+                  }}
+                >
+                  <span style={{ background: CONTEXTE_CONFIG.direct.bg, color: CONTEXTE_CONFIG.direct.color, fontSize: "9px", padding: "1px 6px", borderRadius: "8px", fontWeight: 500, flexShrink: 0 }}>
+                    {CONTEXTE_CONFIG.direct.label}
+                  </span>
+                  Conversation libre (sans objet)
+                </button>
+
+                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>ou rattacher à un objet :</div>
+                <input
+                  value={rechercheObjetNI}
+                  onChange={e => setRechercheObjetNI(e.target.value)}
+                  placeholder="Rechercher une campagne, mission ou demande…"
+                  aria-label="Rechercher un objet à rattacher"
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                />
+                {chargementObjetsNI ? (
+                  <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "12px 0" }}>Chargement…</div>
+                ) : objetsNIFiltres.length === 0 ? (
+                  <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: "13px", padding: "12px 0" }}>Aucun objet disponible</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "200px", overflowY: "auto" }}>
+                    {objetsNIFiltres.map(o => {
+                      const cfg = CONTEXTE_CONFIG[o.contexte]
+                      const actif = objetSelectionneNI?.contexte === o.contexte && objetSelectionneNI?.refId === o.refId
+                      return (
+                        <button
+                          key={`${o.contexte}_${o.refId}`}
+                          type="button"
+                          onClick={() => setObjetSelectionneNI(o)}
+                          aria-pressed={actif}
+                          style={{
+                            padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                            border: `1px solid ${actif ? "#B25C2A" : "#E2DDD8"}`,
+                            background: actif ? "#F9F0EA" : "transparent",
+                            display: "flex", alignItems: "center", gap: "8px", flexShrink: 0,
+                          }}
+                        >
+                          <span style={{ background: cfg.bg, color: cfg.color, fontSize: "9px", padding: "1px 6px", borderRadius: "8px", fontWeight: 500, flexShrink: 0 }}>
+                            {cfg.label}
+                          </span>
+                          <span style={{ fontSize: "13px", color: "#111827" }}>{o.titre}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <textarea
+                  value={contenuNI}
+                  onChange={e => setContenuNI(e.target.value)}
+                  placeholder="Écrire le message…"
+                  aria-label="Message"
+                  rows={3}
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #E2DDD8", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div style={{ padding: "12px 20px", borderTop: "1px solid #E2DDD8", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+                <button
+                  onClick={envoyerNouveauInterne}
+                  disabled={!contenuNI.trim() || envoiNI}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    background: contenuNI.trim() ? "#B25C2A" : "#E2DDD8",
+                    color: contenuNI.trim() ? "white" : "#9CA3AF",
+                    border: "none", padding: "9px 16px", borderRadius: "8px",
+                    cursor: contenuNI.trim() ? "pointer" : "not-allowed",
+                    fontSize: "13px", fontWeight: 500, fontFamily: "inherit", opacity: envoiNI ? 0.7 : 1,
+                  }}
+                >
+                  <i className="ti ti-send" style={{ fontSize: "14px" }} />
+                  {envoiNI ? "Envoi…" : "Envoyer"}
                 </button>
               </div>
             </>
