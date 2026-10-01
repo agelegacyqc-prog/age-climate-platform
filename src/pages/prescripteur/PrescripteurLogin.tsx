@@ -8,6 +8,8 @@ export default function PrescripteurLogin() {
   const [password, setPassword] = useState("")
   const [loading, setLoading]   = useState(false)
   const [erreur, setErreur]     = useState("")
+  const [mode, setMode]         = useState<"connexion" | "oubli">("connexion")
+  const [infoEnvoi, setInfoEnvoi] = useState("")
 
   async function handleLogin() {
     if (!email || !password) { setErreur("Veuillez remplir tous les champs."); return }
@@ -25,10 +27,29 @@ export default function PrescripteurLogin() {
     navigate("/prescripteur/mes-demandes")
   }
 
+  async function handleOubli() {
+    if (!email) { setErreur("Saisissez votre adresse email."); return }
+    setLoading(true); setErreur(""); setInfoEnvoi("")
+    // Le lien de récupération ramène vers la page de définition du mot de passe
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/prescripteur/definir-mot-de-passe`,
+    })
+    // Message identique que le compte existe ou non : on ne révèle pas quelles adresses sont inscrites
+    setInfoEnvoi("Si un compte existe pour cette adresse, un email contenant un lien vient de lui être envoyé.")
+    setLoading(false)
+  }
+
+  function changerMode(m: "connexion" | "oubli") {
+    setMode(m); setErreur(""); setInfoEnvoi("")
+  }
+
   const iStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", color: "#0F172A", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
+  const lStyle: React.CSSProperties = { display: "block", fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px" }
+  const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: 0, fontSize: "12px", color: "#A9713F", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+      <style>{`.presc-input:focus-visible, .presc-btn:focus-visible, .presc-link:focus-visible { outline: 2px solid #A9713F; outline-offset: 2px; }`}</style>
       <div style={{ width: "100%", maxWidth: "400px", padding: "0 16px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#F5ECE1", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
@@ -39,23 +60,52 @@ export default function PrescripteurLogin() {
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "28px" }}>
           {erreur && (
-            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#991B1B", display: "flex", alignItems: "center", gap: "8px" }}>
+            <div role="alert" style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#991B1B", display: "flex", alignItems: "center", gap: "8px" }}>
               <i className="ti ti-alert-triangle" style={{ fontSize: "15px" }} aria-hidden="true" />{erreur}
             </div>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px" }}>Identifiant (email)</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contact@cabinet.fr" style={iStyle} onKeyDown={e => e.key === "Enter" && handleLogin()} />
+          {infoEnvoi && (
+            <div role="status" style={{ background: "#E1F5EE", border: "1px solid #A7DFC8", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#0F6E56", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+              <i className="ti ti-circle-check" style={{ fontSize: "15px", marginTop: "1px" }} aria-hidden="true" /><span>{infoEnvoi}</span>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px" }}>Mot de passe</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={iStyle} onKeyDown={e => e.key === "Enter" && handleLogin()} />
+          )}
+
+          {mode === "connexion" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label htmlFor="presc-email" style={lStyle}>Identifiant (email)</label>
+                <input id="presc-email" className="presc-input" type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} placeholder="contact@cabinet.fr" style={iStyle} onKeyDown={e => e.key === "Enter" && handleLogin()} />
+              </div>
+              <div>
+                <label htmlFor="presc-mdp" style={lStyle}>Mot de passe</label>
+                <input id="presc-mdp" className="presc-input" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={iStyle} onKeyDown={e => e.key === "Enter" && handleLogin()} />
+              </div>
+              <button className="presc-btn" onClick={handleLogin} disabled={loading} style={{ width: "100%", padding: "10px", background: "#A9713F", color: "white", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1, marginTop: "4px" }}>
+                {loading ? "Connexion…" : "Se connecter"}
+              </button>
+              <div style={{ textAlign: "center" }}>
+                <button className="presc-link" type="button" onClick={() => changerMode("oubli")} style={linkBtn}>Mot de passe oublié</button>
+              </div>
             </div>
-            <button onClick={handleLogin} disabled={loading} style={{ width: "100%", padding: "10px", background: "#A9713F", color: "white", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1, marginTop: "4px" }}>
-              {loading ? "Connexion…" : "Se connecter"}
-            </button>
-          </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Mot de passe oublié</div>
+                <div style={{ fontSize: "13px", color: "#64748B" }}>Saisissez votre adresse email. Vous recevrez un lien pour définir un nouveau mot de passe.</div>
+              </div>
+              <div>
+                <label htmlFor="presc-email-oubli" style={lStyle}>Identifiant (email)</label>
+                <input id="presc-email-oubli" className="presc-input" type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} placeholder="contact@cabinet.fr" style={iStyle} onKeyDown={e => e.key === "Enter" && handleOubli()} />
+              </div>
+              <button className="presc-btn" onClick={handleOubli} disabled={loading} style={{ width: "100%", padding: "10px", background: "#A9713F", color: "white", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 500, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1, marginTop: "4px" }}>
+                {loading ? "Envoi…" : "Envoyer le lien"}
+              </button>
+              <div style={{ textAlign: "center" }}>
+                <button className="presc-link" type="button" onClick={() => changerMode("connexion")} style={linkBtn}>Retour à la connexion</button>
+              </div>
+            </div>
+          )}
+
           <div style={{ textAlign: "center", marginTop: "20px", fontSize: "12px", color: "#94A3B8" }}>Accès réservé aux prescripteurs signataires du contrat-cadre</div>
         </div>
       </div>

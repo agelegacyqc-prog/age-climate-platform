@@ -77,6 +77,7 @@ import PartenaireLivrables from "./pages/partenaire/PartenaireLivrables"
 import PartenaireFactures from "./pages/partenaire/PartenaireFactures"
 import PartenaireLayout from "./components/PartenaireLayout"
 import PrescripteurLogin from "./pages/prescripteur/PrescripteurLogin"
+import PrescripteurMotDePasse from "./pages/prescripteur/PrescripteurMotDePasse"
 import PrescripteurNouvelleDemande from "./pages/prescripteur/PrescripteurNouvelleDemande"
 import PrescripteurMesDemandes from "./pages/prescripteur/PrescripteurMesDemandes"
 import PrescripteurLayout from "./components/PrescripteurLayout"
@@ -179,6 +180,7 @@ export default function App() {
 
         {/* ── Portail Prescripteur RGA ── */}
         <Route path="/prescripteur/login" element={<PrescripteurLogin />} />
+        <Route path="/prescripteur/definir-mot-de-passe" element={<PrescripteurMotDePasse />} />
               <Route path="/prescripteur" element={<PrescripteurLayout />}>
           <Route path="nouvelle-demande" element={<PrescripteurNouvelleDemande />} />
           <Route path="mes-demandes" element={<PrescripteurMesDemandes />} />
