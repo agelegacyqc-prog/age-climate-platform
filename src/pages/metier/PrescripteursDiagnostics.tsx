@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
 import { REGIONS_FRANCE } from "../../lib/ageadaptRegions"
 import CommissionnementSection from "./CommissionnementSection"
+import type { ConfigCommission } from "./CommissionnementSection"
 
 const STATUTS = [
   { id: "contact_identifie",   label: "Contact identifié",   color: "#6B7280", bg: "#F3F4F6" },
@@ -29,6 +30,8 @@ interface Demande {
   type_demande: "preventif" | "post_desordre"
   statut: StatutId
   commission_due: number | null
+  prix_ht_diagnostic: number | null
+  commission_config_id: string | null
   region_code: string | null
   created_at: string
 }
@@ -48,6 +51,36 @@ function formatDate(iso: string) {
 function formatEur(v: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(v)
 }
+function formatTaux(v: number | null) {
+  if (v === null || Number.isNaN(Number(v))) return "—"
+  return `${Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}\u00A0%`
+}
+function aujourdhuiISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+// Saisie : accepte point et virgule ; retourne null si invalide ou ≤ 0
+function parseMontant(saisie: string): number | null {
+  const v = parseFloat(saisie.replace(/\s/g, "").replace(",", "."))
+  if (Number.isNaN(v) || v <= 0) return null
+  return Math.round(v * 100) / 100
+}
+// Commission en mode pourcentage : round(prix × % / 100, 2) — identique au trigger (affichage indicatif, le serveur fait foi)
+function commissionPourcentage(prixHt: number, pct: number): number {
+  return Math.round(prixHt * pct) / 100
+}
+// Messages levés par le trigger verrouiller_commission_diagnostic
+function traduireErreur(message: string): string {
+  if (message.includes("Prix HT du diagnostic requis")) {
+    return "Prix HT du diagnostic requis : un avenant en pourcentage est en vigueur."
+  }
+  if (message.includes("Aucun taux de commissionnement applicable")) {
+    return "Aucun taux de commissionnement applicable à la date du jour. Créez un avenant dans Administration > Commissionnement."
+  }
+  if (message.includes("Commission figée")) {
+    return "Commission figée : le montant et le prix HT ne sont plus modifiables."
+  }
+  return message
+}
 
 const iStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #E2DDD8", borderRadius: "7px", fontSize: "13px", color: "#111827", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
 const labelStyle: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 500, color: "#374151", marginBottom: "6px" }
@@ -64,20 +97,28 @@ export default function PrescripteursDiagnostics() {
 
   const [ficheOuverte, setFicheOuverte] = useState<Demande | null>(null)
   const [vue, setVue] = useState<"diagnostics" | "commissionnement">("diagnostics")
-  const [tauxActuel, setTauxActuel] = useState<number | null>(null)
+  const [configActuelle, setConfigActuelle] = useState<ConfigCommission | null>(null)
 
   useEffect(() => { init() }, [])
 
   async function init() {
     setLoading(true)
-    const [demRes, presRes, tauxRes] = await Promise.all([
+    const auj = aujourdhuiISO()
+    const [demRes, presRes, cfgRes] = await Promise.all([
       supabase.from("demandes_diagnostic").select("*").order("created_at", { ascending: false }),
       supabase.from("prescripteurs").select("id, raison_sociale, identifiant_prescripteur, segment_prescripteur"),
-      supabase.from("commissionnement_config").select("taux_eur").is("date_fin", null).maybeSingle(),
+      // Même règle que le trigger : date d'effet passée la plus récente, avenant non terminé
+      supabase.from("commissionnement_config")
+        .select("mode, taux_eur, pourcentage")
+        .lte("date_effet", auj)
+        .or(`date_fin.is.null,date_fin.gte.${auj}`)
+        .order("date_effet", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
-    setDemandes(demRes.data || [])
+    setDemandes((demRes.data as Demande[]) || [])
     setPrescripteurs(presRes.data || [])
-    setTauxActuel(tauxRes.data?.taux_eur ?? null)
+    setConfigActuelle((cfgRes.data as ConfigCommission | null) ?? null)
     setLoading(false)
   }
 
@@ -96,16 +137,25 @@ export default function PrescripteursDiagnostics() {
 
   const kpisParStatut = STATUTS.map(s => ({ ...s, count: demandes.filter(d => d.statut === s.id).length }))
 
-  async function changerStatut(d: Demande, nouveauStatut: StatutId) {
-    const { error } = await supabase.from("demandes_diagnostic").update({ statut: nouveauStatut }).eq("id", d.id)
-    if (!error) {
-      init()
-      setFicheOuverte(prev => prev ? { ...prev, statut: nouveauStatut } : null)
-    }
-    return error
+  // prixHt : transmis dans le même UPDATE que le statut (requis par le trigger en mode pourcentage)
+  async function changerStatut(d: Demande, nouveauStatut: StatutId, prixHt: number | null = null): Promise<{ message: string } | null> {
+    const payload: { statut: StatutId; prix_ht_diagnostic?: number } = { statut: nouveauStatut }
+    if (prixHt !== null) payload.prix_ht_diagnostic = prixHt
+
+    const { error } = await supabase.from("demandes_diagnostic").update(payload).eq("id", d.id)
+    if (error) return error
+
+    // Relecture : commission_due, prix_ht_diagnostic et commission_config_id sont posés par le trigger
+    const { data } = await supabase.from("demandes_diagnostic").select("*").eq("id", d.id).maybeSingle()
+    setFicheOuverte(prev => prev ? (data ? (data as Demande) : { ...prev, statut: nouveauStatut }) : null)
+    init()
+    return null
   }
 
   if (loading) return <div style={{ color: "#6B7280", fontSize: "14px" }}>Chargement…</div>
+
+  // Compatibilité : ancienne prop en euros (forfait uniquement)
+  const tauxActuel = configActuelle?.mode === "forfait" ? Number(configActuelle.taux_eur ?? 0) : null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -114,7 +164,7 @@ export default function PrescripteursDiagnostics() {
         <div style={{ fontSize: "13px", color: "#6B7280" }}>Demandes de diagnostic soumises par les prescripteurs partenaires.</div>
       </div>
 
-            <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid #E2DDD8" }}>
+      <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid #E2DDD8" }}>
         {[
           { id: "diagnostics" as const, label: "Suivi diagnostics" },
           { id: "commissionnement" as const, label: "Commissionnement" },
@@ -229,6 +279,7 @@ export default function PrescripteursDiagnostics() {
         <FicheDemande
           demande={ficheOuverte}
           nomPrescripteur={nomPrescripteur(ficheOuverte.prescripteur_id)}
+          configActuelle={configActuelle}
           onFermer={() => setFicheOuverte(null)}
           onChangerStatut={changerStatut}
         />
@@ -241,22 +292,26 @@ export default function PrescripteursDiagnostics() {
           demandes={demandes}
           prescripteurs={prescripteurs}
           tauxActuel={tauxActuel}
+          configActuelle={configActuelle}
         />
       )}
     </div>
   )
 }
 
-function FicheDemande({ demande, nomPrescripteur, onFermer, onChangerStatut }: {
+function FicheDemande({ demande, nomPrescripteur, configActuelle, onFermer, onChangerStatut }: {
   demande: Demande
   nomPrescripteur: string
+  configActuelle: ConfigCommission | null
   onFermer: () => void
-  onChangerStatut: (d: Demande, s: StatutId) => Promise<any>
+  onChangerStatut: (d: Demande, s: StatutId, prixHt?: number | null) => Promise<{ message: string } | null>
 }) {
   const [historique, setHistorique] = useState<HistoriqueLigne[]>([])
   const [loadingHist, setLoadingHist] = useState(true)
   const [nouveauStatut, setNouveauStatut] = useState<StatutId>(demande.statut)
+  const [prixSaisi, setPrixSaisi] = useState("")
   const [erreur, setErreur] = useState("")
+  const [enCours, setEnCours] = useState(false)
 
   useEffect(() => { chargerHistorique() }, [demande.id])
 
@@ -271,12 +326,44 @@ function FicheDemande({ demande, nomPrescripteur, onFermer, onChangerStatut }: {
     setLoadingHist(false)
   }
 
+  // Passage à « Diagnostic réalisé » = figement irréversible de la commission
+  const passageRealise = nouveauStatut === "diagnostic_realise" && demande.statut !== "diagnostic_realise" && demande.commission_config_id === null
+  const modePourcentage = configActuelle?.mode === "pourcentage"
+  const prixRequis = passageRealise && modePourcentage
+  const prixValide = parseMontant(prixSaisi)
+  const commissionEstimee = prixRequis && prixValide !== null && configActuelle?.pourcentage != null
+    ? commissionPourcentage(prixValide, Number(configActuelle.pourcentage))
+    : null
+
+  const appliquerDesactive = enCours || nouveauStatut === demande.statut || (prixRequis && prixValide === null)
+
   async function appliquer() {
     if (nouveauStatut === demande.statut) return
     setErreur("")
-    const error = await onChangerStatut(demande, nouveauStatut)
-    if (error) setErreur(error.message)
-    else chargerHistorique()
+
+    if (prixRequis && prixValide === null) {
+      setErreur("Prix HT du diagnostic requis (montant supérieur à 0).")
+      return
+    }
+
+    if (passageRealise && configActuelle) {
+      const montant = modePourcentage
+        ? `${formatEur(commissionEstimee ?? 0)} (${formatTaux(Number(configActuelle.pourcentage))} de ${formatEur(prixValide ?? 0)} HT)`
+        : formatEur(Number(configActuelle.taux_eur ?? 0))
+      const ok = window.confirm(
+        `Passer ${demande.reference} à « Diagnostic réalisé » ?\n\nLa commission due au prescripteur sera figée à ${montant}.\nCette valeur ne pourra plus être modifiée.`
+      )
+      if (!ok) return
+    }
+
+    setEnCours(true)
+    const error = await onChangerStatut(demande, nouveauStatut, prixRequis ? prixValide : null)
+    setEnCours(false)
+    if (error) setErreur(traduireErreur(error.message))
+    else {
+      setPrixSaisi("")
+      chargerHistorique()
+    }
   }
 
   const s = statutInfo(demande.statut)
@@ -289,7 +376,7 @@ function FicheDemande({ demande, nomPrescripteur, onFermer, onChangerStatut }: {
             <div style={{ fontSize: "12px", fontFamily: "JetBrains Mono, monospace", color: "#8B5E34", marginBottom: "4px" }}>{demande.reference}</div>
             <div style={{ fontSize: "17px", fontWeight: 600, color: "#111827" }}>{demande.nom_client}</div>
           </div>
-          <button onClick={onFermer} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}><i className="ti ti-x" style={{ fontSize: "18px" }} /></button>
+          <button onClick={onFermer} aria-label="Fermer" style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}><i className="ti ti-x" style={{ fontSize: "18px" }} /></button>
         </div>
 
         <span style={{ background: s.bg, color: s.color, fontSize: "12px", padding: "3px 10px", borderRadius: "5px", fontWeight: 500, display: "inline-block", marginBottom: "18px" }}>{s.label}</span>
@@ -304,9 +391,15 @@ function FicheDemande({ demande, nomPrescripteur, onFermer, onChangerStatut }: {
           <div>
             <span style={{ color: "#9CA3AF" }}>Commission due</span>
             <div style={{ color: demande.commission_due !== null ? "#2F7D5C" : "#9CA3AF", fontFamily: "JetBrains Mono, monospace" }}>
-              {demande.commission_due !== null ? formatEur(demande.commission_due) : "En attente de grille"}
+              {demande.commission_due !== null ? formatEur(demande.commission_due) : "Figée au passage à « Diagnostic réalisé »"}
             </div>
           </div>
+          {demande.prix_ht_diagnostic !== null && (
+            <div>
+              <span style={{ color: "#9CA3AF" }}>Prix HT du diagnostic</span>
+              <div style={{ color: "#111827", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(demande.prix_ht_diagnostic)}</div>
+            </div>
+          )}
           {demande.notes && (
             <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#9CA3AF" }}>Notes</span><div style={{ color: "#111827" }}>{demande.notes}</div></div>
           )}
@@ -315,19 +408,46 @@ function FicheDemande({ demande, nomPrescripteur, onFermer, onChangerStatut }: {
         {/* Changement de statut */}
         <div style={{ background: "#F8F7F4", border: "1px solid #E2DDD8", borderRadius: "10px", padding: "14px 16px", marginBottom: "18px" }}>
           <label style={labelStyle}>Changer le statut</label>
-          {erreur && <div style={{ fontSize: "12px", color: "#B91C1C", marginBottom: "8px" }}>{erreur}</div>}
+          {erreur && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", fontSize: "12px", color: "#B91C1C", marginBottom: "8px" }}>
+              <i className="ti ti-octagon-x" style={{ fontSize: "14px", flexShrink: 0 }} aria-hidden="true" />
+              {erreur}
+            </div>
+          )}
           <div style={{ display: "flex", gap: "8px" }}>
-            <select style={{ ...iStyle, flex: 1 }} value={nouveauStatut} onChange={e => setNouveauStatut(e.target.value as StatutId)}>
+            <select style={{ ...iStyle, flex: 1 }} value={nouveauStatut} onChange={e => { setNouveauStatut(e.target.value as StatutId); setErreur("") }}>
               {STATUTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
             <button
               onClick={appliquer}
-              disabled={nouveauStatut === demande.statut}
-              style={{ padding: "8px 16px", borderRadius: "7px", border: "none", background: nouveauStatut === demande.statut ? "#E2DDD8" : "#A9713F", color: "white", fontSize: "13px", fontWeight: 500, cursor: nouveauStatut === demande.statut ? "default" : "pointer", fontFamily: "inherit" }}
+              disabled={appliquerDesactive}
+              style={{ padding: "8px 16px", borderRadius: "7px", border: "none", background: appliquerDesactive ? "#E2DDD8" : "#A9713F", color: "white", fontSize: "13px", fontWeight: 500, cursor: appliquerDesactive ? "default" : "pointer", fontFamily: "inherit" }}
             >
-              Appliquer
+              {enCours ? "…" : "Appliquer"}
             </button>
           </div>
+
+          {prixRequis && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "7px", padding: "8px 10px", marginBottom: "10px" }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: "14px", marginTop: "1px", flexShrink: 0 }} aria-hidden="true" />
+                Un avenant en pourcentage est en vigueur ({formatTaux(Number(configActuelle?.pourcentage ?? 0))}) : le prix HT du diagnostic est obligatoire. La commission sera figée au passage à « Diagnostic réalisé ».
+              </div>
+              <label style={labelStyle}>Prix HT du diagnostic (€)</label>
+              <input
+                value={prixSaisi}
+                onChange={e => { setPrixSaisi(e.target.value); setErreur("") }}
+                placeholder="1 200,00"
+                inputMode="decimal"
+                style={{ ...iStyle, fontFamily: "JetBrains Mono, monospace" }}
+              />
+              {commissionEstimee !== null && (
+                <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
+                  Commission calculée : <strong style={{ color: "#2F7D5C", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(commissionEstimee)}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Historique */}

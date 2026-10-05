@@ -29,11 +29,29 @@ const ONGLETS = [
 
 interface TauxCommission {
   id: string
-  taux_eur: number
+  mode: "forfait" | "pourcentage"
+  taux_eur: number | null
+  pourcentage: number | null
   date_effet: string
   date_fin: string | null
   motif: string | null
   created_at: string
+}
+
+type ModeAvenant = "forfait" | "pourcentage"
+
+function formatEur(v: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(v)
+}
+function formatTaux(v: number | null) {
+  if (v === null || Number.isNaN(Number(v))) return "—"
+  return `${Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}\u00A0%`
+}
+function libelleTaux(t: TauxCommission) {
+  return t.mode === "pourcentage" ? formatTaux(t.pourcentage) : formatEur(Number(t.taux_eur ?? 0))
+}
+function aujourdhuiISO() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 const risques = ["RGA", "PPRI", "Feux de forêt", "Submersion", "Tempête"]
@@ -71,6 +89,7 @@ export default function Administration() {
 
   const [tauxHistorique, setTauxHistorique] = useState<TauxCommission[]>([])
   const [loadingTaux, setLoadingTaux]       = useState(false)
+  const [modeAvenant, setModeAvenant]       = useState<ModeAvenant>("forfait")
   const [nouveauTaux, setNouveauTaux]       = useState("")
   const [dateEffet, setDateEffet]           = useState("")
   const [motif, setMotif]                   = useState("")
@@ -138,19 +157,40 @@ useEffect(() => {
 
   async function ajouterAvenant() {
     setErreurTaux("")
-    const taux = parseFloat(nouveauTaux.replace(",", "."))
-    if (Number.isNaN(taux) || taux <= 0) {
-      setErreurTaux("Montant invalide.")
+    const valeur = parseFloat(nouveauTaux.replace(",", "."))
+    if (Number.isNaN(valeur) || valeur <= 0) {
+      setErreurTaux(modeAvenant === "pourcentage" ? "Pourcentage invalide." : "Montant invalide.")
+      return
+    }
+    if (modeAvenant === "pourcentage" && valeur > 100) {
+      setErreurTaux("Le pourcentage ne peut pas dépasser 100 %.")
       return
     }
     if (!dateEffet) {
       setErreurTaux("Date d'effet requise.")
       return
     }
+    // La date d'effet la plus récente s'applique : un avenant daté avant (ou le même jour que) le dernier ne s'appliquerait jamais
+    const derniereDate = tauxHistorique[0]?.date_effet
+    if (derniereDate && dateEffet <= derniereDate) {
+      setErreurTaux(`La date d'effet doit être postérieure au ${new Date(derniereDate).toLocaleDateString("fr-FR")} (dernier avenant), sinon il ne s'appliquerait jamais.`)
+      return
+    }
+    // Action irréversible : l'historique des taux est immuable
+    const resume = modeAvenant === "pourcentage"
+      ? `${formatTaux(Math.round(valeur * 100) / 100)} du prix HT du diagnostic`
+      : `${formatEur(Math.round(valeur * 100) / 100)} par diagnostic réalisé`
+    if (!window.confirm(`Enregistrer cet avenant : ${resume}, à compter du ${new Date(dateEffet).toLocaleDateString("fr-FR")} ?\n\nL'historique des taux ne peut pas être modifié : cette action est irréversible.`)) {
+      return
+    }
     setSoumissionTaux(true)
+    const arrondi = Math.round(valeur * 100) / 100
+    const payload = modeAvenant === "pourcentage"
+      ? { mode: "pourcentage", pourcentage: arrondi, taux_eur: null, date_effet: dateEffet, motif: motif || null }
+      : { mode: "forfait", taux_eur: arrondi, pourcentage: null, date_effet: dateEffet, motif: motif || null }
     const { error } = await supabase
       .from("commissionnement_config")
-      .insert({ taux_eur: taux, date_effet: dateEffet, motif: motif || null })
+      .insert(payload)
     setSoumissionTaux(false)
     if (error) {
       setErreurTaux(error.message.includes("row-level security") ? "Droits insuffisants — réservé aux administrateurs." : error.message)
@@ -161,6 +201,10 @@ useEffect(() => {
     setMotif("")
     chargerTauxHistorique()
   }
+
+  // Avenant en vigueur : même règle que le trigger (date d'effet passée la plus récente, non terminé)
+  const aujourdhui = aujourdhuiISO()
+  const idEnVigueur = tauxHistorique.find(t => t.date_effet <= aujourdhui && (t.date_fin === null || t.date_fin >= aujourdhui))?.id ?? null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -424,23 +468,39 @@ useEffect(() => {
               <div style={{ fontSize: "13px", color: "#94A3B8" }}>Aucun taux configuré.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {tauxHistorique.map(t => (
-                  <div key={t.id} style={{ padding: "10px 12px", background: t.date_fin === null ? "#F9F0EA" : "#F8FAFC", borderRadius: "7px", border: `1px solid ${t.date_fin === null ? "#E9D9C5" : "#E2E8F0"}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A", fontFamily: "'DM Mono', monospace" }}>
-                        {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(t.taux_eur)}
-                      </span>
-                      {t.date_fin === null && (
-                        <span style={{ background: "#F0FDF4", color: "#2F7D5C", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500 }}>En vigueur</span>
-                      )}
+                {tauxHistorique.map(t => {
+                  const enVigueur = t.id === idEnVigueur
+                  const aVenir = t.date_effet > aujourdhui
+                  return (
+                    <div key={t.id} style={{ padding: "10px 12px", background: enVigueur ? "#F9F0EA" : "#F8FAFC", borderRadius: "7px", border: `1px solid ${enVigueur ? "#E9D9C5" : "#E2E8F0"}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A", fontFamily: "'DM Mono', monospace" }}>
+                          {libelleTaux(t)}
+                          <span style={{ marginLeft: "6px", fontSize: "11px", fontWeight: 400, color: "#64748B", fontFamily: "inherit" }}>
+                            {t.mode === "pourcentage" ? "du prix HT du diagnostic" : "/ diagnostic réalisé"}
+                          </span>
+                        </span>
+                        {enVigueur && (
+                          <span style={{ background: "#F0FDF4", color: "#2F7D5C", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }}>
+                            <i className="ti ti-circle-check" style={{ fontSize: "12px" }} aria-hidden="true" />
+                            En vigueur
+                          </span>
+                        )}
+                        {aVenir && (
+                          <span style={{ background: "#FFFBEB", color: "#D97706", fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }}>
+                            <i className="ti ti-clock" style={{ fontSize: "12px" }} aria-hidden="true" />
+                            À venir
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>
+                        Depuis le {new Date(t.date_effet).toLocaleDateString("fr-FR")}
+                        {t.date_fin && ` — jusqu'au ${new Date(t.date_fin).toLocaleDateString("fr-FR")}`}
+                      </div>
+                      {t.motif && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{t.motif}</div>}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>
-                      Depuis le {new Date(t.date_effet).toLocaleDateString("fr-FR")}
-                      {t.date_fin && ` — jusqu'au ${new Date(t.date_fin).toLocaleDateString("fr-FR")}`}
-                    </div>
-                    {t.motif && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{t.motif}</div>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -448,16 +508,52 @@ useEffect(() => {
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px" }}>
             <div style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A", marginBottom: "16px" }}>Nouvel avenant</div>
             <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>
-              Réservé aux rôles admin / admin national. Un nouvel avenant ferme automatiquement le taux précédent — il ne s'applique qu'aux diagnostics réalisés après la date d'effet.
+              Réservé aux rôles admin / admin national. Un nouvel avenant remplace le précédent à sa date d'effet — il ne s'applique qu'aux diagnostics réalisés à partir de cette date. Les commissions déjà figées ne changent pas.
             </div>
             {erreurTaux && <div style={{ fontSize: "12px", color: "#B91C1C", marginBottom: "12px" }}>{erreurTaux}</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <div>
-                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>Montant (€ / diagnostic réalisé)</label>
+                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>Type d'avenant</label>
+                <div style={{ display: "flex", gap: "4px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "8px", padding: "3px", width: "fit-content" }}>
+                  {([
+                    { key: "forfait" as const,     label: "Forfait (€)",      icon: "ti-coin" },
+                    { key: "pourcentage" as const, label: "Pourcentage (%)",  icon: "ti-percentage" },
+                  ]).map(m => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setModeAvenant(m.key)}
+                      aria-pressed={modeAvenant === m.key}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "5px",
+                        padding: "6px 12px", border: "none", borderRadius: "6px",
+                        background: modeAvenant === m.key ? "#FFFFFF" : "transparent",
+                        color: modeAvenant === m.key ? "#0F172A" : "#64748B",
+                        fontSize: "12px", fontWeight: modeAvenant === m.key ? 500 : 400,
+                        cursor: "pointer", fontFamily: "inherit",
+                        boxShadow: modeAvenant === m.key ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                      }}
+                    >
+                      <i className={`ti ${m.icon}`} style={{ fontSize: "13px" }} aria-hidden="true" />
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {modeAvenant === "pourcentage" && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "7px", padding: "8px 10px" }}>
+                  <i className="ti ti-alert-triangle" style={{ fontSize: "14px", marginTop: "1px", flexShrink: 0 }} aria-hidden="true" />
+                  Avec un avenant en pourcentage, le prix HT du diagnostic devient obligatoire pour passer une demande à « Diagnostic réalisé ».
+                </div>
+              )}
+              <div>
+                <label style={{ display: "block", fontSize: "12px", color: "#64748B", marginBottom: "4px" }}>
+                  {modeAvenant === "pourcentage" ? "Pourcentage (% du prix HT du diagnostic)" : "Montant (€ / diagnostic réalisé)"}
+                </label>
                 <input
                   value={nouveauTaux}
                   onChange={e => setNouveauTaux(e.target.value)}
-                  placeholder="180,00"
+                  placeholder={modeAvenant === "pourcentage" ? "10" : "180,00"}
                   style={{ width: "100%", padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "13px", fontFamily: "'DM Mono', monospace", boxSizing: "border-box" }}
                 />
               </div>

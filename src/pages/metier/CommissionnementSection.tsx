@@ -17,6 +17,12 @@ interface Prescripteur {
   segment_prescripteur: string
 }
 
+export interface ConfigCommission {
+  mode: "forfait" | "pourcentage"
+  taux_eur: number | null
+  pourcentage: number | null
+}
+
 const SEGMENTS = [
   { value: "courtiers_assurance",     label: "Courtiers assurance" },
   { value: "avocats_catnat",          label: "Avocats CatNat" },
@@ -37,6 +43,10 @@ function formatPct(v: number | null) {
   if (v === null || Number.isNaN(v)) return "—"
   return `${v.toFixed(1).replace(".", ",")}\u00A0%`
 }
+function formatTaux(v: number | null) {
+  if (v === null || Number.isNaN(Number(v))) return "—"
+  return `${Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}\u00A0%`
+}
 function plageDates(periode: Periode): { debut: Date | null } {
   const auj = new Date()
   if (periode === "tout") return { debut: null }
@@ -53,15 +63,27 @@ export default function CommissionnementSection({
   demandes,
   prescripteurs,
   tauxActuel,
+  configActuelle,
 }: {
   demandes: Demande[]
   prescripteurs: Prescripteur[]
   tauxActuel: number | null
+  configActuelle?: ConfigCommission | null
 }) {
   const [periode, setPeriode] = useState<Periode>("mois")
   const [segment, setSegment] = useState("")
   const [region, setRegion] = useState("")
   const [recherche, setRecherche] = useState("")
+
+  // Libellé du taux : config en vigueur si fournie (forfait ou pourcentage), sinon ancien comportement (forfait seul)
+  const libelleTaux: string | null = configActuelle
+    ? (configActuelle.mode === "pourcentage"
+        ? formatTaux(configActuelle.pourcentage)
+        : formatEur(Number(configActuelle.taux_eur ?? 0)))
+    : (tauxActuel !== null ? formatEur(tauxActuel) : null)
+  const suffixeTaux = configActuelle?.mode === "pourcentage"
+    ? "du prix HT du diagnostic réalisé"
+    : "/ diagnostic réalisé"
 
   const lignes = useMemo(() => {
     const { debut } = plageDates(periode)
@@ -103,9 +125,9 @@ export default function CommissionnementSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {tauxActuel !== null && (
+      {libelleTaux !== null && (
         <div style={{ fontSize: "12px", color: "#6B7280" }}>
-          Taux appliqué : <strong style={{ color: "#111827", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(tauxActuel)}</strong> / diagnostic réalisé — non modifiable, évolution uniquement par avenant
+          Taux appliqué : <strong style={{ color: "#111827", fontFamily: "JetBrains Mono, monospace" }}>{libelleTaux}</strong> {suffixeTaux} — non modifiable, évolution uniquement par avenant
         </div>
       )}
 

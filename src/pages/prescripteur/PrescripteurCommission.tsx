@@ -19,6 +19,20 @@ interface Demande {
 
 type Periode = "mois" | "trimestre" | "annee" | "tout"
 
+interface ConfigCommission {
+  mode: "forfait" | "pourcentage"
+  taux_eur: number | null
+  pourcentage: number | null
+}
+
+function formatTaux(v: number | null) {
+  if (v === null || Number.isNaN(Number(v))) return "—"
+  return `${Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}\u00A0%`
+}
+function aujourdhuiISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 function formatEur(v: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(v)
 }
@@ -41,7 +55,7 @@ const iStyle: React.CSSProperties = { padding: "8px 12px", border: "1px solid #E
 export default function PrescripteurCommission() {
   const prescripteur = useOutletContext<Prescripteur>()
   const [demandes, setDemandes] = useState<Demande[]>([])
-  const [tauxActuel, setTauxActuel] = useState<number | null>(null)
+  const [configActuelle, setConfigActuelle] = useState<ConfigCommission | null>(null)
   const [loading, setLoading] = useState(true)
   const [periode, setPeriode] = useState<Periode>("mois")
 
@@ -52,10 +66,16 @@ export default function PrescripteurCommission() {
     setLoading(true)
     const [demRes, tauxRes] = await Promise.all([
       supabase.from("demandes_diagnostic").select("id, statut, commission_due, created_at").eq("prescripteur_id", prescripteur.id),
-      supabase.from("commissionnement_config").select("taux_eur").is("date_fin", null).maybeSingle(),
+      supabase.from("commissionnement_config")
+        .select("mode, taux_eur, pourcentage")
+        .lte("date_effet", aujourdhuiISO())
+        .or(`date_fin.is.null,date_fin.gte.${aujourdhuiISO()}`)
+        .order("date_effet", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
     setDemandes(demRes.data || [])
-    setTauxActuel(tauxRes.data?.taux_eur ?? null)
+    setConfigActuelle((tauxRes.data as ConfigCommission | null) ?? null)
     setLoading(false)
   }
 
@@ -91,10 +111,14 @@ export default function PrescripteurCommission() {
         </select>
       </div>
 
-      {tauxActuel !== null && (
+      {configActuelle && (
         <div style={{ fontSize: "12px", color: "#6B7280", background: "#F5ECE1", border: "1px solid #E9D9C5", borderRadius: "8px", padding: "10px 14px", display: "flex", alignItems: "center", gap: "8px" }}>
           <i className="ti ti-lock" style={{ fontSize: "14px", color: "#8B5E34" }} aria-hidden="true" />
-          Taux appliqué : <strong style={{ color: "#111827", fontFamily: "JetBrains Mono, monospace" }}>{formatEur(tauxActuel)}</strong> / diagnostic réalisé — non modifiable, toute évolution passe par avenant
+          Taux appliqué : <strong style={{ color: "#111827", fontFamily: "JetBrains Mono, monospace" }}>
+            {configActuelle.mode === "pourcentage"
+              ? formatTaux(configActuelle.pourcentage)
+              : formatEur(Number(configActuelle.taux_eur ?? 0))}
+          </strong> {configActuelle.mode === "pourcentage" ? "du prix HT du diagnostic réalisé" : "/ diagnostic réalisé"} — non modifiable, toute évolution passe par avenant
         </div>
       )}
 
