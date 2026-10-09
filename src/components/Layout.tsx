@@ -361,6 +361,7 @@ export default function Layout() {
   // Badges
   const [nbFileAttente, setNbFileAttente]       = useState(0)
   const [nbCampagnes, setNbCampagnes]           = useState(0)
+  const [nbCandidatures, setNbCandidatures]     = useState(0)
   const [nbMissions, setNbMissions]             = useState(0)
   const [nbRapportsAttente, setNbRapportsAttente] = useState(0)
   const [nbMessagesAGE, setNbMessagesAGE]       = useState(0)
@@ -494,6 +495,13 @@ export default function Layout() {
             .eq("origine", "client")
             .eq("statut", "soumise")
           setNbCampagnes(countCamp || 0)
+
+          // Candidatures partenaires à traiter (badge du lien Administration)
+          const { count: countCandidatures } = await supabase
+            .from("prestataires_pro")
+            .select("id", { count: "exact", head: true })
+            .eq("statut", "en_attente")
+          setNbCandidatures(countCandidatures || 0)
         }
 
         async function chargerNbRdvNonVus(userId: string) {
@@ -532,6 +540,8 @@ export default function Layout() {
             .on("postgres_changes", { event: "*", schema: "public", table: "demandes_marketplace" },
               () => declencherRecalculBadges(chargerBadgesAdmin))
             .on("postgres_changes", { event: "*", schema: "public", table: "alertes_scores" },
+              () => declencherRecalculBadges(chargerBadgesAdmin))
+            .on("postgres_changes", { event: "*", schema: "public", table: "prestataires_pro" },
               () => declencherRecalculBadges(chargerBadgesAdmin))
             .subscribe()
         }
@@ -996,7 +1006,7 @@ if (role === "consultant") {
 
               {/* Administration */}
               {roleAGE === "admin_national" && (
-                <NavItem to="/metier/admin" icon="ti-adjustments-horizontal" label="Administration" />
+                <NavItem to="/metier/admin" icon="ti-adjustments-horizontal" label="Administration" badge={nbCandidatures} />
               )}
             </>
           )}

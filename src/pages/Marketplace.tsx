@@ -5,11 +5,8 @@ import { resolveAffectationClient } from "../lib/resolveAffectationClient"
 
 // -- Types rôle / statut partenaire
 type UserRole = "admin" | "client" | "partenaire" | "consultant"
-type StatutPro = "en_attente" | "valide" | "rejete" | null
-
 interface UserContext {
   role: UserRole | null
-  statutPro: StatutPro
 }
 
 const partenaires = [
@@ -33,17 +30,39 @@ const CONSULTANT_COLORS: Record<number, { color: string; bg: string }> = {
   6: { color: "#993C1D", bg: "#FAECE7" }, // coral
   7: { color: "#185FA5", bg: "#E6F1FB" }, // blue
   8: { color: "#0F6E56", bg: "#E1F5EE" }, // teal
+  9: { color: "#534AB7", bg: "#EEEDFE" }, // purple
 }
 
-const consultantsAGE = [
-  { id: 1, type: "Expert Risques Climatiques",       desc: "Analyse et gestion des risques climatiques physiques et de transition", icon: "ti-shield",         competences: ["Score risque climatique", "Brown Value", "Analyse PPRI / RGA", "Plan d'adaptation"],                                                                               disponible: true  },
-  { id: 2, type: "Expert Données Climatiques",       desc: "Collecte, traitement et valorisation des données climatiques",          icon: "ti-database",       competences: ["Intégration API climat", "Traitement données satellite", "Analyse géospatiale", "Enrichissement bases immobilières"],                                    disponible: true  },
-  { id: 3, type: "Expert Prévention Climatique",     desc: "Prévention des risques naturels et adaptation des actifs",              icon: "ti-refresh-alert",  competences: ["Organisation des campagnes", "Accompagnement aides et subventions", "Coordination interventions sur sites", "Fonds Barnier", "Fonds prévention RGA"],  disponible: true },
-  { id: 4, type: "Expert Adaptation Climatique",     desc: "Stratégies d'adaptation au changement climatique",                     icon: "ti-plant-2",        competences: ["Diagnostic de vulnérabilité climatique", "Stratégie d'adaptation climatique", "Organisation des interventions travaux"],                                disponible: true  },
-  { id: 5, type: "Expert Ingénierie Climatique",     desc: "Solutions techniques d'adaptation et de résilience",                   icon: "ti-tool",           competences: ["Mise en œuvre stratégie climatique", "Expertise aléas climatiques", "Coordination travaux"],                                                           disponible: true  },
-  { id: 6, type: "Expert ESG / Conformité",          desc: "Conformité réglementaire et reporting ESG/CSRD",                       icon: "ti-file-analytics", competences: ["Stratégie RSE", "CSRD", "Taxonomie EU"],                                                                                                             disponible: true  },
-  { id: 7, type: "Expert Performance Énergétique",   desc: "Optimisation énergétique et conformité réglementaire bâtiment",       icon: "ti-bolt",           competences: ["Décret Tertiaire", "BACS", "ISO 50001"],                                                                                                             disponible: true  },
-  { id: 8, type: "Expert Carbone",                   desc: "Pilotage de la trajectoire carbone et neutralité",                     icon: "ti-leaf",           competences: ["BEGES", "Bilan GES"],                                                                                                                                disponible: true  },
+// -- Domaines d'expertise (blocs cliquables de l'onglet Consultants AGE)
+type DomaineId = "climat" | "energie" | "reglementation" | "it"
+
+interface ConsultantAGE {
+  id: number
+  domaine: DomaineId
+  type: string
+  desc: string
+  icon: string
+  competences: string[]
+  disponible: boolean
+}
+
+const DOMAINES: { id: DomaineId; label: string; icon: string; color: string; bg: string }[] = [
+  { id: "climat",         label: "Climat",         icon: "ti-thermometer", color: "#0F6E56", bg: "#E6F4EF" },
+  { id: "energie",        label: "Energie",        icon: "ti-bolt",        color: "#9A5B0A", bg: "#FBF1DC" },
+  { id: "reglementation", label: "Réglementation", icon: "ti-scale",       color: "#2F5D8A", bg: "#E4EEF7" },
+  { id: "it",             label: "IT",             icon: "ti-code",        color: "#5B4B9A", bg: "#ECE8F6" },
+]
+
+const consultantsAGE: ConsultantAGE[] = [
+  { id: 1, domaine: "climat", type: "Expert Risques Climatiques",       desc: "Analyse et gestion des risques climatiques physiques et de transition", icon: "ti-shield",         competences: ["Score risque climatique", "Brown Value", "Analyse PPRI / RGA", "Plan d'adaptation"],                                                                               disponible: true  },
+  { id: 2, domaine: "it", type: "Expert Geodata climatique",       desc: "Collecte, traitement et valorisation des données climatiques",          icon: "ti-database",       competences: ["Intégration API climat", "Traitement données satellite", "Analyse géospatiale", "Enrichissement bases immobilières"],                                    disponible: true  },
+  { id: 3, domaine: "climat", type: "Expert Prévention Climatique",     desc: "Prévention des risques naturels et adaptation des actifs",              icon: "ti-refresh-alert",  competences: ["Organisation des campagnes", "Accompagnement aides et subventions", "Coordination interventions sur sites", "Fonds Barnier", "Fonds prévention RGA"],  disponible: true },
+  { id: 4, domaine: "climat", type: "Expert Adaptation Climatique",     desc: "Stratégies d'adaptation au changement climatique",                     icon: "ti-plant-2",        competences: ["Diagnostic de vulnérabilité climatique", "Stratégie d'adaptation climatique", "Organisation des interventions travaux"],                                disponible: true  },
+  { id: 5, domaine: "climat", type: "Expert Ingénierie Climatique",     desc: "Solutions techniques d'adaptation et de résilience",                   icon: "ti-tool",           competences: ["Mise en œuvre stratégie climatique", "Expertise aléas climatiques", "Coordination travaux"],                                                           disponible: true  },
+  { id: 6, domaine: "reglementation", type: "Expert ESG / Conformité",          desc: "Conformité réglementaire et reporting ESG/CSRD",                       icon: "ti-file-analytics", competences: ["Stratégie RSE", "CSRD", "Taxonomie EU"],                                                                                                             disponible: true  },
+  { id: 7, domaine: "energie", type: "Expert Performance Énergétique",   desc: "Optimisation énergétique et conformité réglementaire bâtiment",       icon: "ti-bolt",           competences: ["Décret Tertiaire", "BACS", "ISO 50001"],                                                                                                             disponible: true  },
+  { id: 8, domaine: "energie", type: "Expert Carbone",                   desc: "Pilotage de la trajectoire carbone et neutralité",                     icon: "ti-leaf",           competences: ["BEGES", "Bilan GES"],                                                                                                                                disponible: true  },
+  { id: 9, domaine: "it", type: "Expert Technologie Delphi", desc: "Maintenance, modernisation et intégration d'IA sur applications Delphi", icon: "ti-code", competences: ["Régie Delphi, Oracle ou .NET", "Pilote IA et audit", "Modernisation ciblée", "Intégration IA métier", "TMA au forfait", "Formation Delphi moderne et IA"], disponible: true },
 ]
 
 const FAMILLES = [
@@ -92,19 +111,8 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
   refusee:            { label: "Refusée",             color: "#991B1B", bg: "#FEF2F2" },
 }
 
-const typeStructures    = ["diagnostiqueur", "bureau_etudes", "artisan", "financeur", "consultant", "autre"]
-const zonesIntervention = ["Île-de-France", "Nouvelle-Aquitaine", "Occitanie", "PACA", "Bretagne", "Auvergne-Rhône-Alpes", "National", "International"]
-
 function iStyle(disabled = false): React.CSSProperties {
   return { width: "100%", padding: "8px 10px", border: "1px solid #E2E8F0", borderRadius: "7px", fontSize: "12px", color: disabled ? "#94A3B8" : "#0F172A", background: disabled ? "#F8FAFC" : "white", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const }
-}
-
-function lStyle(): React.CSSProperties {
-  return { display: "block", fontSize: "11px", fontWeight: 600, color: "#94A3B8", marginBottom: "5px", textTransform: "uppercase" as const, letterSpacing: "0.07em" }
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", padding: "14px 0 8px", borderBottom: "1px solid #E2E8F0", marginBottom: "12px" }}>{children}</div>
 }
 
 interface DemandeForm {
@@ -120,6 +128,9 @@ export default function Marketplace() {
   const [filtreFamille, setFiltreFamille] = useState("tous")
   const [filtreType, setFiltreType]       = useState("tous")
   const [recherche, setRecherche]         = useState("")
+  const [filtreDomaine, setFiltreDomaine] = useState<DomaineId | "tous">("tous")
+  const consultantsFiltres = consultantsAGE.filter(c => filtreDomaine === "tous" || c.domaine === filtreDomaine)
+  const domaineActif = DOMAINES.find(d => d.id === filtreDomaine)
 
   const [demandeOuverte, setDemandeOuverte] = useState<number | null>(null)
   const [sourceType, setSourceType]         = useState<"partenaire" | "consultant">("partenaire")
@@ -129,7 +140,7 @@ export default function Marketplace() {
   const [consultantActif, setConsultantActif] = useState<typeof consultantsAGE[0] | null>(null)
 
   // -- Contexte utilisateur
-  const [userCtx, setUserCtx] = useState<UserContext>({ role: null, statutPro: null })
+  const [userCtx, setUserCtx] = useState<UserContext>({ role: null })
 
   useEffect(() => {
     async function loadUserContext() {
@@ -154,24 +165,14 @@ const role: UserRole | null = profilAGE?.role
   ? "client"
   : null
 
-      let statutPro: StatutPro = null
-      if (role === "partenaire") {
-        const { data: pro } = await supabase
-          .from("prestataires_pro")
-          .select("statut")
-          .eq("user_id", user.id)
-          .single()
-        statutPro = (pro?.statut as StatutPro) ?? null
-      }
-
-      setUserCtx({ role, statutPro })
+      setUserCtx({ role })
     }
     loadUserContext()
   }, [])
   useEffect(() => {
   if (!userCtx.role) return
   if (userCtx.role === "admin") setOnglet("partenaires")
-  else if (userCtx.role === "partenaire") setOnglet("demandes")
+  else if (userCtx.role === "partenaire") navigate("/partenaire/dashboard", { replace: true })
   else setOnglet("consultants")
 }, [userCtx.role])
 
@@ -203,15 +204,6 @@ const role: UserRole | null = profilAGE?.role
   }, [userCtx.role])
 
  
-
-  const [formPro, setFormPro]   = useState({ nom: "", prenom: "", societe: "", email: "", telephone: "", site_web: "", type_structure: "", familles: [] as string[], zones_intervention: [] as string[], tarif_journalier: "", description: "" })
-  const [loadingPro, setLoadingPro] = useState(false)
-  const [succesPro, setSuccesPro]   = useState(false)
-  const [erreurPro, setErreurPro]   = useState("")
-
-  function toggleArray(arr: string[], val: string): string[] {
-    return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
-  }
 
 function handleSwitchOnglet(o: string) {
     setOnglet(o)
@@ -256,15 +248,6 @@ setSuccesDemande(consultant.id)
     setTimeout(() => { setSuccesDemande(null); setDemandeOuverte(null); setConsultantActif(null); setFormDemande({ type_prestation: "", actif_id: "", description: "" }) }, 3000)
   }
 
-  async function handleSubmitPro() {
-    if (!formPro.nom || !formPro.societe || !formPro.email || !formPro.type_structure) { setErreurPro("Champs obligatoires manquants."); return }
-    setLoadingPro(true); setErreurPro("")
-    const { error } = await supabase.from("prestataires_pro").insert([{ ...formPro, tarif_journalier: formPro.tarif_journalier ? parseFloat(formPro.tarif_journalier) : null, statut: "en_attente" }])
-    if (error) setErreurPro("Erreur lors de l'envoi. Veuillez réessayer.")
-    else setSuccesPro(true)
-    setLoadingPro(false)
-  }
-
   const partenairesAffiches = partenaires.filter(p => {
     if (filtreFamille !== "tous" && !p.familles.includes(filtreFamille)) return false
     if (filtreType !== "tous" && p.type !== filtreType) return false
@@ -279,9 +262,6 @@ const onglets = !userCtx.role ? [] : [
     : []),
   ...(userCtx.role !== "partenaire"
     ? [{ id: "consultants", label: "Consultants AGE", icon: "ti-users" }]
-    : []),
-  ...(userCtx.role !== "client"
-    ? [{ id: "pro", label: "Espace Pro", icon: "ti-briefcase" }]
     : []),
 ]
 
@@ -465,9 +445,55 @@ const onglets = !userCtx.role ? [] : [
             <i className="ti ti-users" style={{ fontSize: "18px", color: "#0F6E56" }} aria-hidden="true" />
             <span style={{ fontSize: "13px", fontWeight: 500, color: "#065F46" }}>Consultants AGE mis à disposition — expertise climatique certifiée</span>
           </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>Rechercher un expert par domaine</div>
+            <button
+              type="button"
+              onClick={() => setFiltreDomaine("tous")}
+              aria-pressed={filtreDomaine === "tous"}
+              style={{ cursor: "pointer", fontSize: "12px", fontWeight: 500, padding: "7px 14px", borderRadius: "999px", fontFamily: "inherit", border: `1px solid ${filtreDomaine === "tous" ? "#0F6E56" : "#E2E8F0"}`, background: filtreDomaine === "tous" ? "#ECFDF5" : "#FFFFFF", color: filtreDomaine === "tous" ? "#065F46" : "#64748B" }}
+            >
+              Tous les domaines
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+            {DOMAINES.map(d => {
+              const experts = consultantsAGE.filter(c => c.domaine === d.id)
+              const actif = filtreDomaine === d.id
+              const estompe = filtreDomaine !== "tous" && !actif
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setFiltreDomaine(actif ? "tous" : d.id)}
+                  aria-pressed={actif}
+                  style={{ boxSizing: "border-box", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "18px 18px 16px", borderRadius: "12px", fontFamily: "inherit", background: actif ? d.bg : "#FFFFFF", border: `2px solid ${actif ? d.color : "#E2E8F0"}`, opacity: estompe ? 0.6 : 1, transition: "border-color 0.12s, opacity 0.12s" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                    <div style={{ width: 44, height: 44, borderRadius: "10px", background: d.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <i className={`ti ${d.icon}`} style={{ fontSize: "22px", color: d.color }} aria-hidden="true" />
+                    </div>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", fontWeight: 500, color: d.color, background: actif ? "#FFFFFF" : d.bg, padding: "4px 9px", borderRadius: "999px" }}>
+                      {experts.length} expert{experts.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#0F172A", marginTop: "14px" }}>{d.label}</div>
+                  <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.45, marginTop: "4px" }}>
+                    {experts.map(c => c.type.replace("Expert ", "")).join(", ")}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
+            {consultantsFiltres.length} expert{consultantsFiltres.length > 1 ? "s" : ""} · {domaineActif ? domaineActif.label : "tous les domaines"}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
           
-       {consultantsAGE.map(c => {
+       {consultantsFiltres.map(c => {
               const ouvert = demandeOuverte === c.id && sourceType === "consultant"
               const succes = succesDemande === c.id && sourceType === "consultant"
               const couleur = CONSULTANT_COLORS[c.id] || CONSULTANT_COLORS[1]
@@ -550,115 +576,6 @@ const onglets = !userCtx.role ? [] : [
 
           
           </div>
-        </div>
-      )}
-
-{/* ── ESPACE PRO ── */}
-      {onglet === "pro" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-
-          {/* En attente */}
-          {userCtx.statutPro === "en_attente" && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "10px", padding: "32px", textAlign: "center" }}>
-              <i className="ti ti-clock" style={{ fontSize: "40px", color: "#D97706", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Dossier en cours d'examen</div>
-              <div style={{ fontSize: "13px", color: "#64748B", maxWidth: "420px", margin: "0 auto" }}>
-                Votre candidature a bien été reçue. Notre équipe l'examine sous 5 jours ouvrés.
-                Vous serez notifié par email dès qu'une décision sera prise.
-              </div>
-            </div>
-          )}
-
-          {/* Rejeté */}
-          {userCtx.statutPro === "rejete" && (
-            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "10px", padding: "32px", textAlign: "center" }}>
-              <i className="ti ti-x-circle" style={{ fontSize: "40px", color: "#B91C1C", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-              <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Candidature non retenue</div>
-              <div style={{ fontSize: "13px", color: "#64748B", maxWidth: "420px", margin: "0 auto" }}>
-                Votre dossier n'a pas pu être validé à ce stade.
-                Pour toute question, contactez-nous à <strong>partenaires@age-climate.fr</strong>.
-              </div>
-            </div>
-          )}
-
-          {/* Formulaire : validé, admin, ou partenaire sans dossier */}
-          {(userCtx.statutPro === "valide" || userCtx.role === "admin" || (userCtx.role === "partenaire" && userCtx.statutPro === null)) && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "20px 24px", display: "flex", alignItems: "center", gap: "20px" }}>
-                <div style={{ width: 48, height: 48, borderRadius: "12px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <i className="ti ti-briefcase" style={{ fontSize: "24px", color: "#0F6E56" }} aria-hidden="true" />
-                </div>
-                <div>
-                  <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Rejoignez le réseau AGE Climate</div>
-                  <div style={{ fontSize: "13px", color: "#64748B" }}>Référencez vos prestations et accédez aux missions de nos clients. Dossier examiné sous 5 jours ouvrés.</div>
-                </div>
-              </div>
-
-              {succesPro ? (
-                <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "10px", padding: "40px", textAlign: "center" }}>
-                  <i className="ti ti-circle-check" style={{ fontSize: "40px", color: "#0F6E56", display: "block", marginBottom: "12px" }} aria-hidden="true" />
-                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#0F172A", marginBottom: "6px" }}>Dossier envoyé !</div>
-                  <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "20px" }}>Notre équipe examine votre candidature sous 5 jours ouvrés.</div>
-                  <button onClick={() => setSuccesPro(false)} style={{ background: "#0F6E56", color: "white", border: "none", padding: "9px 20px", borderRadius: "7px", cursor: "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit" }}>Nouveau dossier</button>
-                </div>
-              ) : (
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "24px" }}>
-                  {erreurPro && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#991B1B" }}>
-                      <i className="ti ti-alert-triangle" style={{ fontSize: "15px" }} aria-hidden="true" />{erreurPro}
-                    </div>
-                  )}
-                  <SectionTitle>Identité</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                    <div><label style={lStyle()}>Prénom *</label><input value={formPro.prenom} onChange={e => setFormPro({ ...formPro, prenom: e.target.value })} style={iStyle()} placeholder="Votre prénom" /></div>
-                    <div><label style={lStyle()}>Nom *</label><input value={formPro.nom} onChange={e => setFormPro({ ...formPro, nom: e.target.value })} style={iStyle()} placeholder="Votre nom" /></div>
-                    <div><label style={lStyle()}>Société *</label><input value={formPro.societe} onChange={e => setFormPro({ ...formPro, societe: e.target.value })} style={iStyle()} placeholder="Raison sociale" /></div>
-                    <div><label style={lStyle()}>Email professionnel *</label><input type="email" value={formPro.email} onChange={e => setFormPro({ ...formPro, email: e.target.value })} style={iStyle()} placeholder="contact@societe.fr" /></div>
-                    <div><label style={lStyle()}>Téléphone</label><input value={formPro.telephone} onChange={e => setFormPro({ ...formPro, telephone: e.target.value })} style={iStyle()} placeholder="06 XX XX XX XX" /></div>
-                    <div><label style={lStyle()}>Site web</label><input value={formPro.site_web} onChange={e => setFormPro({ ...formPro, site_web: e.target.value })} style={iStyle()} placeholder="https://www.societe.fr" /></div>
-                  </div>
-                  <SectionTitle>Profil métier</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                    <div>
-                      <label style={lStyle()}>Type de structure *</label>
-                      <select value={formPro.type_structure} onChange={e => setFormPro({ ...formPro, type_structure: e.target.value })} style={{ ...iStyle(), cursor: "pointer" }}>
-                        <option value="">Choisir…</option>
-                        {typeStructures.map(t => <option key={t} value={t}>{TYPE_CONFIG[t]?.label || t}</option>)}
-                      </select>
-                    </div>
-                    <div><label style={lStyle()}>Tarif journalier (€/j)</label><input type="number" value={formPro.tarif_journalier} onChange={e => setFormPro({ ...formPro, tarif_journalier: e.target.value })} style={iStyle()} placeholder="Ex : 800" /></div>
-                  </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <label style={lStyle()}>Familles de prestations proposées</label>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {FAMILLES.filter(f => f.id !== "tous").map(f => (
-                        <button key={f.id} onClick={() => setFormPro({ ...formPro, familles: toggleArray(formPro.familles, f.id) })} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", border: formPro.familles.includes(f.id) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.familles.includes(f.id) ? "#ECFDF5" : "white", color: formPro.familles.includes(f.id) ? "#065F46" : "#64748B", fontSize: "12px", fontWeight: formPro.familles.includes(f.id) ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                          <i className={`ti ${f.icon}`} style={{ fontSize: "14px" }} aria-hidden="true" />{f.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <label style={lStyle()}>Zones d'intervention</label>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                      {zonesIntervention.map(z => (
-                        <button key={z} onClick={() => setFormPro({ ...formPro, zones_intervention: toggleArray(formPro.zones_intervention, z) })} style={{ padding: "5px 12px", borderRadius: "6px", border: formPro.zones_intervention.includes(z) ? "1px solid #0F6E56" : "1px solid #E2E8F0", background: formPro.zones_intervention.includes(z) ? "#ECFDF5" : "white", color: formPro.zones_intervention.includes(z) ? "#065F46" : "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>{z}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={lStyle()}>Présentation de vos prestations</label>
-                    <textarea value={formPro.description} onChange={e => setFormPro({ ...formPro, description: e.target.value })} rows={4} placeholder="Décrivez vos expertises, références, méthodes de travail…" style={{ ...iStyle(), resize: "vertical" as const }} />
-                  </div>
-                  <button onClick={handleSubmitPro} disabled={loadingPro} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "#0F6E56", color: "white", border: "none", padding: "10px 24px", borderRadius: "7px", cursor: loadingPro ? "wait" : "pointer", fontWeight: 500, fontSize: "13px", fontFamily: "inherit", width: "100%", opacity: loadingPro ? 0.7 : 1 }}>
-                    <i className="ti ti-send" style={{ fontSize: "15px" }} aria-hidden="true" />
-                    {loadingPro ? "Envoi en cours…" : "Envoyer mon dossier de candidature"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
         </div>
       )}
 

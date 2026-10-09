@@ -81,11 +81,53 @@ const documents = [
   { nom: "Rapport COMEX",        type: "Reporting" },
 ]
 
+// Bloc libellé / valeur de la fiche candidat partenaire
+function Champ({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: "10px", fontWeight: 600, color: "#78716C", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "3px" }}>{label}</div>
+      <div style={{ fontSize: "13px", color: "#1F2937", lineHeight: 1.5, wordBreak: "break-word" }}>{children}</div>
+    </div>
+  )
+}
+
+function Section({ titre, icone, children }: { titre: string; icone: string; children: React.ReactNode }) {
+  return (
+    <section style={{ padding: "16px 24px", borderTop: "1px solid #E5E1DA" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#B25C2A", marginBottom: "12px" }}>
+        <i className={`ti ${icone}`} style={{ fontSize: "15px" }} aria-hidden="true" />
+        {titre}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Pastilles({ items }: { items?: string[] | null }) {
+  if (!items || items.length === 0) return <span style={{ color: "#78716C" }}>—</span>
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+      {items.map((s, j) => (
+        <span key={j} style={{ background: "#F4F3F0", border: "1px solid #E5E1DA", color: "#1F2937", fontSize: "11px", padding: "3px 8px", borderRadius: "6px" }}>{s}</span>
+      ))}
+    </div>
+  )
+}
+
 export default function Administration() {
   const [onglet, setOnglet]           = useState("partenaires")
   const [partenaires, setPartenaires] = useState<any[]>([])
   const [loadingP, setLoadingP]       = useState(false)
   const [actionId, setActionId]       = useState<string | null>(null)
+  const [fiche, setFiche]             = useState<any | null>(null)
+
+  // Fermeture de la fiche candidat à la touche Échap
+  useEffect(() => {
+    if (!fiche) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFiche(null) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [fiche])
 
   const [tauxHistorique, setTauxHistorique] = useState<TauxCommission[]>([])
   const [loadingTaux, setLoadingTaux]       = useState(false)
@@ -259,7 +301,8 @@ useEffect(() => {
         <tbody>
           {partenaires.map((p, i) => (
             <tr key={p.id}
-              style={{ borderBottom: i < partenaires.length - 1 ? "1px solid #E2DDD8" : "none", background: p.statut === "en_attente" ? "#FFFBF7" : "transparent" }}
+              onClick={() => setFiche(p)}
+              style={{ cursor: "pointer", borderBottom: i < partenaires.length - 1 ? "1px solid #E2DDD8" : "none", background: p.statut === "en_attente" ? "#FFFBF7" : "transparent" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#F9F0EA")}
               onMouseLeave={e => (e.currentTarget.style.background = p.statut === "en_attente" ? "#FFFBF7" : "transparent")}
             >
@@ -298,12 +341,12 @@ useEffect(() => {
               <td style={{ padding: "12px 16px" }}>
                 <div style={{ display: "flex", gap: "6px" }}>
                   {p.kbis_url && (
-                    <a href={p.kbis_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#0369A1", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+                    <a href={p.kbis_url} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#0369A1", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
                       <i className="ti ti-file" style={{ fontSize: "12px" }} /> Kbis
                     </a>
                   )}
                   {p.assurance_url && (
-                    <a href={p.assurance_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#0369A1", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+                    <a href={p.assurance_url} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#0369A1", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
                       <i className="ti ti-file" style={{ fontSize: "12px" }} /> Assurance
                     </a>
                   )}
@@ -311,7 +354,14 @@ useEffect(() => {
               </td>
               <td style={{ padding: "12px 16px" }}>
                 {p.statut === "en_attente" && (
-                  <div style={{ display: "flex", gap: "6px" }}>
+                  <div style={{ display: "flex", gap: "6px" }} onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => setFiche(p)}
+                      style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#FFFFFF", color: "#1F2937", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      <i className="ti ti-eye" style={{ fontSize: "12px" }} aria-hidden="true" />
+                      Fiche
+                    </button>
                     <button
                       onClick={() => validerPartenaire(p.id, p.user_id)}
                       disabled={actionId === p.id}
@@ -331,7 +381,16 @@ useEffect(() => {
                   </div>
                 )}
                 {p.statut !== "en_attente" && (
-                  <span style={{ fontSize: "11px", color: "#9CA3AF" }}>Traité</span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }} onClick={e => e.stopPropagation()}>
+                    <span style={{ fontSize: "11px", color: "#9CA3AF" }}>Traité</span>
+                    <button
+                      onClick={() => setFiche(p)}
+                      style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "6px", border: "1px solid #E2DDD8", background: "#FFFFFF", color: "#1F2937", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      <i className="ti ti-eye" style={{ fontSize: "12px" }} aria-hidden="true" />
+                      Fiche
+                    </button>
+                  </div>
                 )}
               </td>
             </tr>
@@ -341,6 +400,124 @@ useEffect(() => {
     )}
   </div>
 )}
+      {/* Fiche candidat partenaire (modale) */}
+      {fiche && (
+        <div
+          onClick={() => setFiche(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(31,41,55,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 1000 }}
+        >
+          <div
+            role="dialog" aria-modal="true" aria-labelledby="fiche-titre"
+            onClick={e => e.stopPropagation()}
+            style={{ background: "#FFFFFF", borderRadius: "12px", width: "100%", maxWidth: "760px", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}
+          >
+            {/* En-tête */}
+            <div style={{ padding: "20px 24px", display: "flex", alignItems: "flex-start", gap: "14px" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#F9F0EA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: "#B25C2A", flexShrink: 0 }}>
+                {(fiche.prenom?.[0] || "").toUpperCase()}{(fiche.nom?.[0] || "").toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 id="fiche-titre" style={{ margin: 0, fontSize: "17px", fontWeight: 600, color: "#1F2937" }}>{fiche.prenom} {fiche.nom}</h2>
+                <div style={{ fontSize: "13px", color: "#78716C", marginTop: "2px" }}>
+                  {fiche.societe || "—"}{fiche.type_structure ? ` · ${fiche.type_structure}` : ""}
+                </div>
+                <div style={{ marginTop: "8px", display: "inline-flex", alignItems: "center", gap: "5px",
+                  background: fiche.statut === "valide" ? "#F0FDF4" : fiche.statut === "rejete" ? "#FEF2F2" : "#FFFBEB",
+                  color: fiche.statut === "valide" ? "#2F7D5C" : fiche.statut === "rejete" ? "#B91C1C" : "#D97706",
+                  fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: 500 }}>
+                  <i className={`ti ${fiche.statut === "valide" ? "ti-circle-check" : fiche.statut === "rejete" ? "ti-octagon-x" : "ti-alert-triangle"}`} style={{ fontSize: "13px" }} aria-hidden="true" />
+                  {fiche.statut === "valide" ? "Validé" : fiche.statut === "rejete" ? "Rejeté" : "En attente"}
+                </div>
+              </div>
+              <button onClick={() => setFiche(null)} aria-label="Fermer la fiche candidat"
+                style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", color: "#78716C", cursor: "pointer", borderRadius: "8px", flexShrink: 0 }}>
+                <i className="ti ti-x" style={{ fontSize: "18px" }} aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Corps défilant */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              <Section titre="Contact et structure" icone="ti-building">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
+                  <Champ label="Email">{fiche.email ? <a href={`mailto:${fiche.email}`} style={{ color: "#0369A1", textDecoration: "none" }}>{fiche.email}</a> : "—"}</Champ>
+                  <Champ label="Téléphone">{fiche.telephone || "—"}</Champ>
+                  <Champ label="SIRET">{fiche.siret || "—"}</Champ>
+                  <Champ label="Site web">{fiche.site_web ? <a href={fiche.site_web} target="_blank" rel="noopener noreferrer" style={{ color: "#0369A1", textDecoration: "none" }}>{fiche.site_web}</a> : "—"}</Champ>
+                  <Champ label="LinkedIn">{fiche.linkedin_url ? <a href={fiche.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "#0369A1", textDecoration: "none" }}>{fiche.linkedin_url}</a> : "—"}</Champ>
+                  <Champ label="Collaborateurs">{fiche.nb_collaborateurs ?? "—"}</Champ>
+                </div>
+              </Section>
+
+              <Section titre="Profil d'intervention" icone="ti-user-check">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px", marginBottom: "14px" }}>
+                  <Champ label="Années d'expérience">{fiche.annees_experience ?? "—"}</Champ>
+                  <Champ label="Disponibilité">{fiche.disponibilite || "—"}</Champ>
+                  <Champ label="Tarif journalier">
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fiche.tarif_journalier != null ? formatEur(Number(fiche.tarif_journalier)) : "—"}</span>
+                  </Champ>
+                </div>
+                <Champ label="Zones d'intervention"><Pastilles items={fiche.zones_intervention} /></Champ>
+              </Section>
+
+              <Section titre="Compétences" icone="ti-certificate">
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <Champ label={`Spécialités (${(fiche.specialites || []).length})`}><Pastilles items={fiche.specialites} /></Champ>
+                  <Champ label="Certifications"><Pastilles items={fiche.certifications} /></Champ>
+                </div>
+              </Section>
+
+              <Section titre="Présentation et motivation" icone="ti-message-2">
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <Champ label="Description"><span style={{ whiteSpace: "pre-wrap" }}>{fiche.description || "—"}</span></Champ>
+                  <Champ label="Motivation"><span style={{ whiteSpace: "pre-wrap" }}>{fiche.motivation || "—"}</span></Champ>
+                </div>
+              </Section>
+
+              <Section titre="Documents" icone="ti-files">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {([["Kbis", fiche.kbis_url], ["Assurance", fiche.assurance_url], ["Références", fiche.references_url]] as [string, string | null][]).map(([nom, url]) =>
+                    url ? (
+                      <a key={nom} href={url} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: 36, padding: "0 12px", border: "1px solid #E5E1DA", borderRadius: "8px", fontSize: "12px", color: "#0369A1", textDecoration: "none", background: "#FFFFFF" }}>
+                        <i className="ti ti-file" style={{ fontSize: "14px" }} aria-hidden="true" /> {nom}
+                      </a>
+                    ) : (
+                      <span key={nom} style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: 36, padding: "0 12px", border: "1px dashed #E5E1DA", borderRadius: "8px", fontSize: "12px", color: "#78716C" }}>
+                        <i className="ti ti-file-off" style={{ fontSize: "14px" }} aria-hidden="true" /> {nom} non fourni
+                      </span>
+                    )
+                  )}
+                </div>
+              </Section>
+            </div>
+
+            {/* Pied : décision */}
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #E5E1DA", background: "#F8F7F4", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button onClick={() => setFiche(null)}
+                style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #E5E1DA", background: "#FFFFFF", color: "#1F2937", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>
+                Fermer
+              </button>
+              {fiche.statut === "en_attente" && (
+                <>
+                  <button
+                    disabled={actionId === fiche.id}
+                    onClick={async () => { await rejeterPartenaire(fiche.id); setFiche(null) }}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "8px", border: "1px solid #FECACA", background: "#FEF2F2", color: "#B91C1C", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    <i className="ti ti-x" style={{ fontSize: "14px" }} aria-hidden="true" /> Rejeter
+                  </button>
+                  <button
+                    disabled={actionId === fiche.id}
+                    onClick={async () => { await validerPartenaire(fiche.id, fiche.user_id); setFiche(null) }}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "8px", border: "none", background: "#B25C2A", color: "#FFFFFF", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    <i className="ti ti-check" style={{ fontSize: "14px" }} aria-hidden="true" /> Valider
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Paramètres */}
       {onglet === "parametres" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>

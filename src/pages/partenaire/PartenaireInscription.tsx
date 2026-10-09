@@ -57,6 +57,18 @@ const SPECIALITES = [
   "Prévention climatique",
   "Rénovation énergétique",
   "Financement / CEE",
+  // Geodata
+  "Intégration API climat",
+  "Traitement données satellite",
+  "Analyse géospatiale",
+  "Enrichissement bases immobilières",
+  // IT
+  "Régie Delphi, Oracle ou .NET",
+  "Pilote IA et audit",
+  "Modernisation ciblée",
+  "Intégration IA métier",
+  "TMA au forfait",
+  "Formation Delphi moderne et IA",
 ]
 
 const CERTIFICATIONS = [
