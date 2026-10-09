@@ -1,19 +1,32 @@
 import React, { useState } from "react"
 
-const THEMES = [
-  { id: "tous",          label: "Tous",                icon: "ti-layout-grid" },
-  { id: "energie",       label: "Énergie",             icon: "ti-bolt" },
-  { id: "carbone",       label: "Carbone & Reporting", icon: "ti-leaf" },
-  { id: "prevention",    label: "Prévention climatique",icon: "ti-shield" },
-  { id: "finance",       label: "Finance durable",     icon: "ti-coin" },
-  { id: "adaptation",    label: "Adaptation",          icon: "ti-refresh-alert" },
-  { id: "grand_public",  label: "Grand public",        icon: "ti-world" },
+type CategorieId = "obl" | "bp" | "fin" | "risk" | "gestes" | "mission"
+
+// Domaines (étape 1) : blocs fond #0F172A, identique au sidebar
+const DOMAINES = [
+  { id: "energie",      label: "Énergie",              icon: "ti-bolt",          color: "#9A5B0A", bg: "#FBF1DC" },
+  { id: "carbone",      label: "Carbone & Reporting",  icon: "ti-leaf",          color: "#0F6E56", bg: "#E6F4EF" },
+  { id: "prevention",   label: "Prévention climatique",icon: "ti-shield",        color: "#991B1B", bg: "#FDECEC" },
+  { id: "finance",      label: "Finance durable",      icon: "ti-trending-up",   color: "#1E40AF", bg: "#E8EEFB" },
+  { id: "adaptation",   label: "Adaptation",           icon: "ti-refresh-alert", color: "#0369A1", bg: "#E0F2FE" },
+  { id: "grand_public", label: "Grand public",         icon: "ti-world",         color: "#475569", bg: "#EEF1F5" },
+  { id: "it",           label: "IT",                   icon: "ti-code",          color: "#5B4B9A", bg: "#ECE8F6" },
 ]
+
+// Catégories (étape 2) : regroupement des étiquettes (tag) des fiches
+const CATEGORIES: Record<CategorieId, string> = {
+  obl:     "Obligations",
+  bp:      "Bonnes pratiques et stratégie",
+  fin:     "Financement",
+  risk:    "Risques et données",
+  gestes:  "Enjeux et gestes",
+  mission: "Missions AGE",
+}
 
 const CONTENUS = [
   // ── Énergie ───────────────────────────────────────────────────────────────
   {
-    theme: "energie", icon: "ti-bolt", couleur: "#D97706",
+    theme: "energie", categorie: "obl", icon: "ti-bolt", couleur: "#D97706",
     tag: "Obligatoire", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "Décret Tertiaire (OPERAT)",
     texte: "Obligation légale de réduction des consommations énergétiques pour tous les bâtiments à usage tertiaire ≥ 1 000 m². Objectifs : −40 % en 2030, −50 % en 2040, −60 % en 2050 par rapport à une année de référence. Déclaration annuelle sur la plateforme OPERAT.",
@@ -25,7 +38,7 @@ const CONTENUS = [
     lien: "https://operat.ademe.fr",
   },
   {
-    theme: "energie", icon: "ti-tool", couleur: "#D97706",
+    theme: "energie", categorie: "obl", icon: "ti-tool", couleur: "#D97706",
     tag: "Obligatoire", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "Décret BACS",
     texte: "Obligation d'installer des systèmes d'automatisation et de régulation (GTB/GTC) dans les bâtiments tertiaires d'une puissance > 290 kW. Échéance : 1er janvier 2025 pour les systèmes existants. Objectif : réduire de 25 % la consommation énergétique via l'automatisation.",
@@ -37,7 +50,7 @@ const CONTENUS = [
     lien: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000043976886",
   },
   {
-    theme: "energie", icon: "ti-certificate", couleur: "#0369A1",
+    theme: "energie", categorie: "bp", icon: "ti-certificate", couleur: "#0369A1",
     tag: "Volontaire", tagColor: "#1E40AF", tagBg: "#EFF6FF",
     titre: "ISO 50001 — Management de l'énergie",
     texte: "Norme internationale structurant une démarche d'amélioration continue des performances énergétiques. Adoptée par plus de 18 000 organisations dans le monde, elle permet de réduire de 10 à 20 % les consommations en 3 ans et constitue un atout majeur pour répondre aux exigences CSRD.",
@@ -49,7 +62,7 @@ const CONTENUS = [
     lien: "https://www.iso.org/fr/iso-50001-energy-management.html",
   },
   {
-    theme: "energie", icon: "ti-coin", couleur: "#065F46",
+    theme: "energie", categorie: "fin", icon: "ti-coin", couleur: "#065F46",
     tag: "Financement", tagColor: "#065F46", tagBg: "#ECFDF5",
     titre: "Certificats d'Économies d'Énergie (CEE)",
     texte: "Mécanisme obligeant les fournisseurs d'énergie à financer des travaux d'efficacité énergétique. Gisement estimé à 3 200 TWh Cumac pour la période 2022–2025. Les primes CEE peuvent couvrir jusqu'à 50 % du coût des travaux d'isolation ou de régulation.",
@@ -61,7 +74,7 @@ const CONTENUS = [
     lien: "https://www.ecologie.gouv.fr/dispositif-des-certificats-deconomies-denergie",
   },
   {
-    theme: "energie", icon: "ti-search", couleur: "#0369A1",
+    theme: "energie", categorie: "obl", icon: "ti-search", couleur: "#0369A1",
     tag: "Obligatoire", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "Audit énergétique réglementaire",
     texte: "Obligatoire pour les grandes entreprises (≥ 250 salariés ou CA ≥ 50 M€) tous les 4 ans depuis 2015. Depuis 2023, les entreprises en vente d'un logement classé E, F ou G ont l'obligation de fournir un audit énergétique à l'acheteur.",
@@ -75,7 +88,7 @@ const CONTENUS = [
 
   // ── Carbone & Reporting ───────────────────────────────────────────────────
   {
-    theme: "carbone", icon: "ti-leaf", couleur: "#065F46",
+    theme: "carbone", categorie: "obl", icon: "ti-leaf", couleur: "#065F46",
     tag: "Obligatoire", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "Bilan GES (BEGES)",
     texte: "Obligatoire pour les entreprises ≥ 500 salariés (250 en DOM-TOM), les collectivités ≥ 50 000 habitants et l'État. Renouvellement tous les 4 ans. Couvre les Scopes 1 (émissions directes), 2 (énergie achetée) et 3 (chaîne de valeur).",
@@ -87,7 +100,7 @@ const CONTENUS = [
     lien: "https://bilans-ges.ademe.fr",
   },
   {
-    theme: "carbone", icon: "ti-file-analytics", couleur: "#5B21B6",
+    theme: "carbone", categorie: "obl", icon: "ti-file-analytics", couleur: "#5B21B6",
     tag: "Obligatoire", tagColor: "#5B21B6", tagBg: "#F5F3FF",
     titre: "CSRD / ESRS — Reporting de durabilité",
     texte: "La directive CSRD impose un reporting extra-financier standardisé selon les normes ESRS. Calendrier : grandes entreprises cotées dès 2024, autres grandes entreprises en 2025, PME cotées en 2026. Couvre les enjeux E (environnement), S (social) et G (gouvernance).",
@@ -101,7 +114,7 @@ const CONTENUS = [
 
   // ── Finance durable ───────────────────────────────────────────────────────
   {
-    theme: "finance", icon: "ti-world", couleur: "#1E40AF",
+    theme: "finance", categorie: "obl", icon: "ti-world", couleur: "#1E40AF",
     tag: "Réglementaire", tagColor: "#1E40AF", tagBg: "#EFF6FF",
     titre: "EU Taxonomy — Taxonomie verte européenne",
     texte: "Système de classification européen définissant les activités économiques durables. Clé pour accéder aux obligations vertes, aux fonds ESG et aux investisseurs institutionnels. Une activité est alignée si elle contribue à un des 6 objectifs environnementaux sans en dégrader aucun autre (principe DNSH).",
@@ -113,7 +126,7 @@ const CONTENUS = [
     lien: "https://finance.ec.europa.eu/sustainable-finance/tools-and-standards/eu-taxonomy-sustainable-activities_fr",
   },
   {
-    theme: "finance", icon: "ti-shield-check", couleur: "#1E40AF",
+    theme: "finance", categorie: "obl", icon: "ti-shield-check", couleur: "#1E40AF",
     tag: "Obligatoire", tagColor: "#5B21B6", tagBg: "#F5F3FF",
     titre: "SFDR — Sustainable Finance Disclosure Regulation",
     texte: "Règlement européen imposant aux gestionnaires d'actifs de classer leurs fonds selon leur niveau de durabilité (Article 6, 8 ou 9). Oblige à divulguer les risques de durabilité et les principales incidences négatives (PAI) sur les facteurs environnementaux et sociaux.",
@@ -127,7 +140,7 @@ const CONTENUS = [
 
   // ── Prévention climatique ─────────────────────────────────────────────────
   {
-    theme: "prevention", icon: "ti-shield", couleur: "#991B1B",
+    theme: "prevention", categorie: "obl", icon: "ti-shield", couleur: "#991B1B",
     tag: "Obligatoire", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "Risques climatiques physiques (TCFD)",
     texte: "Les recommandations TCFD et le règlement SFDR imposent d'intégrer les risques climatiques physiques dans les analyses financières. En France, l'article 29 de la loi Énergie-Climat oblige les investisseurs institutionnels à divulguer leur exposition aux risques climatiques.",
@@ -139,7 +152,7 @@ const CONTENUS = [
     lien: "https://www.fsb-tcfd.org/recommendations",
   },
   {
-    theme: "prevention", icon: "ti-home", couleur: "#B25C2A",
+    theme: "prevention", categorie: "bp", icon: "ti-home", couleur: "#B25C2A",
     tag: "Innovation AGE", tagColor: "#B25C2A", tagBg: "#FDF3EC",
     titre: "Brown Value — Décote climatique des actifs",
     texte: "Méthode AGE Climate pour quantifier la dépréciation des actifs immobiliers liée aux aléas climatiques. Intègre 6 aléas (inondation, RGA, feux, submersion, tempête, îlot de chaleur), un horizon d'analyse de 20 ans et deux méthodes de valorisation (DCF et Marché).",
@@ -151,7 +164,7 @@ const CONTENUS = [
     lien: null,
   },
   {
-    theme: "prevention", icon: "ti-droplet", couleur: "#1E40AF",
+    theme: "prevention", categorie: "risk", icon: "ti-droplet", couleur: "#1E40AF",
     tag: "Géorisques", tagColor: "#1E40AF", tagBg: "#EFF6FF",
     titre: "PPRI — Plan de Prévention des Risques Inondation",
     texte: "Document réglementaire délimitant les zones exposées aux inondations et prescrivant des règles d'urbanisme, de construction et d'usage. En zone rouge, toute nouvelle construction est interdite. En zone bleue, des prescriptions de construction s'appliquent.",
@@ -163,7 +176,7 @@ const CONTENUS = [
     lien: "https://www.georisques.gouv.fr",
   },
   {
-    theme: "prevention", icon: "ti-layers-difference", couleur: "#D97706",
+    theme: "prevention", categorie: "risk", icon: "ti-layers-difference", couleur: "#D97706",
     tag: "Géorisques", tagColor: "#92400E", tagBg: "#FFFBEB",
     titre: "RGA — Retrait-Gonflement des Argiles",
     texte: "Premier risque naturel en termes de coûts d'indemnisation en France (plus de 40 % des indemnisations Cat Nat). Les mouvements du sol liés aux variations de teneur en eau des argiles provoquent des fissures structurelles. Risque aggravé par le réchauffement climatique et les sécheresses.",
@@ -177,7 +190,7 @@ const CONTENUS = [
 
   // ── Adaptation ────────────────────────────────────────────────────────────
   {
-    theme: "adaptation", icon: "ti-trending-down", couleur: "#0369A1",
+    theme: "adaptation", categorie: "bp", icon: "ti-trending-down", couleur: "#0369A1",
     tag: "Stratégie", tagColor: "#0369A1", tagBg: "#E0F2FE",
     titre: "Plan d'adaptation climatique",
     texte: "Stratégie structurée de résilience face aux risques climatiques physiques et de transition. Requis dans les reportings TCFD, CSRD (ESRS E1) et les plans de financement durables. Un plan d'adaptation définit les mesures de prévention, les investissements nécessaires et les indicateurs de suivi.",
@@ -189,7 +202,7 @@ const CONTENUS = [
     lien: null,
   },
   {
-    theme: "adaptation", icon: "ti-building", couleur: "#065F46",
+    theme: "adaptation", categorie: "bp", icon: "ti-building", couleur: "#065F46",
     tag: "Urbanisme", tagColor: "#065F46", tagBg: "#ECFDF5",
     titre: "Résilience des bâtiments",
     texte: "L'adaptation du parc bâti au changement climatique passe par la surélévation des réseaux sensibles, l'amélioration de l'isolation thermique contre les vagues de chaleur, et la mise en place de systèmes de drainage renforcés contre les inondations.",
@@ -203,7 +216,7 @@ const CONTENUS = [
 
   // ── Grand public ──────────────────────────────────────────────────────────
   {
-    theme: "grand_public", icon: "ti-world", couleur: "#0F6E56",
+    theme: "grand_public", categorie: "gestes", icon: "ti-world", couleur: "#0F6E56",
     tag: "Enjeux globaux", tagColor: "#065F46", tagBg: "#ECFDF5",
     titre: "Pourquoi agir maintenant ?",
     texte: "Le GIEC confirme : chaque dixième de degré supplémentaire au-delà de 1,5°C multiplie les événements climatiques extrêmes. Les émissions mondiales doivent être réduites de 45 % d'ici 2030 pour rester sous ce seuil critique.",
@@ -215,7 +228,7 @@ const CONTENUS = [
     lien: "https://nosgestesclimat.fr",
   },
   {
-    theme: "grand_public", icon: "ti-recycle", couleur: "#0F6E56",
+    theme: "grand_public", categorie: "gestes", icon: "ti-recycle", couleur: "#0F6E56",
     tag: "Actions", tagColor: "#065F46", tagBg: "#ECFDF5",
     titre: "Gestes du quotidien",
     texte: "Les comportements individuels représentent environ 25 % des émissions nationales. La consommation responsable, le tri sélectif et la sobriété énergétique sont les leviers les plus accessibles pour réduire son impact climatique au quotidien.",
@@ -227,7 +240,7 @@ const CONTENUS = [
     lien: null,
   },
   {
-    theme: "grand_public", icon: "ti-bolt", couleur: "#D97706",
+    theme: "grand_public", categorie: "gestes", icon: "ti-bolt", couleur: "#D97706",
     tag: "Énergie", tagColor: "#D97706", tagBg: "#FFFBEB",
     titre: "Énergies renouvelables",
     texte: "Le solaire et l'éolien représentent plus de 30 % de la production mondiale d'électricité en 2024. En France, l'objectif est d'atteindre 40 % d'énergies renouvelables dans la consommation finale d'énergie d'ici 2030.",
@@ -239,7 +252,7 @@ const CONTENUS = [
     lien: "https://www.maprimerenov.gouv.fr",
   },
   {
-    theme: "grand_public", icon: "ti-ripple", couleur: "#1E40AF",
+    theme: "grand_public", categorie: "gestes", icon: "ti-ripple", couleur: "#1E40AF",
     tag: "Biodiversité", tagColor: "#1E40AF", tagBg: "#EFF6FF",
     titre: "Préserver les océans",
     texte: "Les océans absorbent 30 % du CO₂ et 90 % de la chaleur excédentaire produite par le réchauffement climatique. Leur acidification menace 25 % des espèces marines et la sécurité alimentaire de 3 milliards de personnes.",
@@ -251,7 +264,7 @@ const CONTENUS = [
     lien: null,
   },
   {
-    theme: "grand_public", icon: "ti-users", couleur: "#5B21B6",
+    theme: "grand_public", categorie: "gestes", icon: "ti-users", couleur: "#5B21B6",
     tag: "Collectif", tagColor: "#5B21B6", tagBg: "#F5F3FF",
     titre: "Agir ensemble",
     texte: "La transition écologique ne peut réussir que collectivement. Les entreprises, collectivités et citoyens représentent chacun environ un tiers des émissions françaises. La mobilisation simultanée des trois est indispensable pour atteindre la neutralité carbone en 2050.",
@@ -262,111 +275,278 @@ const CONTENUS = [
     ],
     lien: null,
   },
+
+  // ── IT (missions AGE et enjeux associés) ──────────────────────────────────
+  {
+    theme: "it", categorie: "mission", icon: "ti-world-search", couleur: "#5B4B9A",
+    tag: "Mission AGE", tagColor: "#5B4B9A", tagBg: "#ECE8F6",
+    titre: "Expert Geodata climatique",
+    texte: "Collecte, traitement et valorisation des données climatiques au service du scoring et de la décision.",
+    chips: ["Intégration API climat", "Traitement données satellite", "Analyse géospatiale", "Enrichissement bases immobilières"],
+    blocTitre: "Enjeux associés",
+    actions: [
+      "Fiabiliser les données d'exposition aux aléas utilisées pour scorer vos actifs (source et date traçables)",
+      "Répondre aux exigences de données de risque physique des reportings CSRD et TCFD",
+      "Passer d'une évaluation à l'adresse à une vision portefeuille, sans ressaisie manuelle",
+    ],
+    lien: null,
+  },
+  {
+    theme: "it", categorie: "mission", icon: "ti-code", couleur: "#5B4B9A",
+    tag: "Mission AGE", tagColor: "#5B4B9A", tagBg: "#ECE8F6",
+    titre: "Expert Technologie Delphi",
+    texte: "Maintenance, modernisation et intégration d'IA sur applications Delphi.",
+    chips: ["Régie Delphi, Oracle ou .NET", "Pilote IA et audit", "Modernisation ciblée", "Intégration IA métier", "TMA au forfait", "Formation Delphi moderne et IA"],
+    blocTitre: "Enjeux associés",
+    actions: [
+      "Sécuriser la continuité d'applications métier historiques sans réécriture complète",
+      "Réduire la dépendance à des compétences rares (régie ou TMA au forfait)",
+      "Moderniser de façon ciblée et intégrer l'IA là où elle apporte une valeur métier",
+    ],
+    lien: null,
+  },
 ]
 
-export default function Sensibilisation() {
-  const [theme, setTheme] = useState("tous")
+const plural = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`
+const nomCourt = (titre: string) => titre.split(" — ")[0]
 
-  const contenusFiltres = theme === "tous"
-    ? CONTENUS
-    : CONTENUS.filter(c => c.theme === theme)
+export default function Sensibilisation() {
+  // Parcours en 3 étapes : domaine → catégorie → fiches
+  const [domaine, setDomaine]     = useState<string | null>(null)
+  const [categorie, setCategorie] = useState<CategorieId | null>(null)
+
+  const domaineActif = DOMAINES.find(d => d.id === domaine) || null
+  const fichesDomaine = CONTENUS.filter(c => c.theme === domaine)
+  const categoriesDomaine = Array.from(new Set(fichesDomaine.map(c => c.categorie as CategorieId)))
+  // Une seule catégorie dans le domaine : l'étape 2 est passée automatiquement
+  const uneSeuleCategorie = categoriesDomaine.length === 1
+  const categorieEff: CategorieId | null = domaine ? (uneSeuleCategorie ? categoriesDomaine[0] : categorie) : null
+  const etape = !domaine ? 1 : categorieEff ? 3 : 2
+  const contenusFiltres = categorieEff ? fichesDomaine.filter(c => c.categorie === categorieEff) : []
+
+  function retourDomaine() { setDomaine(null); setCategorie(null) }
+
+  const btnRetour: React.CSSProperties = { display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, color: "#0F172A", fontFamily: "inherit" }
+  const pastilleBase: React.CSSProperties = { boxSizing: "border-box", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 600, flexShrink: 0 }
+  const NOMS_ETAPES = ["Domaine", "Catégorie", "Fiches"]
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
       {/* Hero */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
-        <div>
-          <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Comprendre les enjeux climatiques</div>
-          <div style={{ fontSize: "13px", color: "#64748B" }}>
-            Obligations réglementaires, outils métier et actions concrètes — filtrez par thème pour accéder aux fiches qui vous concernent.
-          </div>
-        </div>
-        <div style={{ fontSize: "13px", color: "#94A3B8", fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>
-          <span style={{ fontWeight: 600, color: "#0F172A" }}>{contenusFiltres.length}</span> fiche{contenusFiltres.length > 1 ? "s" : ""}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px 24px" }}>
+        <div style={{ fontSize: "15px", fontWeight: 500, color: "#0F172A", marginBottom: "4px" }}>Comprendre les enjeux climatiques</div>
+        <div style={{ fontSize: "13px", color: "#64748B" }}>
+          Obligations réglementaires, outils métier et actions concrètes — choisissez un domaine puis une catégorie pour accéder aux fiches qui vous concernent.
         </div>
       </div>
 
-      {/* Filtres thématiques */}
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {THEMES.map(t => (
-          <button key={t.id} onClick={() => setTheme(t.id)} style={{
-            display: "flex", alignItems: "center", gap: "7px",
-            padding: "8px 16px", borderRadius: "8px",
-            border: theme === t.id ? "1px solid #0F6E56" : "1px solid #E2E8F0",
-            background: theme === t.id ? "#ECFDF5" : "#FFFFFF",
-            color: theme === t.id ? "#065F46" : "#64748B",
-            fontSize: "13px", fontWeight: theme === t.id ? 600 : 400,
-            cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
-          }}>
-            <i className={`ti ${t.icon}`} style={{ fontSize: "15px" }} aria-hidden="true" />
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Fiches en ligne */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {contenusFiltres.map((c, i) => (
-          <div key={i} style={{
-            background: "#FFFFFF", border: "1px solid #E2E8F0",
-            borderRadius: "10px", padding: "18px 20px",
-            display: "grid", gridTemplateColumns: "36px 1fr auto",
-            gap: "16px", alignItems: "flex-start",
-            transition: "border-color 0.12s",
-          }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = "#A7F3D0")}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = "#E2E8F0")}
-          >
-            {/* Icône */}
-            <div style={{ width: 36, height: 36, borderRadius: "8px", background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: c.couleur }} aria-hidden="true" />
-            </div>
-
-            {/* Contenu central */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>{c.titre}</span>
-                <span style={{ background: c.tagBg, color: c.tagColor, padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>
-                  {c.tag}
+      {/* Indicateur d'étapes */}
+      <nav aria-label="Progression de la recherche" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        {NOMS_ETAPES.map((nom, i) => {
+          const n = i + 1
+          const faite = n < etape || (n === 2 && uneSeuleCategorie && etape === 3)
+          const active = n === etape
+          return (
+            <React.Fragment key={nom}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ ...pastilleBase, background: faite ? "#2F7D5C" : active ? "#0F6E56" : "#FFFFFF", color: faite || active ? "#FFFFFF" : "#78716C", border: faite || active ? "none" : "1px solid #78716C" }}>
+                  {faite ? <i className="ti ti-check" style={{ fontSize: "14px" }} aria-hidden="true" /> : n}
                 </span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: faite ? "#2F7D5C" : active ? "#0F172A" : "#78716C" }}>{nom}</span>
               </div>
-              <p style={{ fontSize: "13px", color: "#64748B", lineHeight: 1.6, margin: 0 }}>{c.texte}</p>
+              {n < 3 && <span style={{ flex: "0 0 40px", height: 2, borderRadius: 2, background: faite ? "#2F7D5C" : "#E2DDD8" }} />}
+            </React.Fragment>
+          )
+        })}
+      </nav>
 
-              {/* Actions */}
-              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "7px", padding: "10px 14px", display: "flex", flexDirection: "column", gap: "5px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "4px" }}>
-                  Ce que vous devez faire
-                </div>
-                {c.actions.map((a, j) => (
-                  <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                    <i className="ti ti-check" style={{ fontSize: "13px", color: "#0F6E56", flexShrink: 0, marginTop: "2px" }} aria-hidden="true" />
-                    <span style={{ fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>{a}</span>
+      {/* Étape 1 : domaines (blocs fond bleu du sidebar #0F172A) */}
+      {etape === 1 && (
+        <>
+          <div>
+            <div style={{ fontSize: "20px", fontWeight: 600, color: "#0F172A" }}>Quel domaine vous intéresse ?</div>
+            <div style={{ fontSize: "13px", color: "#64748B", marginTop: "6px" }}>Choisissez un domaine pour accéder à ses fiches.</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "14px" }}>
+            {DOMAINES.map(d => {
+              const l = CONTENUS.filter(c => c.theme === d.id)
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => { setDomaine(d.id); setCategorie(null) }}
+                  aria-label={`Domaine ${d.label}, ${plural(l.length, "fiche")}`}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = d.bg; e.currentTarget.style.transform = "translateY(-2px)" }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#1E293B"; e.currentTarget.style.transform = "none" }}
+                  style={{ boxSizing: "border-box", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "20px 20px 18px", borderRadius: "12px", fontFamily: "inherit", background: "#0F172A", border: "1px solid #1E293B", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", transition: "transform 0.15s ease, border-color 0.15s ease" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: "10px", background: d.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <i className={`ti ${d.icon}`} style={{ fontSize: "24px", color: d.color }} aria-hidden="true" />
+                    </div>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", fontWeight: 500, color: "#FFFFFF", background: "rgba(255,255,255,0.14)", padding: "4px 10px", borderRadius: "999px" }}>
+                      {plural(l.length, "fiche")}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div style={{ fontSize: "18px", fontWeight: 600, color: "#FFFFFF", marginTop: "18px" }}>{d.label}</div>
+                  <div style={{ fontSize: "12px", color: "#CBD5E1", lineHeight: 1.5, marginTop: "6px", minHeight: 54 }}>
+                    {l.slice(0, 3).map(c => nomCourt(c.titre)).join(", ")}{l.length > 3 ? "…" : ""}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "14px", fontSize: "12px", fontWeight: 500, color: "#FFFFFF" }}>
+                    Choisir ce domaine
+                    <i className="ti ti-chevron-right" style={{ fontSize: "14px" }} aria-hidden="true" />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
 
-            {/* Lien officiel */}
-            <div style={{ flexShrink: 0, paddingTop: "4px" }}>
-              {c.lien ? (
-                <a href={c.lien} target="_blank" rel="noopener noreferrer" style={{
-                  display: "flex", alignItems: "center", gap: "5px",
-                  fontSize: "12px", color: "#0369A1", textDecoration: "none",
-                  fontWeight: 500, whiteSpace: "nowrap",
-                  background: "#EFF6FF", border: "1px solid #BFDBFE",
-                  padding: "5px 10px", borderRadius: "6px",
-                }}>
-                  <i className="ti ti-external-link" style={{ fontSize: "13px" }} aria-hidden="true" />
-                  Texte officiel
-                </a>
-              ) : (
-                <div style={{ width: "110px" }} />
+      {/* Étape 2 : catégories du domaine */}
+      {etape === 2 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <div style={{ fontSize: "20px", fontWeight: 600, color: "#0F172A" }}>Quelle catégorie de fiches ?</div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "#FFFFFF", background: "#0F172A", padding: "4px 12px", borderRadius: "999px" }}>{domaineActif?.label}</span>
+            </div>
+            <button type="button" onClick={retourDomaine} style={btnRetour}>
+              <i className="ti ti-chevron-left" style={{ fontSize: "14px" }} aria-hidden="true" />
+              Changer de domaine
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "14px" }}>
+            {categoriesDomaine.map(cat => {
+              const l = fichesDomaine.filter(c => c.categorie === cat)
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategorie(cat)}
+                  aria-label={`Catégorie ${CATEGORIES[cat]}, ${plural(l.length, "fiche")}`}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "#0F172A"; e.currentTarget.style.transform = "translateY(-2px)" }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2DDD8"; e.currentTarget.style.transform = "none" }}
+                  style={{ boxSizing: "border-box", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "18px 20px", borderRadius: "12px", fontFamily: "inherit", background: "#FFFFFF", border: "1px solid #E2DDD8", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", transition: "transform 0.15s ease, border-color 0.15s ease" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                    <span style={{ fontSize: "16px", fontWeight: 600, color: "#0F172A" }}>{CATEGORIES[cat]}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", fontWeight: 500, color: "#0F172A", background: "#F1F5F9", padding: "4px 10px", borderRadius: "999px" }}>{plural(l.length, "fiche")}</span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.5, marginTop: "8px" }}>{l.map(c => nomCourt(c.titre)).join(", ")}</div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Étape 3 : fiches */}
+      {etape === 3 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <div style={{ fontSize: "20px", fontWeight: 600, color: "#0F172A" }}>Fiches</div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "#FFFFFF", background: "#0F172A", padding: "4px 12px", borderRadius: "999px" }}>{domaineActif?.label}</span>
+              {!uneSeuleCategorie && categorieEff && (
+                <span style={{ fontSize: "12px", fontWeight: 500, color: "#0F172A", background: "#FFFFFF", border: "1px solid #E2DDD8", padding: "4px 12px", borderRadius: "999px" }}>{CATEGORIES[categorieEff]}</span>
               )}
             </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {!uneSeuleCategorie && (
+                <button type="button" onClick={() => setCategorie(null)} style={btnRetour}>
+                  <i className="ti ti-chevron-left" style={{ fontSize: "14px" }} aria-hidden="true" />
+                  Changer de catégorie
+                </button>
+              )}
+              <button type="button" onClick={retourDomaine} style={btnRetour}>Changer de domaine</button>
+            </div>
           </div>
-        ))}
-      </div>
+          <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>{plural(contenusFiltres.length, "fiche")}</div>
+          {uneSeuleCategorie && (
+            <div role="status" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#0369A1", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "8px 12px" }}>
+              <i className="ti ti-info-circle" style={{ fontSize: "14px" }} aria-hidden="true" />
+              Ce domaine ne compte qu'une seule catégorie : l'étape 2 est passée automatiquement.
+            </div>
+          )}
+
+          {/* Fiches en ligne */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {contenusFiltres.map((c, i) => (
+              <div key={i} style={{
+                background: "#FFFFFF", border: "1px solid #E2E8F0",
+                borderRadius: "10px", padding: "18px 20px",
+                display: "grid", gridTemplateColumns: "36px 1fr auto",
+                gap: "16px", alignItems: "flex-start",
+                transition: "border-color 0.12s",
+              }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = "#A7F3D0")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = "#E2E8F0")}
+              >
+                {/* Icône */}
+                <div style={{ width: 36, height: 36, borderRadius: "8px", background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: c.couleur }} aria-hidden="true" />
+                </div>
+
+                {/* Contenu central */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>{c.titre}</span>
+                    <span style={{ background: c.tagBg, color: c.tagColor, padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>
+                      {c.tag}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: "13px", color: "#64748B", lineHeight: 1.6, margin: 0 }}>{c.texte}</p>
+
+                  {/* Missions IT : compétences couvertes */}
+                  {c.chips && (
+                    <div>
+                      <div style={{ fontSize: "10px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px" }}>Cette mission couvre</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {c.chips.map((k: string) => (
+                          <span key={k} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#475569", padding: "4px 9px", borderRadius: "6px", fontSize: "11px" }}>{k}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions / enjeux associés */}
+                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "7px", padding: "10px 14px", display: "flex", flexDirection: "column", gap: "5px" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "4px" }}>
+                      {c.blocTitre || "Ce que vous devez faire"}
+                    </div>
+                    {c.actions.map((a: string, j: number) => (
+                      <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                        <i className="ti ti-check" style={{ fontSize: "13px", color: "#0F6E56", flexShrink: 0, marginTop: "2px" }} aria-hidden="true" />
+                        <span style={{ fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lien officiel */}
+                <div style={{ flexShrink: 0, paddingTop: "4px" }}>
+                  {c.lien ? (
+                    <a href={c.lien} target="_blank" rel="noopener noreferrer" style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      fontSize: "12px", color: "#0369A1", textDecoration: "none",
+                      fontWeight: 500, whiteSpace: "nowrap",
+                      background: "#EFF6FF", border: "1px solid #BFDBFE",
+                      padding: "5px 10px", borderRadius: "6px",
+                    }}>
+                      <i className="ti ti-external-link" style={{ fontSize: "13px" }} aria-hidden="true" />
+                      Texte officiel
+                    </a>
+                  ) : (
+                    <div style={{ width: "110px" }} />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -128,8 +128,9 @@ export default function Marketplace() {
   const [filtreFamille, setFiltreFamille] = useState("tous")
   const [filtreType, setFiltreType]       = useState("tous")
   const [recherche, setRecherche]         = useState("")
-  const [filtreDomaine, setFiltreDomaine] = useState<DomaineId | "tous">("tous")
-  const consultantsFiltres = consultantsAGE.filter(c => filtreDomaine === "tous" || c.domaine === filtreDomaine)
+  // Recherche d'expert en 2 étapes : null = étape 1 (choix du domaine), sinon étape 2 (choix de l'expert)
+  const [filtreDomaine, setFiltreDomaine] = useState<DomaineId | null>(null)
+  const consultantsFiltres = consultantsAGE.filter(c => filtreDomaine !== null && c.domaine === filtreDomaine)
   const domaineActif = DOMAINES.find(d => d.id === filtreDomaine)
 
   const [demandeOuverte, setDemandeOuverte] = useState<number | null>(null)
@@ -446,52 +447,88 @@ const onglets = !userCtx.role ? [] : [
             <span style={{ fontSize: "13px", fontWeight: 500, color: "#065F46" }}>Consultants AGE mis à disposition — expertise climatique certifiée</span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>Rechercher un expert par domaine</div>
-            <button
-              type="button"
-              onClick={() => setFiltreDomaine("tous")}
-              aria-pressed={filtreDomaine === "tous"}
-              style={{ cursor: "pointer", fontSize: "12px", fontWeight: 500, padding: "7px 14px", borderRadius: "999px", fontFamily: "inherit", border: `1px solid ${filtreDomaine === "tous" ? "#0F6E56" : "#E2E8F0"}`, background: filtreDomaine === "tous" ? "#ECFDF5" : "#FFFFFF", color: filtreDomaine === "tous" ? "#065F46" : "#64748B" }}
-            >
-              Tous les domaines
-            </button>
-          </div>
+          {/* Indicateur d'étapes : 1 Domaine → 2 Expert */}
+          <nav aria-label="Progression de la recherche" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ boxSizing: "border-box", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 600, flexShrink: 0, background: filtreDomaine ? "#2F7D5C" : "#0F6E56", color: "#FFFFFF" }}>
+                {filtreDomaine ? <i className="ti ti-check" style={{ fontSize: "14px" }} aria-hidden="true" /> : "1"}
+              </span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: filtreDomaine ? "#2F7D5C" : "#0F172A" }}>Domaine</span>
+            </div>
+            <span style={{ flex: "0 0 40px", height: 2, borderRadius: 2, background: filtreDomaine ? "#2F7D5C" : "#E2DDD8" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ boxSizing: "border-box", width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 600, flexShrink: 0, background: filtreDomaine ? "#0F6E56" : "#FFFFFF", color: filtreDomaine ? "#FFFFFF" : "#78716C", border: filtreDomaine ? "none" : "1px solid #78716C" }}>2</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: filtreDomaine ? "#0F172A" : "#78716C" }}>Expert</span>
+            </div>
+          </nav>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
-            {DOMAINES.map(d => {
-              const experts = consultantsAGE.filter(c => c.domaine === d.id)
-              const actif = filtreDomaine === d.id
-              const estompe = filtreDomaine !== "tous" && !actif
-              return (
+          {/* Étape 1 : choix du domaine (blocs fond bleu du sidebar #0F172A) */}
+          {filtreDomaine === null && (
+            <>
+              <div>
+                <div style={{ fontSize: "20px", fontWeight: 600, color: "#0F172A" }}>Dans quel domaine cherchez-vous un expert ?</div>
+                <div style={{ fontSize: "13px", color: "#64748B", marginTop: "6px" }}>Choisissez un domaine pour voir les experts disponibles.</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "14px" }}>
+                {DOMAINES.map(d => {
+                  const experts = consultantsAGE.filter(c => c.domaine === d.id)
+                  const libelleCount = `${experts.length} expert${experts.length > 1 ? "s" : ""}`
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setFiltreDomaine(d.id)}
+                      aria-label={`Domaine ${d.label}, ${libelleCount}`}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = d.bg; e.currentTarget.style.transform = "translateY(-2px)" }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#1E293B"; e.currentTarget.style.transform = "none" }}
+                      style={{ boxSizing: "border-box", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "20px 20px 18px", borderRadius: "12px", fontFamily: "inherit", background: "#0F172A", border: "1px solid #1E293B", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", transition: "transform 0.15s ease, border-color 0.15s ease" }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                        <div style={{ width: 48, height: 48, borderRadius: "10px", background: d.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <i className={`ti ${d.icon}`} style={{ fontSize: "24px", color: d.color }} aria-hidden="true" />
+                        </div>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", fontWeight: 500, color: "#FFFFFF", background: "rgba(255,255,255,0.14)", padding: "4px 10px", borderRadius: "999px" }}>
+                          {libelleCount}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "18px", fontWeight: 600, color: "#FFFFFF", marginTop: "18px" }}>{d.label}</div>
+                      <div style={{ fontSize: "12px", color: "#CBD5E1", lineHeight: 1.5, marginTop: "6px", minHeight: 36 }}>
+                        {experts.map(c => c.type.replace("Expert ", "")).join(", ")}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "16px", fontSize: "12px", fontWeight: 500, color: "#FFFFFF" }}>
+                        Choisir ce domaine
+                        <i className="ti ti-chevron-right" style={{ fontSize: "14px" }} aria-hidden="true" />
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Étape 2 : choix de l'expert du domaine retenu */}
+          {filtreDomaine !== null && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ fontSize: "20px", fontWeight: 600, color: "#0F172A" }}>Choisissez votre expert</div>
+                  <span style={{ fontSize: "12px", fontWeight: 500, color: "#FFFFFF", background: "#0F172A", padding: "4px 12px", borderRadius: "999px" }}>{domaineActif?.label}</span>
+                </div>
                 <button
-                  key={d.id}
                   type="button"
-                  onClick={() => setFiltreDomaine(actif ? "tous" : d.id)}
-                  aria-pressed={actif}
-                  style={{ boxSizing: "border-box", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "18px 18px 16px", borderRadius: "12px", fontFamily: "inherit", background: actif ? d.bg : "#FFFFFF", border: `2px solid ${actif ? d.color : "#E2E8F0"}`, opacity: estompe ? 0.6 : 1, transition: "border-color 0.12s, opacity 0.12s" }}
+                  onClick={() => { setFiltreDomaine(null); setDemandeOuverte(null); setConsultantActif(null) }}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", background: "#FFFFFF", border: "1px solid #E2DDD8", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, color: "#0F172A", fontFamily: "inherit" }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: "10px", background: d.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <i className={`ti ${d.icon}`} style={{ fontSize: "22px", color: d.color }} aria-hidden="true" />
-                    </div>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", fontWeight: 500, color: d.color, background: actif ? "#FFFFFF" : d.bg, padding: "4px 9px", borderRadius: "999px" }}>
-                      {experts.length} expert{experts.length > 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#0F172A", marginTop: "14px" }}>{d.label}</div>
-                  <div style={{ fontSize: "12px", color: "#64748B", lineHeight: 1.45, marginTop: "4px" }}>
-                    {experts.map(c => c.type.replace("Expert ", "")).join(", ")}
-                  </div>
+                  <i className="ti ti-chevron-left" style={{ fontSize: "14px" }} aria-hidden="true" />
+                  Changer de domaine
                 </button>
-              )
-            })}
-          </div>
-
-          <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
-            {consultantsFiltres.length} expert{consultantsFiltres.length > 1 ? "s" : ""} · {domaineActif ? domaineActif.label : "tous les domaines"}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 500, color: "#0F172A" }}>
+                {consultantsFiltres.length} expert{consultantsFiltres.length > 1 ? "s" : ""} disponible{consultantsFiltres.length > 1 ? "s" : ""} en {domaineActif?.label}
+              </div>
+            </>
+          )}
+          <div style={{ display: filtreDomaine === null ? "none" : "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
           
        {consultantsFiltres.map(c => {
               const ouvert = demandeOuverte === c.id && sourceType === "consultant"
