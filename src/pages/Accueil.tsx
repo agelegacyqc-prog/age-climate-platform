@@ -228,32 +228,96 @@ interface AlerteRegl {
   niveau: "rouge" | "orange" | "bleu"
 }
 
-const ALERTES_PAR_PROFIL: Record<string, AlerteRegl[]> = {
-  entreprise: [
-    { label: "Décret Tertiaire — rapport 2025",    echeance: "30/09/2025",      niveau: "orange" },
-    { label: "Décret BACS — mise en conformité",   echeance: "01/01/2025",      niveau: "rouge"  },
-    { label: "Audit énergétique — renouvellement", echeance: "01/11/2025",      niveau: "bleu"   },
-  ],
-  banque: [
-    { label: "CSRD — reporting durabilité 2024",   echeance: "30/06/2025",      niveau: "rouge"  },
-    { label: "SFDR — classification portefeuille", echeance: "31/12/2025",      niveau: "orange" },
-    { label: "Brown Value — mise à jour actifs",   echeance: "01/10/2025",      niveau: "bleu"   },
-  ],
-  assureur: [
-    { label: "SFDR — reporting durabilité",        echeance: "30/06/2025",      niveau: "rouge"  },
-    { label: "CSRD — obligations 2025",            echeance: "31/12/2025",      niveau: "orange" },
-    { label: "Score risque — révision annuelle",   echeance: "01/10/2025",      niveau: "bleu"   },
-  ],
-  collectivite: [
-    { label: "Décret Tertiaire — rapport annuel",  echeance: "30/09/2025",      niveau: "orange" },
-    { label: "Plan adaptation climatique",         echeance: "31/12/2025",      niveau: "bleu"   },
-    { label: "Bilan GES territorial",              echeance: "01/06/2025",      niveau: "rouge"  },
-  ],
-  particulier: [
-    { label: "DPE — validité 10 ans",              echeance: "Variable",         niveau: "orange" },
-    { label: "Audit énergétique recommandé",       echeance: "Dès que possible", niveau: "bleu"   },
-  ],
+// ─── État des lieux réglementaire : types et référentiel ─────────────────────
+// Lignes de actifs_reglementaire (seules eligible + potentiel sont insérées à la création d'actif)
+interface LigneRegl {
+  id: string
+  actif_id: string
+  reglementation: string
+  statut: string
+  details: string | null
+  echeance: string | null
+  realise: boolean
+  realise_le: string | null
 }
+
+interface ExpertLite {
+  id: string
+  user_id: string | null
+  prenom: string
+  nom: string
+  competences: string[]
+}
+
+// Libellés et cadre : repris de calculerEligibilite() (NouvelActif.tsx)
+const REGL_META: Record<string, { label: string; cadre: "france" | "europe" }> = {
+  tertiaire:         { label: "Décret Tertiaire",       cadre: "france" },
+  bacs:              { label: "Décret BACS",            cadre: "france" },
+  loi_climat:        { label: "Loi Climat Résilience",  cadre: "france" },
+  bilan_ges:         { label: "Bilan GES obligatoire",  cadre: "france" },
+  audit_energetique: { label: "Audit Énergétique",      cadre: "france" },
+  iso50001:          { label: "ISO 50001",              cadre: "france" },
+  csrd:              { label: "CSRD",                   cadre: "europe" },
+  eu_taxonomy:       { label: "EU Taxonomy",            cadre: "europe" },
+  sfdr:              { label: "SFDR",                   cadre: "europe" },
+  esrs:              { label: "ESRS",                   cadre: "europe" },
+  ifrs_s2:           { label: "IFRS S2",                cadre: "europe" },
+}
+
+// Libellés des alertes (bloc « Alertes réglementaires »)
+const ALERTE_LABELS: Record<string, string> = {
+  tertiaire: "Décret Tertiaire — rapport annuel",
+  bacs: "Décret BACS — mise en conformité",
+  audit_energetique: "Audit énergétique — renouvellement",
+  csrd: "CSRD — reporting durabilité",
+  eu_taxonomy: "EU Taxonomy — alignement",
+  sfdr: "SFDR — classification portefeuille",
+  esrs: "ESRS — reporting durabilité",
+  ifrs_s2: "IFRS S2 — reporting climatique",
+  iso50001: "ISO 50001 — management énergie",
+  bilan_ges: "Bilan GES — rapport annuel",
+  loi_climat: "Loi Climat & Résilience",
+}
+
+const NBSP = " "
+
+function labelRegl(id: string): string {
+  return REGL_META[id]?.label ?? id
+}
+
+// Date du jour au format AAAA-MM-JJ, en heure locale (comparaison lexicographique avec les dates SQL)
+function aujourdhuiISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function formatDateFR(iso: string | null): string {
+  if (!iso) return "—"
+  const [y, m, d] = iso.slice(0, 10).split("-")
+  return `${d}/${m}/${y}`
+}
+
+// score_reglementaire = réglementations réalisées / (éligibles + potentielles), en %
+function scoreReglementaire(lignes: LigneRegl[]): number {
+  const base = lignes.filter(l => l.statut === "eligible" || l.statut === "potentiel")
+  if (base.length === 0) return 0
+  return Math.round((base.filter(l => l.realise).length / base.length) * 100)
+}
+
+function estEnRetard(l: LigneRegl, aujourdhui: string): boolean {
+  return l.statut === "eligible" && !l.realise && !!l.echeance && l.echeance.slice(0, 10) < aujourdhui
+}
+
+// Obligatoires d'abord, puis échéance croissante (sans échéance en dernier), puis libellé
+function comparerActions(a: LigneRegl, b: LigneRegl): number {
+  const rang = (l: LigneRegl) => (l.statut === "eligible" ? 0 : 1)
+  if (rang(a) !== rang(b)) return rang(a) - rang(b)
+  const ea = a.echeance ?? "9999-12-31"
+  const eb = b.echeance ?? "9999-12-31"
+  if (ea !== eb) return ea < eb ? -1 : 1
+  return labelRegl(a.reglementation).localeCompare(labelRegl(b.reglementation), "fr")
+}
+
 function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
   const [ouvert, setOuvert] = useState(false)
   return (
@@ -287,6 +351,49 @@ function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: strin
     </div>
   )
 }
+
+// ─── Volet repliable (à l'intérieur de l'état des lieux) ─────────────────────
+interface VoletProps {
+  titre: string
+  icone: string
+  resume?: string
+  ouvert: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}
+
+function Volet({ titre, icone, resume, ouvert, onToggle, children }: VoletProps) {
+  return (
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={ouvert}
+        style={{
+          boxSizing: "border-box", width: "100%", minHeight: "44px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+          background: "transparent", border: "none", padding: 0,
+          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <i className={`ti ${icone}`} style={{ fontSize: "18px", color: "#0F6E56" }} aria-hidden="true" />
+          <span style={{ fontSize: "15px", fontWeight: 600, color: "#0F172A" }}>{titre}</span>
+          {resume && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px", color: "#475569" }}>{resume}</span>
+          )}
+        </span>
+        <i
+          className="ti ti-chevron-down"
+          style={{ fontSize: "18px", color: "#475569", flexShrink: 0, transition: "transform 0.15s", transform: ouvert ? "rotate(180deg)" : "none" }}
+          aria-hidden="true"
+        />
+      </button>
+      {ouvert && children}
+    </div>
+  )
+}
+
 export default function Accueil() {
   const navigate = useNavigate()
   const [profil, setProfil]   = useState<Profil>(null)
@@ -294,11 +401,44 @@ export default function Accueil() {
   const [loading, setLoading] = useState(true)
   const [kpisReels, setKpisReels] = useState<{ val: string; label: string; tendance?: string; tendanceColor?: string }[] | null>(null)
   const [roadmap, setRoadmap] = useState<RoadmapEtape[]>([])
-  const [alertesDynamiques, setAlertesDynamiques] = useState<AlerteRegl[]>([])
-  const [reglemRaw, setReglemRaw] = useState<{ reglementation: string }[]>([])
-const [dossiers, setDossiers] = useState<DossierRGA[]>([])
+  const [dossiers, setDossiers] = useState<DossierRGA[]>([])
+
+  // État des lieux réglementaire (source unique des alertes, des experts et des actions)
+  const [actifsReg, setActifsReg]       = useState<{ id: string; nom: string }[]>([])
+  const [lignes, setLignes]             = useState<LigneRegl[]>([])
+  const [experts, setExperts]           = useState<ExpertLite[]>([])
+  const [actifSelId, setActifSelId]     = useState<string | null>(null)
+  const [enregistrement, setEnregistrement] = useState<string | null>(null) // id de la ligne en cours d'écriture
+  const [erreurRegl, setErreurRegl]     = useState<string | null>(null)
+  const [volets, setVolets]             = useState({ regl: true, actions: true })
 
   useEffect(() => { chargerProfil() }, [])
+
+  // Charge les réglementations (éligibles + potentielles) de tous les actifs du client,
+  // puis les experts de la marketplace (pour associer un expert à chaque action).
+  async function chargerEtatReglementaire(liste: { id: string; nom: string | null }[]) {
+    setActifsReg(liste.map(a => ({ id: a.id, nom: a.nom || "Actif sans nom" })))
+
+    const { data: reglData, error } = await supabase
+      .from("actifs_reglementaire")
+      .select("id, actif_id, reglementation, statut, details, echeance, realise, realise_le")
+      .in("actif_id", liste.map(a => a.id))
+      .in("statut", ["eligible", "potentiel"])
+    if (error) {
+      console.error("Chargement des réglementations impossible", error)
+      return
+    }
+    const rows = (reglData || []) as LigneRegl[]
+    setLignes(rows)
+    // Actif affiché par défaut : le premier qui a des réglementations enregistrées
+    setActifSelId(prev => prev ?? (liste.find(a => rows.some(l => l.actif_id === a.id)) ?? liste[0]).id)
+
+    const { data: expertsData } = await supabase
+      .from("marketplace_consultants")
+      .select("id, user_id, prenom, nom, competences")
+      .eq("is_active", true)
+    setExperts((expertsData || []) as ExpertLite[])
+  }
 
   async function chargerProfil() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -331,61 +471,15 @@ if (profilAGE.role === 'admin' || profilAGE.role === 'consultant' || profilAGE.r
     .single()
 if (clientData?.roadmap) setRoadmap(clientData.roadmap)
 
-// Charger les alertes réglementaires dynamiques
+// Charger l'état des lieux réglementaire (alertes, experts, actions)
 const { data: actifsData } = await supabase
   .from("actifs")
-  .select("id, score_climatique, created_at")
+  .select("id, nom, score_climatique, created_at")
   .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   .neq("categorie", "import_csv")
 
 if (actifsData && actifsData.length > 0) {
-  const actifIds = actifsData.map(a => a.id)
-  const { data: reglemData } = await supabase
-    .from("actifs_reglementaire")
-    .select("reglementation, statut, echeance")
-    .in("actif_id", actifIds)
-    .eq("statut", "eligible")
-    .not("echeance", "is", null)
-    .order("echeance", { ascending: true })
-
-  if (reglemData) {
-    // Dédupliquer par reglementation
-    const vus = new Set<string>()
-    const alertes: AlerteRegl[] = []
-    for (const r of reglemData) {
-      if (!vus.has(r.reglementation)) {
-        vus.add(r.reglementation)
-        const echeance = new Date(r.echeance)
-        const today = new Date()
-        const diffJours = Math.ceil((echeance.getTime() - today.getTime()) / 86400000)
-        const niveau: "rouge" | "orange" | "bleu" = diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu"
-        const labels: Record<string, string> = {
-  tertiaire: "Décret Tertiaire — rapport annuel",
-  bacs: "Décret BACS — mise en conformité",
-  audit_energetique: "Audit énergétique — renouvellement",
-  csrd: "CSRD — reporting durabilité",
-  eu_taxonomy: "EU Taxonomy — alignement",
-  sfdr: "SFDR — classification portefeuille",
-  esrs: "ESRS — reporting durabilité",
-  ifrs_s2: "IFRS S2 — reporting climatique",
-  iso50001: "ISO 50001 — management énergie",
-  bilan_ges: "Bilan GES — rapport annuel",
-  loi_climat: "Loi Climat & Résilience",
-}
-        alertes.push({
-          label: labels[r.reglementation] || r.reglementation,
-          echeance: echeance.toLocaleDateString("fr-FR"),
-          niveau,
-        })
-      }
-    }
-    setAlertesDynamiques(alertes)
-    setReglemRaw(reglemData.map((r: any) => ({ reglementation: r.reglementation })))
-    console.log("alertes finales:", alertes)
-console.log("reglemRaw:", reglemData.map((r: any) => ({ reglementation: r.reglementation })))
-    console.log("alertesDynamiques:", alertes)
-console.log("reglemRaw:", reglemData.map((r: any) => ({ reglementation: r.reglementation })))
-  }
+  await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
 }
 
 setLoading(false)
@@ -412,56 +506,16 @@ console.log("user.id:", user.id)
       setProfil(profilResolu)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
 
-     // Charger les alertes réglementaires dynamiques
+     // Charger l'état des lieux réglementaire (alertes, experts, actions)
 const { data: actifsData } = await supabase
   .from("actifs")
-  .select("id")
+  .select("id, nom")
   .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   .neq("categorie", "import_csv")
 
 if (actifsData && actifsData.length > 0) {
-  console.log("actifsData:", actifsData)
-        const actifIds = actifsData.map((a: any) => a.id)
-        const { data: reglemData } = await supabase
-          .from("actifs_reglementaire")
-          .select("reglementation, statut, echeance")
-          .in("actif_id", actifIds)
-          .eq("statut", "eligible")
-          .not("echeance", "is", null)
-          .order("echeance", { ascending: true })
-console.log("reglemData:", reglemData)
-        if (reglemData) {
-          const vus = new Set<string>()
-          const alertes: AlerteRegl[] = []
-          for (const r of reglemData) {
-            if (!vus.has(r.reglementation)) {
-              vus.add(r.reglementation)
-              const echeance = new Date(r.echeance)
-              const today = new Date()
-              const diffJours = Math.ceil((echeance.getTime() - today.getTime()) / 86400000)
-              const niveau: "rouge" | "orange" | "bleu" = diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu"
-              const labels: Record<string, string> = {
-                tertiaire: "Décret Tertiaire — rapport annuel",
-                bacs: "Décret BACS — mise en conformité",
-                audit_energetique: "Audit énergétique — renouvellement",
-                csrd: "CSRD — reporting durabilité",
-                eu_taxonomy: "EU Taxonomy — alignement",
-                sfdr: "SFDR — classification portefeuille",
-                esrs: "ESRS — reporting durabilité",
-                ifrs_s2: "IFRS S2 — reporting climatique",
-                iso50001: "ISO 50001 — management énergie",
-              }
-              alertes.push({
-                label: labels[r.reglementation] || r.reglementation,
-                echeance: echeance.toLocaleDateString("fr-FR"),
-                niveau,
-              })
-            }
-          }
-  console.log("alertes construites:", alertes)
-          setAlertesDynamiques(alertes)
-        }
-      }
+  await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
+}
 
       // KPIs réels — remplace les valeurs figées de PROFIL_CONFIG pour
       // Assureur et Collectivité (P.O. 13/08/2026 : les chiffres codés en
@@ -538,10 +592,75 @@ console.log("reglemData:", reglemData)
     setLoading(false)
   }
 
+  // Bascule Réalisé / Non réalisé : écriture optimiste, retour arrière en cas d'échec,
+  // puis recalcul de actifs.score_reglementaire.
+  async function basculerRealise(ligne: LigneRegl, realise: boolean) {
+    if (ligne.realise === realise || enregistrement) return
+    const realiseLe = realise ? aujourdhuiISO() : null
+    const ligneApres: LigneRegl = { ...ligne, realise, realise_le: realiseLe }
+
+    setLignes(prev => prev.map(l => (l.id === ligne.id ? ligneApres : l)))
+    setErreurRegl(null)
+    setEnregistrement(ligne.id)
+
+    const { error } = await supabase
+      .from("actifs_reglementaire")
+      .update({ realise, realise_le: realiseLe })
+      .eq("id", ligne.id)
+
+    if (error) {
+      console.error("Mise à jour du statut impossible", error)
+      setLignes(prev => prev.map(l => (l.id === ligne.id ? ligne : l)))
+      setErreurRegl("Le statut n'a pas pu être enregistré. Veuillez réessayer.")
+      setEnregistrement(null)
+      return
+    }
+
+    const lignesActif = lignes
+      .filter(l => l.actif_id === ligne.actif_id)
+      .map(l => (l.id === ligne.id ? ligneApres : l))
+    const { error: errScore } = await supabase
+      .from("actifs")
+      .update({ score_reglementaire: scoreReglementaire(lignesActif) })
+      .eq("id", ligne.actif_id)
+    if (errScore) {
+      console.error("Mise à jour du score réglementaire impossible", errScore)
+      setErreurRegl("Statut enregistré, mais le score réglementaire n'a pas pu être mis à jour.")
+    }
+    setEnregistrement(null)
+  }
+
+  function basculerVolet(cle: "regl" | "actions") {
+    setVolets(v => ({ ...v, [cle]: !v[cle] }))
+  }
+
   const config  = loading ? PROFIL_CONFIG.defaut : (PROFIL_CONFIG[profil || "defaut"] || PROFIL_CONFIG.defaut)
   const kpisAffiches = kpisReels || config.kpis
-  const alertes = alertesDynamiques
+  const aujourdhui = aujourdhuiISO()
   const today   = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+
+  // ─── Alertes réglementaires : obligatoires non réalisées, dédupliquées par réglementation
+  // (échéance la plus proche parmi les actifs) — mêmes seuils de couleur qu'avant.
+  const alertes: AlerteRegl[] = (() => {
+    const now = new Date()
+    const vus = new Set<string>()
+    const res: AlerteRegl[] = []
+    lignes
+      .filter(l => l.statut === "eligible" && !l.realise && !!l.echeance)
+      .sort((a, b) => ((a.echeance as string) < (b.echeance as string) ? -1 : (a.echeance as string) > (b.echeance as string) ? 1 : 0))
+      .forEach(l => {
+        if (vus.has(l.reglementation)) return
+        vus.add(l.reglementation)
+        const echeance = new Date(l.echeance as string)
+        const diffJours = Math.ceil((echeance.getTime() - now.getTime()) / 86400000)
+        res.push({
+          label: ALERTE_LABELS[l.reglementation] || labelRegl(l.reglementation),
+          echeance: echeance.toLocaleDateString("fr-FR"),
+          niveau: diffJours < 30 ? "rouge" : diffJours < 90 ? "orange" : "bleu",
+        })
+      })
+    return res
+  })()
 
   const niveauStyle = {
     rouge:  { bg: "#FEF2F2", border: "#E24B4A", titre: "#501313", sous: "#A32D2D" },
@@ -558,6 +677,113 @@ const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
   const alerteTexte = nbRouge > 0 ? `· ${nbRouge} urgente${nbRouge > 1 ? "s" : ""} sur ${alertes.length}`
     : nbOrange > 0 ? `· ${nbOrange} à surveiller sur ${alertes.length}`
     : `· ${alertes.length} à venir`
+
+  // ─── État des lieux : actif sélectionné ─────────────────────────────────────
+  const actifsAvecRegl = actifsReg.filter(a => lignes.some(l => l.actif_id === a.id))
+  const actifSel = actifsAvecRegl.find(a => a.id === actifSelId) ?? actifsAvecRegl[0] ?? null
+  const lignesSel = actifSel ? lignes.filter(l => l.actif_id === actifSel.id) : []
+  const nbObligatoire = lignesSel.filter(l => l.statut === "eligible").length
+  const nbPotentiel   = lignesSel.filter(l => l.statut === "potentiel").length
+  const nbRealisees   = lignesSel.filter(l => l.realise).length
+  const scoreSel      = scoreReglementaire(lignesSel)
+  const idsRealisees  = lignesSel.filter(l => l.realise).map(l => l.reglementation)
+  const alertesRegl   = lignesSel.map(l => ({ reglementation: l.reglementation }))
+  const lignesFrance  = lignesSel.filter(l => REGL_META[l.reglementation]?.cadre !== "europe")
+  const lignesEurope  = lignesSel.filter(l => REGL_META[l.reglementation]?.cadre === "europe")
+  const actionsAFaire = lignesSel.filter(l => !l.realise).sort(comparerActions)
+  const nbRealiseesTotal = lignes.filter(l => l.realise).length
+  const texteEtatDesLieux = `· ${nbRealiseesTotal} / ${lignes.length} réalisées`
+
+  // ─── Ligne d'une réglementation ─────────────────────────────────────────────
+  function renderLigneRegl(l: LigneRegl) {
+    const faite = l.realise
+    const obligatoire = l.statut === "eligible"
+    const retard = estEnRetard(l, aujourdhui)
+    const label = labelRegl(l.reglementation)
+    const occupe = enregistrement === l.id
+    const btnBase: React.CSSProperties = {
+      boxSizing: "border-box", minHeight: "44px", padding: "8px 14px", border: "none",
+      cursor: enregistrement ? "wait" : "pointer", fontSize: "12px", fontWeight: 600, fontFamily: "inherit",
+    }
+    return (
+      <div
+        key={l.id}
+        style={{
+          boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: "16px", flexWrap: "wrap", padding: "14px 16px", borderRadius: "10px",
+          border: `1px solid ${faite ? "#BFE3CC" : "#E2E8F0"}`,
+          background: faite ? "#F0FAF4" : "#FFFFFF",
+          opacity: occupe ? 0.7 : 1,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", flex: "1 1 320px", minWidth: 0 }}>
+          <i
+            className={`ti ${faite ? "ti-circle-check" : "ti-circle"}`}
+            style={{ fontSize: "22px", color: faite ? "#2F7D5C" : "#78716C", flexShrink: 0 }}
+            aria-hidden="true"
+          />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A" }}>{label}</span>
+              <span style={{
+                fontSize: "11px", fontWeight: 600, padding: "3px 10px", borderRadius: "999px",
+                background: obligatoire ? "#DCFCE7" : "#FEF3C7",
+                color: obligatoire ? "#2D6A4F" : "#92400E",
+              }}>
+                {obligatoire ? "Éligible — Obligatoire" : "Potentiellement éligible"}
+              </span>
+            </div>
+            {l.details && (
+              <div style={{ fontSize: "12px", color: "#57534E", marginTop: "6px", lineHeight: 1.5 }}>{l.details}</div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginTop: "4px", fontSize: "12px", color: "#57534E" }}>
+              {l.echeance && (
+                <span>
+                  Échéance : <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#0F172A" }}>{formatDateFR(l.echeance)}</span>
+                </span>
+              )}
+              {faite && l.realise_le && (
+                <span style={{ color: "#2D6A4F", fontWeight: 500 }}>
+                  Réalisé le <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{formatDateFR(l.realise_le)}</span>
+                </span>
+              )}
+              {retard && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#B91C1C", fontWeight: 600 }}>
+                  <i className="ti ti-circle-x" style={{ fontSize: "14px" }} aria-hidden="true" />
+                  Échéance dépassée
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div
+          role="group"
+          aria-label={`Statut de ${label}`}
+          style={{ display: "flex", flexShrink: 0, border: "1px solid #D6D3D1", borderRadius: "8px", overflow: "hidden", background: "#FFFFFF" }}
+        >
+          <button
+            type="button"
+            aria-pressed={!faite}
+            disabled={!!enregistrement}
+            onClick={() => basculerRealise(l, false)}
+            style={{ ...btnBase, background: faite ? "#FFFFFF" : "#57534E", color: faite ? "#57534E" : "#FFFFFF" }}
+          >
+            Non réalisé
+          </button>
+          <button
+            type="button"
+            aria-pressed={faite}
+            disabled={!!enregistrement}
+            onClick={() => basculerRealise(l, true)}
+            style={{ ...btnBase, background: faite ? "#2D6A4F" : "#FFFFFF", color: faite ? "#FFFFFF" : "#57534E" }}
+          >
+            Réalisé
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
@@ -735,32 +961,188 @@ const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
       </div>
       )}
 
-      {/* Roadmap + Alertes */}
-      {!loading && (roadmap.length > 0 || alertesDynamiques.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-
-                {/* Consultants recommandés — repliable en interne, voir ConsultantsRecommandes.tsx */}
-          {alertesDynamiques.length > 0 && (
-            <ConsultantsRecommandes alertesRegl={reglemRaw} />
-          )}
-
-                    {/* Alertes réglementaires */}
-          {alertes.length > 0 && (
-            <BlocDepliant titre="Alertes réglementaires" icon="ti-alert-triangle" dotColor={alerteDot} texte={alerteTexte}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {alertes.map((a, i) => {
-                  const s = niveauStyle[a.niveau]
-                  return (
-                    <div key={i} style={{ padding: "10px 12px", background: s.bg, borderRadius: "0 8px 8px 0", borderLeft: `3px solid ${s.border}` }}>
-                      <div style={{ fontSize: "13px", fontWeight: 500, color: s.titre, marginBottom: "2px" }}>{a.label}</div>
-                      <div style={{ fontSize: "11px", color: s.sous }}>Échéance : {a.echeance}</div>
-                    </div>
-                  )
-                })}
+      {/* État des lieux réglementaire : bascule Réalisé / Non réalisé, experts, actions (repliable) */}
+      {!loading && actifSel && (
+        <BlocDepliant titre="État des lieux réglementaire" icon="ti-checklist" dotColor="#0F6E56" texte={texteEtatDesLieux}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+              <p style={{ margin: 0, fontSize: "13px", color: "#64748B", lineHeight: 1.5, flex: "1 1 280px" }}>
+                Indiquez, pour chaque réglementation, si elle est déjà réalisée. Vos experts et vos actions se mettent à jour.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label htmlFor="choix-actif-regl" style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>Actif</label>
+                <select
+                  id="choix-actif-regl"
+                  value={actifSel.id}
+                  onChange={e => { setActifSelId(e.target.value); setErreurRegl(null) }}
+                  style={{ boxSizing: "border-box", minHeight: "44px", minWidth: "240px", padding: "10px 12px", border: "1px solid #E5E1DA", borderRadius: "8px", background: "#FFFFFF", fontSize: "14px", color: "#0F172A", fontFamily: "inherit" }}
+                >
+                  {actifsAvecRegl.map(a => (
+                    <option key={a.id} value={a.id}>{a.nom}</option>
+                  ))}
+                </select>
               </div>
-            </BlocDepliant>
-          )}
-        </div>
+            </div>
+
+            {erreurRegl && (
+              <div role="alert" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", fontSize: "13px", color: "#B91C1C", fontWeight: 500 }}>
+                <i className="ti ti-circle-x" style={{ fontSize: "16px" }} aria-hidden="true" />
+                {erreurRegl}
+              </div>
+            )}
+
+            {/* Compteurs */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }}>
+              <div style={{ background: "#DCFCE7", borderRadius: "10px", padding: "12px 16px", display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "22px", fontWeight: 500, color: "#2D6A4F" }}>{nbObligatoire}</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#2D6A4F" }}>Obligatoire</span>
+              </div>
+              <div style={{ background: "#FEF3C7", borderRadius: "10px", padding: "12px 16px", display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "22px", fontWeight: 500, color: "#92400E" }}>{nbPotentiel}</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#92400E" }}>Potentiel</span>
+              </div>
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "12px 16px", display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "22px", fontWeight: 500, color: "#0F172A" }}>{nbRealisees} / {lignesSel.length}</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Réalisées</span>
+              </div>
+              <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "10px", padding: "12px 16px", display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "22px", fontWeight: 500, color: "#065F46" }}>{scoreSel}{NBSP}%</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#065F46" }}>Score réglementaire</span>
+              </div>
+            </div>
+
+            {/* Réglementations */}
+            <Volet
+              titre="Réglementations"
+              icone="ti-file-text"
+              resume={`${nbRealisees} / ${lignesSel.length} réalisées`}
+              ouvert={volets.regl}
+              onToggle={() => basculerVolet("regl")}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {lignesFrance.length > 0 && (
+                  <>
+                    <h3 style={{ margin: "4px 0 0", fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>Réglementations françaises</h3>
+                    {lignesFrance.map(renderLigneRegl)}
+                  </>
+                )}
+                {lignesEurope.length > 0 && (
+                  <>
+                    <h3 style={{ margin: "8px 0 0", fontSize: "14px", fontWeight: 600, color: "#0F172A" }}>Réglementations européennes</h3>
+                    {lignesEurope.map(renderLigneRegl)}
+                  </>
+                )}
+              </div>
+            </Volet>
+
+            {/* Experts : grisés quand toutes leurs réglementations sont réalisées */}
+            <ConsultantsRecommandes
+              alertesRegl={alertesRegl}
+              realisees={idsRealisees}
+              defaultOuvert
+              seulementPertinents
+            />
+
+            {/* Actions à réaliser */}
+            <Volet
+              titre="Actions à réaliser"
+              icone="ti-checklist"
+              resume={`${actionsAFaire.length} action${actionsAFaire.length > 1 ? "s" : ""}`}
+              ouvert={volets.actions}
+              onToggle={() => basculerVolet("actions")}
+            >
+              {actionsAFaire.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "20px", background: "#F0FAF4", border: "1px solid #BFE3CC", borderRadius: "10px" }}>
+                  <i className="ti ti-circle-check" style={{ fontSize: "24px", color: "#2F7D5C" }} aria-hidden="true" />
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "#2D6A4F" }}>Aucune action à réaliser</div>
+                    <div style={{ fontSize: "12px", color: "#57534E", marginTop: "2px" }}>
+                      Toutes les réglementations obligatoires et potentielles de cet actif sont marquées comme réalisées.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {actionsAFaire.map(l => {
+                    const expertsRegl = experts.filter(e => e.competences.includes(l.reglementation))
+                    const retard = estEnRetard(l, aujourdhui)
+                    const obligatoire = l.statut === "eligible"
+                    return (
+                      <div
+                        key={l.id}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", padding: "14px 16px", border: "1px solid #E2E8F0", borderRadius: "10px", background: "#FFFFFF" }}
+                      >
+                        <div style={{ flex: "1 1 280px", minWidth: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A" }}>Réaliser : {labelRegl(l.reglementation)}</span>
+                            <span style={{
+                              fontSize: "11px", fontWeight: 600, padding: "3px 10px", borderRadius: "999px",
+                              background: obligatoire ? "#DCFCE7" : "#FEF3C7",
+                              color: obligatoire ? "#2D6A4F" : "#92400E",
+                            }}>
+                              {obligatoire ? "Obligatoire" : "Potentielle"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", fontSize: "12px", color: "#57534E" }}>
+                            <span>
+                              Échéance : <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#0F172A" }}>{formatDateFR(l.echeance)}</span>
+                            </span>
+                            {retard && (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#B91C1C", fontWeight: 600 }}>
+                                <i className="ti ti-circle-x" style={{ fontSize: "14px" }} aria-hidden="true" />
+                                Échéance dépassée
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                          {expertsRegl.length === 0 ? (
+                            <span style={{ fontSize: "12px", color: "#57534E" }}>Aucun expert associé pour l'instant</span>
+                          ) : (
+                            expertsRegl.map(e => (
+                              <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{ fontSize: "12px", color: "#57534E" }}>
+                                  Expert : <span style={{ fontWeight: 600, color: "#B25C2A" }}>{e.prenom} {e.nom}</span>
+                                </span>
+                                {e.user_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/client/prise-rdv/${e.user_id}`)}
+                                    style={{ display: "flex", alignItems: "center", gap: "6px", background: "#B25C2A", color: "#FFFFFF", border: "none", padding: "10px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: 500, minHeight: "44px", fontFamily: "inherit" }}
+                                  >
+                                    <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} aria-hidden="true" />
+                                    Voir l'agenda et réserver
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Volet>
+          </div>
+        </BlocDepliant>
+      )}
+
+      {/* Alertes réglementaires (obligatoires non réalisées, tous actifs) */}
+      {!loading && alertes.length > 0 && (
+        <BlocDepliant titre="Alertes réglementaires" icon="ti-alert-triangle" dotColor={alerteDot} texte={alerteTexte}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {alertes.map((a, i) => {
+              const s = niveauStyle[a.niveau]
+              return (
+                <div key={i} style={{ padding: "10px 12px", background: s.bg, borderRadius: "0 8px 8px 0", borderLeft: `3px solid ${s.border}` }}>
+                  <div style={{ fontSize: "13px", fontWeight: 500, color: s.titre, marginBottom: "2px" }}>{a.label}</div>
+                  <div style={{ fontSize: "11px", color: s.sous }}>Échéance : {a.echeance}</div>
+                </div>
+              )
+            })}
+          </div>
+        </BlocDepliant>
       )}
 
       {/* Cartographie */}

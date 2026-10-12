@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 
@@ -17,27 +17,59 @@ interface Consultant {
   photo_url: string | null
 }
 
+// Consultant enrichi pour l'affichage
+// match        : compétences de l'expert qui correspondent aux réglementations de l'actif
+// tousRealises : toutes ses réglementations correspondantes sont réalisées → carte grisée
+interface ConsultantAffiche extends Consultant {
+  match: string[]
+  score: number
+  tousRealises: boolean
+}
+
 const COMPETENCE_LABELS: Record<string, string> = {
   csrd: "CSRD", tertiaire: "Décret Tertiaire", bilan_ges: "Bilan GES",
   audit_energetique: "Audit Énergétique", sfdr: "SFDR",
   eu_taxonomy: "EU Taxonomy", bacs: "Décret BACS",
   iso50001: "ISO 50001", ifrs_s2: "IFRS S2", esrs: "ESRS",
+  loi_climat: "Loi Climat Résilience",
+  geodata: "Geodata climatique",
+  delphi: "Delphi",
 }
 
 interface Props {
+  // Réglementations éligibles + potentielles de l'actif (base du matching)
   alertesRegl: { reglementation: string }[]
+  // Ids des réglementations déclarées « Réalisé » par le client
+  realisees?: string[]
+  // Carte repliable ouverte à l'affichage
+  defaultOuvert?: boolean
+  // true : n'affiche que les experts qui ont au moins une réglementation en commun avec l'actif
+  seulementPertinents?: boolean
 }
 
-export default function ConsultantsRecommandes({ alertesRegl }: Props) {
+export default function ConsultantsRecommandes({
+  alertesRegl,
+  realisees = [],
+  defaultOuvert = false,
+  seulementPertinents = false,
+}: Props) {
   const navigate = useNavigate()
-  const [consultants, setConsultants]       = useState<Consultant[]>([])
+  const [tous, setTous]                     = useState<Consultant[]>([])
   const [loading, setLoading]               = useState(true)
-  const [ouvert, setOuvert]                 = useState(false)
+  const [ouvert, setOuvert]                 = useState(defaultOuvert)
   const [drawerOpen, setDrawerOpen]         = useState(false)
   const [selected, setSelected]             = useState<Consultant | null>(null)
   const [ongletMethodo, setOngletMethodo]   = useState("")
 
-  useEffect(() => { chargerConsultants() }, [alertesRegl])
+  // alertesRegl et realisees sont recréés à chaque rendu du parent :
+  // on travaille sur des clés stables pour éviter tout recalcul / rechargement inutile.
+  const cleAlertes   = alertesRegl.map(a => a.reglementation).join("|")
+  const cleRealisees = realisees.join("|")
+  const idsActifs    = useMemo(() => (cleAlertes ? cleAlertes.split("|") : []), [cleAlertes])
+  const idsRealises  = useMemo(() => (cleRealisees ? cleRealisees.split("|") : []), [cleRealisees])
+
+  // Chargement unique (le tri se fait ensuite en mémoire)
+  useEffect(() => { chargerConsultants() }, [])
 
   async function chargerConsultants() {
     setLoading(true)
@@ -47,27 +79,35 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
         .select("*")
         .eq("is_active", true)
       if (error) throw error
-
-      const competencesRecherchees = alertesRegl.map(a => a.reglementation)
-      const sorted = (data || [])
-        .map((c: Consultant) => ({
-          ...c,
-          score: c.competences.filter(comp => competencesRecherchees.includes(comp)).length,
-        }))
-        .sort((a: any, b: any) => b.score - a.score)
-        .slice(0, 10)
-
-      setConsultants(sorted)
+      setTous((data || []) as Consultant[])
+    } catch (e) {
+      console.error("Chargement des consultants impossible", e)
+      setTous([])
     } finally {
       setLoading(false)
     }
   }
 
+  const consultants: ConsultantAffiche[] = useMemo(() => {
+    const enrichis = tous.map((c): ConsultantAffiche => {
+      const match = c.competences.filter(comp => idsActifs.includes(comp))
+      return {
+        ...c,
+        match,
+        score: match.length,
+        tousRealises: match.length > 0 && match.every(m => idsRealises.includes(m)),
+      }
+    })
+    return enrichis
+      .filter(c => !seulementPertinents || c.score > 0)
+      // Experts encore utiles d'abord, grisés en dernier, puis par pertinence
+      .sort((a, b) => Number(a.tousRealises) - Number(b.tousRealises) || b.score - a.score)
+      .slice(0, 10)
+  }, [tous, idsActifs, idsRealises, seulementPertinents])
+
   function ouvrirDrawer(c: Consultant) {
     setSelected(c)
-    const premiereCompetence = c.competences.find(
-      comp => alertesRegl.some(a => a.reglementation === comp)
-    ) || c.competences[0] || ""
+    const premiereCompetence = c.competences.find(comp => idsActifs.includes(comp)) || c.competences[0] || ""
     setOngletMethodo(premiereCompetence)
     setDrawerOpen(true)
   }
@@ -87,68 +127,103 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
 
   return (
     <>
-                 <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
-            <div
+      <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
+        <div
           onClick={() => setOuvert(o => !o)}
           role="button"
           tabIndex={0}
           onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOuvert(o => !o) } }}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+          style={{ width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
           aria-expanded={ouvert}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#B25C2A", flexShrink: 0 }} />
-            <i className="ti ti-users" style={{ fontSize: "16px", color: "#B25C2A" }} />
+            <i className="ti ti-users" style={{ fontSize: "16px", color: "#B25C2A" }} aria-hidden="true" />
             <span style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Experts recommandés</span>
-            <span style={{ fontSize: "12px", color: "#9CA3AF" }}>· {consultants.length} profils</span>
+            <span style={{ fontSize: "12px", color: "#6B7280" }}>· {consultants.length} profil{consultants.length > 1 ? "s" : ""}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <button
               onClick={e => { e.stopPropagation(); setOuvert(o => !o) }}
               style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
             >
-              <i className="ti ti-eye" style={{ fontSize: "14px" }} />
+              <i className="ti ti-eye" style={{ fontSize: "14px" }} aria-hidden="true" />
               Voir
             </button>
-            <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#9CA3AF" }} />
+            <i className={`ti ti-chevron-${ouvert ? "up" : "down"}`} style={{ fontSize: "16px", color: "#6B7280" }} aria-hidden="true" />
           </div>
         </div>
         {ouvert && (
-        <div style={{ padding: "0 20px 20px" }}>
-        <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "16px" }}>Sélectionnés selon vos alertes réglementaires</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {consultants.map((c) => {
-            const matchingComps = c.competences.filter(comp =>
-              alertesRegl.some(a => a.reglementation === comp)
-            )
-            return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", background: "#F9F0EA", borderRadius: "8px", border: "1px solid #F0DDD0" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#B25C2A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: "white", flexShrink: 0 }}>
-                  {c.prenom[0]}{c.nom[0]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{c.prenom} {c.nom}</div>
-                  <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px" }}>{c.titre}</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                    {(matchingComps.length > 0 ? matchingComps : c.competences).slice(0, 6).map(comp => (
-                      <span key={comp} style={{ background: "#B25C2A", color: "white", fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500 }}>
-                        {COMPETENCE_LABELS[comp] || comp}
-                      </span>
-                    ))}
+          <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "16px" }}>Sélectionnés selon vos alertes réglementaires</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {consultants.map((c) => {
+                const grise = c.tousRealises
+                const restantes = c.match.filter(m => !idsRealises.includes(m)).length
+                const comps = c.match.length > 0 ? c.match : c.competences
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px",
+                      background: grise ? "#F5F5F4" : "#F9F0EA",
+                      border: `1px solid ${grise ? "#E7E5E4" : "#F0DDD0"}`,
+                    }}
+                  >
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: grise ? "#A8A29E" : "#B25C2A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 600, color: "white", flexShrink: 0 }}>
+                      {c.prenom[0]}{c.nom[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 500, color: grise ? "#57534E" : "#111827" }}>{c.prenom} {c.nom}</div>
+                      <div style={{ fontSize: "11px", color: "#57534E", marginBottom: "4px" }}>{c.titre}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        {comps.slice(0, 6).map(comp => {
+                          const faite = idsRealises.includes(comp)
+                          return (
+                            <span
+                              key={comp}
+                              style={{
+                                fontSize: "10px", padding: "2px 6px", borderRadius: "3px", fontWeight: 500,
+                                background: faite ? "#E7E5E4" : "#B25C2A",
+                                color: faite ? "#57534E" : "white",
+                                textDecoration: faite ? "line-through" : "none",
+                              }}
+                            >
+                              {COMPETENCE_LABELS[comp] || comp}
+                            </span>
+                          )
+                        })}
+                      </div>
+                      {c.match.length > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "6px", fontSize: "11px", fontWeight: 500, color: grise ? "#2D6A4F" : "#57534E" }}>
+                          {grise ? (
+                            <>
+                              <i className="ti ti-circle-check" style={{ fontSize: "13px", color: "#2F7D5C" }} aria-hidden="true" />
+                              Toutes ses réglementations sont réalisées
+                            </>
+                          ) : (
+                            <>{restantes} réglementation{restantes > 1 ? "s" : ""} à réaliser</>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => ouvrirDrawer(c)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "4px", background: "#FFFFFF", padding: "6px 12px",
+                        borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+                        color: grise ? "#57534E" : "#B25C2A",
+                        border: `1px solid ${grise ? "#A8A29E" : "#B25C2A"}`,
+                      }}
+                    >
+                      <i className="ti ti-eye" style={{ fontSize: "13px" }} aria-hidden="true" />
+                      Voir
+                    </button>
                   </div>
-                </div>
-                <button
-                  onClick={() => ouvrirDrawer(c)}
-                  style={{ display: "flex", alignItems: "center", gap: "4px", background: "#FFFFFF", color: "#B25C2A", border: "1px solid #B25C2A", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
-                >
-                  <i className="ti ti-eye" style={{ fontSize: "13px" }} />
-                  Voir
-                </button>
-              </div>
-            )
-          })}
-        </div>
-        </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -161,8 +236,8 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
             {/* Header */}
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2DDD8", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>Fiche expert</div>
-              <button onClick={() => setDrawerOpen(false)} style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
-                <i className="ti ti-x" style={{ fontSize: "14px" }} />
+              <button onClick={() => setDrawerOpen(false)} aria-label="Fermer la fiche expert" style={{ width: "28px", height: "28px", border: "none", background: "#F4F3F0", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280" }}>
+                <i className="ti ti-x" style={{ fontSize: "14px" }} aria-hidden="true" />
               </button>
             </div>
 
@@ -177,8 +252,8 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
                 <div>
                   <div style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>{selected.prenom} {selected.nom}</div>
                   <div style={{ fontSize: "12px", color: "#6B7280" }}>{selected.titre}</div>
-                  <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px" }}>
-                    <i className="ti ti-map-pin" style={{ fontSize: "12px" }} /> {selected.region}
+                  <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
+                    <i className="ti ti-map-pin" style={{ fontSize: "12px" }} aria-hidden="true" /> {selected.region}
                   </div>
                 </div>
               </div>
@@ -191,9 +266,18 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
                 <div style={{ fontSize: "11px", fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Compétences</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                   {selected.competences.map(comp => {
-                    const isMatch = alertesRegl.some(a => a.reglementation === comp)
+                    const isMatch = idsActifs.includes(comp)
+                    const faite = idsRealises.includes(comp)
                     return (
-                      <span key={comp} style={{ background: isMatch ? "#B25C2A" : "#F4F3F0", color: isMatch ? "white" : "#6B7280", fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: 500 }}>
+                      <span
+                        key={comp}
+                        style={{
+                          background: isMatch && !faite ? "#B25C2A" : "#F4F3F0",
+                          color: isMatch && !faite ? "white" : "#57534E",
+                          textDecoration: isMatch && faite ? "line-through" : "none",
+                          fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: 500,
+                        }}
+                      >
                         {COMPETENCE_LABELS[comp] || comp}
                       </span>
                     )
@@ -246,7 +330,7 @@ export default function ConsultantsRecommandes({ alertesRegl }: Props) {
                 onClick={() => allerVersAgenda(selected)}
                 style={{ flex: 1, padding: "10px", background: "#B25C2A", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
-                <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} />
+                <i className="ti ti-calendar-plus" style={{ fontSize: "14px" }} aria-hidden="true" />
                 Voir l'agenda et réserver
               </button>
             </div>
