@@ -334,7 +334,7 @@ export default function FicheBien() {
           { label: "Surface",      val: actif.surface ? `${actif.surface} m²` : "—",             icon: "ti-ruler-2" },
           { label: "Effectifs",    val: actif.effectifs ? `${actif.effectifs} salariés` : "—",   icon: "ti-users" },
           { label: "Type",         val: actif.type_batiment || actif.type_bien || "—",            icon: "ti-building" },
-          { label: "Statut",       val: actif.statut_analyse || "—",                              icon: "ti-chart-bar" },
+          { label: "Statut",       val: ({ en_attente: "En attente", en_cours: "En cours", complete: "Analysé" } as Record<string, string>)[actif.statut_analyse] || "—", icon: "ti-chart-bar" },
         ].map((k, i) => (
           <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>

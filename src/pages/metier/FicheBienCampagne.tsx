@@ -66,11 +66,13 @@ export default function FicheBienCampagne() {
     setAleasDetectes(detecterAleas(data, niveauRgaAuto))
 
     const newWorkflow = { ...workflow, score_rga: true, prediag_ia: true }
+    // Un bien deja "Analyse" (complete) ne repasse pas a "en_cours"
+    const statutAnalyse = bien.statut_analyse === "complete" ? "complete" : "en_cours"
     await supabase.from("actifs").update({
-      statut_analyse: "en_cours",
+      statut_analyse: statutAnalyse,
       workflow_age: newWorkflow,
     }).eq("id", bien.id)
-    setBien({ ...bien, statut_analyse: "en_cours" })
+    setBien({ ...bien, statut_analyse: statutAnalyse })
     setWorkflow(newWorkflow)
     setAnalyseLoading(false)
   }

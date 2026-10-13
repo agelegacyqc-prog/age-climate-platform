@@ -10,7 +10,7 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
   en_qualification: { label: "En qualification", color: "#92400E", bg: "#FFFBEB" },
   validee:          { label: "Validée",           color: "#065F46", bg: "#ECFDF5" },
   en_cours:         { label: "En cours",          color: "#0369A1", bg: "#EFF6FF" },
-  terminee:         { label: "Terminée",          color: "#475569", bg: "#F1F5F9" },
+  termine:          { label: "Terminée",          color: "#475569", bg: "#F1F5F9" },
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -30,6 +30,7 @@ interface Bien {
   georisques_data: any
   exposition_rga: string | null
   statut_analyse: string
+  workflow_age: Record<string, boolean> | null
   telephone_client: string | null
   email_client: string | null
   nom_proprietaire: string | null
@@ -74,7 +75,7 @@ export default function FicheCampagne() {
     // Charger les biens liés
     const { data: liaisonsData } = await supabase
       .from("campagnes_actifs")
-      .select("actif:actif_id(id, nom, adresse, ville, code_postal, surface, type_batiment, georisques_data, exposition_rga, statut_analyse, telephone_client, email_client, nom_proprietaire)")
+      .select("actif:actif_id(id, nom, adresse, ville, code_postal, surface, type_batiment, georisques_data, exposition_rga, statut_analyse, workflow_age, telephone_client, email_client, nom_proprietaire)")
       .eq("campagne_id", id)
 
     setBiens((liaisonsData || []).map((l: any) => l.actif).filter(Boolean))
@@ -87,11 +88,12 @@ export default function FicheCampagne() {
     await supabase.from("campagnes").update({ statut: "en_cours" }).eq("id", id)
     setCampagne({ ...campagne, statut: "en_cours" })
 
-    // Mettre à jour le statut des biens
+    // Mettre à jour le statut des biens (un bien déjà "Analysé" ne repasse pas "En cours")
     for (const bien of biens) {
+      if (bien.statut_analyse === "complete") continue
       await supabase.from("actifs").update({ statut_analyse: "en_cours" }).eq("id", bien.id)
     }
-    setBiens(biens.map(b => ({ ...b, statut_analyse: "en_cours" })))
+    setBiens(biens.map(b => (b.statut_analyse === "complete" ? b : { ...b, statut_analyse: "en_cours" })))
     setLancement(false)
   }
 
@@ -103,10 +105,13 @@ const biensEnAttente = biens.filter(b => !b.georisques_data || !b.exposition_rga
     for (const bien of biensEnAttente) {
       if (!bien.georisques_data) await fetchAndStoreGeorisques(bien)
       if (!bien.exposition_rga) await fetchAndStoreRga(bien)
+      // Un bien déjà "Analysé" ne repasse pas "En cours"
+      const statutAnalyse = bien.statut_analyse === "complete" ? "complete" : "en_cours"
       await supabase.from("actifs").update({
- 
-        statut_analyse: "en_cours",
-        workflow_age: { score_rga: true, prediag_ia: true },
+        statut_analyse: statutAnalyse,
+        // Fusion avec le workflow existant ; seule l'étape "score_rga" est cochée
+        // (prediag_ia reste à cocher quand le rapport IA est réellement généré)
+        workflow_age: { ...(bien.workflow_age || {}), score_rga: true },
       }).eq("id", bien.id)
     }
     await load()
@@ -217,7 +222,7 @@ const biensEnAttente = biens.filter(b => !b.georisques_data || !b.exposition_rga
           <button onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 14px", borderRadius: "7px", border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
             <i className="ti ti-download" style={{ fontSize: "14px" }} aria-hidden="true" /> Exporter CSV
           </button>
-          {campagne.statut !== "en_cours" && campagne.statut !== "terminee" && (
+          {campagne.statut !== "en_cours" && campagne.statut !== "termine" && (
             <button onClick={lancerCampagne} disabled={lancement} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "7px 14px", borderRadius: "7px", border: "none", background: "#0F6E56", color: "white", fontSize: "12px", fontWeight: 500, cursor: lancement ? "wait" : "pointer", fontFamily: "inherit", opacity: lancement ? 0.7 : 1 }}>
               <i className="ti ti-rocket" style={{ fontSize: "14px" }} aria-hidden="true" />
               {lancement ? "Lancement…" : "Lancer la campagne"}

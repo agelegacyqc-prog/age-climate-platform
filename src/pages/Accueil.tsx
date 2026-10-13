@@ -474,7 +474,7 @@ if (clientData?.roadmap) setRoadmap(clientData.roadmap)
 // Charger l'état des lieux réglementaire (alertes, experts, actions)
 const { data: actifsData } = await supabase
   .from("actifs")
-  .select("id, nom, score_climatique, created_at")
+    .select("id, nom, score_climatique, created_at, categorie")
   .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   .neq("categorie", "import_csv")
 
@@ -509,7 +509,7 @@ console.log("user.id:", user.id)
      // Charger l'état des lieux réglementaire (alertes, experts, actions)
 const { data: actifsData } = await supabase
   .from("actifs")
-  .select("id, nom")
+      .select("id, nom, score_climatique, created_at, categorie")
   .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
   .neq("categorie", "import_csv")
 
@@ -521,10 +521,14 @@ if (actifsData && actifsData.length > 0) {
       // Assureur et Collectivité (P.O. 13/08/2026 : les chiffres codés en
       // dur induisaient le client en erreur sur son propre portefeuille)
       if (profilResolu === "assureur" || profilResolu === "collectivite") {
-        const nbActifs = actifsData?.length || 0
+        // Assureur : uniquement les biens assurés (le patrimoine propre est exclu des KPI)
+        const actifsKpi = profilResolu === "assureur"
+          ? (actifsData || []).filter((a: any) => a.categorie === "biens_assures")
+          : (actifsData || [])
+        const nbActifs = actifsKpi.length
         const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0)
-        const nbActifsMois = (actifsData || []).filter((a: any) => a.created_at && new Date(a.created_at) >= debutMois).length
-        const scores = (actifsData || []).map((a: any) => a.score_climatique).filter((s: any) => typeof s === "number")
+        const nbActifsMois = actifsKpi.filter((a: any) => a.created_at && new Date(a.created_at) >= debutMois).length
+        const scores = actifsKpi.map((a: any) => a.score_climatique).filter((s: any) => s != null).map(Number).filter(Number.isFinite)
         const scoreMoyen = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
 
         if (profilResolu === "assureur") {
@@ -534,7 +538,7 @@ if (actifsData && actifsData.length > 0) {
             .eq("client_id", user.id)
             .eq("origine", "client")
             .eq("archivee", false)
-          const nbCampagnesActives = (campagnesData || []).filter((c: any) => c.statut !== "terminee" && c.statut !== "refusee").length
+          const nbCampagnesActives = (campagnesData || []).filter((c: any) => c.statut !== "termine" && c.statut !== "refusee").length
           const nbCampagnesAttente = (campagnesData || []).filter((c: any) => c.statut === "soumise").length
 
           setKpisReels([

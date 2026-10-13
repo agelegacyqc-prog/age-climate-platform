@@ -127,7 +127,7 @@ export default function Dashboard() {
   async function loadStats(uid: string) {
     const [actifsRes, analysesRes, campRes, demandesRes, demandesAttenteRes, missionsRes] = await Promise.all([
       supabase.from("actifs").select("id, score_climatique, statut_analyse", { count: "exact" }).eq("user_id", uid),
-      supabase.from("actifs").select("id", { count: "exact" }).eq("user_id", uid).not("statut_analyse", "is", null),
+      supabase.from("actifs").select("id", { count: "exact" }).eq("user_id", uid).eq("statut_analyse", "complete"),
       supabase.from("campagnes").select("id", { count: "exact" }),
       supabase.from("demandes_marketplace").select("id", { count: "exact" }).eq("client_id", uid).in("statut", ["validee", "dispatchee", "en_cours"]),
       supabase.from("demandes_marketplace").select("id", { count: "exact" }).eq("client_id", uid).eq("statut", "soumise"),

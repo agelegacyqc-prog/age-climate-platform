@@ -18,7 +18,7 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }
   en_attente:  { label: "En attente",  color: "#92400E", bg: "#FFFBEB" },
   a_analyser:  { label: "À analyser",  color: "#92400E", bg: "#FFFBEB" },
   en_cours:    { label: "En cours",    color: "#1E40AF", bg: "#EFF6FF" },
-  analyse:     { label: "Analysé",     color: "#065F46", bg: "#ECFDF5" },
+  complete:    { label: "Analysé",     color: "#065F46", bg: "#ECFDF5" },
   a_contacter: { label: "À contacter", color: "#92400E", bg: "#FFFBEB" },
   diagnostic:  { label: "Diagnostic",  color: "#1E40AF", bg: "#EFF6FF" },
   travaux:     { label: "Travaux",     color: "#5B21B6", bg: "#F5F3FF" },
@@ -359,7 +359,7 @@ export default function Portefeuille() {
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Statut</span>
-            {["tous", "a_analyser", "en_cours", "analyse"].map(s => (
+            {["tous", "en_attente", "en_cours", "complete"].map(s => (
               <FilterPill key={s} active={filtreStatut === s} onClick={() => setFiltreStatut(s)} label={s === "tous" ? "Tous" : STATUT_CONFIG[s]?.label || s} />
             ))}
           </div>
