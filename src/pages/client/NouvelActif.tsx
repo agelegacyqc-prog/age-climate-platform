@@ -70,6 +70,15 @@ function getClassification(effectifs: number, ca: number): string {
   return "TPE"
 }
 
+// Décret Tertiaire (décret 2019-771) : déclaration OPERAT annuelle avant le 30 septembre.
+// Retourne le prochain 30/09 à venir (AAAA-MM-JJ), pour ne jamais enregistrer une date déjà passée.
+function prochaineEcheanceTertiaire(): string {
+  const d = new Date()
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  const annee = iso <= `${d.getFullYear()}-09-30` ? d.getFullYear() : d.getFullYear() + 1
+  return `${annee}-09-30`
+}
+
 function calculerEligibilite(infos: Infos): Reglementation[] {
   const surface = parseInt(infos.surface) || 0
   const effectifs = parseInt(infos.effectifs) || 0
@@ -91,7 +100,7 @@ function calculerEligibilite(infos: Infos): Reglementation[] {
       id:"bacs", label:"Décret BACS", icone:"🔧", cadre:"france",
       desc:"Système de gestion technique du bâtiment (GTB)",
       statut: surface >= 1000 && annee < 2023 ? "eligible" : surface >= 1000 ? "potentiel" : "non_eligible",
-      raison: surface >= 1000 && annee < 2023 ? `Surface ${surface}m² ≥ 1000m² — Obligatoire avant 2025`
+      raison: surface >= 1000 && annee < 2023 ? `Surface ${surface}m² ≥ 1000m² — GTB obligatoire (1er janv. 2025 au-delà de 290 kW, 1er janv. 2030 au-delà de 70 kW)`
         : surface >= 1000 ? `Surface ${surface}m² ≥ 1000m² — Vérifier date construction`
         : `Surface ${surface}m² < 1000m² — Non assujetti`
     },
@@ -315,8 +324,8 @@ export default function NouvelActif() {
     if (actifId) {
       const eligibles = reglementations.filter(r => r.statut !== "non_eligible")
       const echeancesMap: Record<string, string> = {
-        tertiaire:         "2026-09-30",
-        bacs:              "2026-01-01",
+         tertiaire:         prochaineEcheanceTertiaire(),
+         bacs:              "2030-01-01",
         audit_energetique: "2026-11-01",
         csrd:              "2026-12-31",
         eu_taxonomy:       "2026-12-31",
@@ -338,9 +347,7 @@ export default function NouvelActif() {
             echeance:       echeancesMap[r.id] || null,
           }))
         )
-        const nbEligibles = eligibles.filter(r => r.statut === "eligible").length
-        const scoreCalcule = Math.min(100, Math.round((nbEligibles / 11) * 100))
-        await supabase.from("actifs").update({ score_climatique: scoreCalcule }).eq("id", actifId)
+               await supabase.from("actifs").update({ score_reglementaire: 0 }).eq("id", actifId)
       }
     }
     setEtape(4)

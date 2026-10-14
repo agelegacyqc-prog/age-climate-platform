@@ -44,7 +44,7 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string; 
   en_qualification: { label: "En qualification", color: "#0369A1", bg: "#EFF6FF", border: "#BFDBFE" },
   validee:          { label: "Validée",           color: "#2F7D5C", bg: "#F0FDF4", border: "#BBF7D0" },
   en_cours:         { label: "En cours",          color: "#B25C2A", bg: "#F9F0EA", border: "#F0DDD0" },
-  terminee:         { label: "Terminée",          color: "#6B7280", bg: "#F4F3F0", border: "#E2DDD8" },
+  termine:         { label: "Termine",          color: "#6B7280", bg: "#F4F3F0", border: "#E2DDD8" },
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -547,7 +547,7 @@ async function lancerAnalyse(campagne: Campagne) {
           <option value="en_cours">En cours</option>
           <option value="soumise">Soumise</option>
           <option value="validee">Validée</option>
-          <option value="terminee">Terminée</option>
+          <option value="termine">Termine</option>
         </select>
         {onglet === "age" && (
           <select value={filtreType} onChange={e => setFiltreType(e.target.value)} className="input" style={{ width: "160px" }}>
@@ -666,7 +666,7 @@ async function lancerAnalyse(campagne: Campagne) {
           ) : demandesFiltrees.map(d => {
             const statut = STATUT_CONFIG[d.statut] || STATUT_CONFIG.soumise
             const type   = TYPE_CONFIG[d.type_campagne]
-            const estTraitee = ["validee", "en_cours", "terminee"].includes(d.statut)
+                        const estTraitee = ["validee", "en_cours", "termine"].includes(d.statut)
             const nbBiens = d.campagnes_actifs?.length || 0
             return (
               <div key={d.id}

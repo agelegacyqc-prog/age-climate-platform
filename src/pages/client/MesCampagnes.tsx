@@ -9,7 +9,7 @@ const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string; 
   en_qualification: { label: "En qualification", color: "#92400E", bg: "#FFFBEB", icon: "ti-search" },
   validee:          { label: "Validée",           color: "#065F46", bg: "#ECFDF5", icon: "ti-circle-check" },
   en_cours:         { label: "En cours",          color: "#0369A1", bg: "#EFF6FF", icon: "ti-rocket" },
-  terminee:         { label: "Terminée",          color: "#475569", bg: "#F1F5F9", icon: "ti-check" },
+  termine:         { label: "Termine",          color: "#475569", bg: "#F1F5F9", icon: "ti-check" },
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -417,7 +417,7 @@ async function archiverCampagne(id: string) {
   }
 
   function etapeIndex(statut: string): number {
-    const map: Record<string, number> = { soumise: 0, en_qualification: 1, validee: 2, en_cours: 3, terminee: 4 }
+    const map: Record<string, number> = { soumise: 0, en_qualification: 1, validee: 2, en_cours: 3, termine: 4 }
     return map[statut] ?? 0
   }
 

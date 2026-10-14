@@ -13,7 +13,7 @@ const STATUT_CAMPAGNE_CONFIG: Record<string, { color: string; bg: string }> = {
   en_qualification: { color: "#92400E", bg: "#FFFBEB" },
   validee:          { color: "#065F46", bg: "#ECFDF5" },
   en_cours:         { color: "#0369A1", bg: "#EFF6FF" },
-  terminee:         { color: "#475569", bg: "#F1F5F9" },
+    termine:          { color: "#475569", bg: "#F1F5F9" },
 }
 
 const LIMITE_BIENS_AFFICHES = 5

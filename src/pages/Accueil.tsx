@@ -119,7 +119,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/sensibilisation",   icon: "ti-shield",         titre: "Risques & Réglementation", desc: "TCFD, SFDR, CSRD, Brown Value et prévention climatique" },
     ],
   },
- particulier: {
+  particulier: {
     sousTitre: "Évaluez le risque climatique de votre bien immobilier",
     boutons: [
       { label: "Mon bien",            route: "/client/actifs/nouveau-particulier", icon: "ti-home" },
@@ -170,7 +170,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
       { route: "/sensibilisation",  icon: "ti-leaf",           titre: "Documentation", desc: "Ressources et obligations réglementaires" },
     ],
   },
-    collectivite: {
+  collectivite: {
     sousTitre: "Pilotez la résilience climatique de votre territoire",
     boutons: [
       { label: "Mon territoire", route: "/client/actifs",     icon: "ti-map" },
@@ -193,7 +193,7 @@ const PROFIL_CONFIG: Record<string, ProfilConfig> = {
   defaut: {
     sousTitre: "Comprendre, agir et collaborer pour un avenir climatique durable",
     boutons: [
-    { label: "Découvrir la plateforme", route: "/sensibilisation", icon: "ti-leaf" },
+      { label: "Découvrir la plateforme", route: "/sensibilisation", icon: "ti-leaf" },
     ],
     afficherCarte: false, afficherRoadmap: false,
     kpis: [
@@ -279,7 +279,7 @@ const ALERTE_LABELS: Record<string, string> = {
   loi_climat: "Loi Climat & Résilience",
 }
 
-const NBSP = " "
+const NBSP = "\u00A0"
 
 function labelRegl(id: string): string {
   return REGL_META[id]?.label ?? id
@@ -321,7 +321,7 @@ function comparerActions(a: LigneRegl, b: LigneRegl): number {
 function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: string; icon: string; dotColor: string; texte: string; children: React.ReactNode }) {
   const [ouvert, setOuvert] = useState(false)
   return (
-       <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
+    <div style={{ background: "#FFFFFF", border: "1px solid #111C2E", borderRadius: "10px", overflow: "hidden" }}>
       <div
         onClick={() => setOuvert(o => !o)}
         role="button"
@@ -336,7 +336,7 @@ function BlocDepliant({ titre, icon, dotColor, texte, children }: { titre: strin
           <span style={{ fontSize: "14px", fontWeight: 500, color: "#0F172A" }}>{titre}</span>
           <span style={{ fontSize: "12px", color: "#94A3B8" }}>{texte}</span>
         </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button
             onClick={e => { e.stopPropagation(); setOuvert(o => !o) }}
             style={{ display: "flex", alignItems: "center", gap: "6px", background: "#0F6E56", color: "white", border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
@@ -444,58 +444,55 @@ export default function Accueil() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-   const { data: profilAGE } = await supabase
-  .from("profils")
-  .select("profil, prenom, role")
-  .eq("id", user.id)
-  .maybeSingle()
-  console.log("=== profilAGE:", profilAGE)
-if (profilAGE && profilAGE.role) {
-  // Rediriger les admins vers l'espace métier
- if (profilAGE.role === 'partenaire') {
-  navigate('/partenaire/dashboard')
-  return
-}
-if (profilAGE.role === 'admin' || profilAGE.role === 'consultant' || profilAGE.role === 'admin_national' || profilAGE.role === 'responsable_regional') {
-  navigate('/metier')
-  return
-}
-  setProfil(profilAGE.profil as Profil)
-  setPrenom(profilAGE.prenom || null)
+    const { data: profilAGE } = await supabase
+      .from("profils")
+      .select("profil, prenom, role")
+      .eq("id", user.id)
+      .maybeSingle()
 
-  // Charger la roadmap depuis profils_client
-  const { data: clientData } = await supabase
-    .from("profils_client")
-    .select("roadmap")
-    .eq("id", user.id)
-    .single()
-if (clientData?.roadmap) setRoadmap(clientData.roadmap)
+    if (profilAGE && profilAGE.role) {
+      // Rediriger les admins vers l'espace métier
+      if (profilAGE.role === 'partenaire') {
+        navigate('/partenaire/dashboard')
+        return
+      }
+      if (profilAGE.role === 'admin' || profilAGE.role === 'consultant' || profilAGE.role === 'admin_national' || profilAGE.role === 'responsable_regional') {
+        navigate('/metier')
+        return
+      }
+      setProfil(profilAGE.profil as Profil)
+      setPrenom(profilAGE.prenom || null)
 
-// Charger l'état des lieux réglementaire (alertes, experts, actions)
-const { data: actifsData } = await supabase
-  .from("actifs")
-    .select("id, nom, score_climatique, created_at, categorie")
-  .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
-  .neq("categorie", "import_csv")
+      // Charger la roadmap depuis profils_client
+      const { data: clientData } = await supabase
+        .from("profils_client")
+        .select("roadmap")
+        .eq("id", user.id)
+        .single()
+      if (clientData?.roadmap) setRoadmap(clientData.roadmap)
 
-if (actifsData && actifsData.length > 0) {
-  await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
-}
+      // Charger l'état des lieux réglementaire (alertes, experts, actions)
+      const { data: actifsData } = await supabase
+        .from("actifs")
+        .select("id, nom, score_climatique, created_at, categorie")
+        .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+        .neq("categorie", "import_csv")
 
-setLoading(false)
-return
-}
+      if (actifsData && actifsData.length > 0) {
+        await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
+      }
+
+      setLoading(false)
+      return
+    }
 
     const { data: profilClient } = await supabase
       .from("profils_client")
       .select("type_client, sous_profil, roadmap")
       .eq("id", user.id)
       .single()
-      console.log("profilClient:", profilClient)
-console.log("user.id:", user.id)
- if (profilClient) {
-    console.log("=== BLOC PROFIL CLIENT ===", profilClient)
 
+    if (profilClient) {
       const mapping: Record<string, string> = {
         banque_assurance: profilClient.sous_profil || "banque",
         proprietaire: "particulier", collectivite: "collectivite",
@@ -506,25 +503,25 @@ console.log("user.id:", user.id)
       setProfil(profilResolu)
       if (profilClient.roadmap) setRoadmap(profilClient.roadmap)
 
-     // Charger l'état des lieux réglementaire (alertes, experts, actions)
-const { data: actifsData } = await supabase
-  .from("actifs")
-      .select("id, nom, score_climatique, created_at, categorie")
-  .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
-  .neq("categorie", "import_csv")
+      // Charger l'état des lieux réglementaire (alertes, experts, actions)
+      const { data: actifsData } = await supabase
+        .from("actifs")
+        .select("id, nom, score_climatique, created_at, categorie")
+        .or(`user_id.eq.${user.id},client_id.eq.${user.id}`)
+        .neq("categorie", "import_csv")
 
-if (actifsData && actifsData.length > 0) {
-  await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
-}
+      if (actifsData && actifsData.length > 0) {
+        await chargerEtatReglementaire(actifsData.map((a: any) => ({ id: a.id, nom: a.nom })))
+      }
 
       // KPIs réels — remplace les valeurs figées de PROFIL_CONFIG pour
       // Assureur et Collectivité (P.O. 13/08/2026 : les chiffres codés en
       // dur induisaient le client en erreur sur son propre portefeuille)
       if (profilResolu === "assureur" || profilResolu === "collectivite") {
-        // Assureur : uniquement les biens assurés (le patrimoine propre est exclu des KPI)
-        const actifsKpi = profilResolu === "assureur"
-          ? (actifsData || []).filter((a: any) => a.categorie === "biens_assures")
-          : (actifsData || [])
+        // Assureur : uniquement les biens assurés (le patrimoine propre est exclu des KPI).
+        // Collectivité : uniquement le patrimoine propre (décision P.O. 14/10/2026).
+        const actifsKpi = (actifsData || []).filter((a: any) =>
+          profilResolu === "assureur" ? a.categorie === "biens_assures" : a.categorie === "patrimoine_propre")
         const nbActifs = actifsKpi.length
         const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0)
         const nbActifsMois = actifsKpi.filter((a: any) => a.created_at && new Date(a.created_at) >= debutMois).length
@@ -532,7 +529,7 @@ if (actifsData && actifsData.length > 0) {
         const scoreMoyen = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
 
         if (profilResolu === "assureur") {
-        const { data: campagnesData } = await supabase
+          const { data: campagnesData } = await supabase
             .from("campagnes")
             .select("id, statut")
             .eq("client_id", user.id)
@@ -565,7 +562,7 @@ if (actifsData && actifsData.length > 0) {
         }
       }
 
-   // Chargement dossiers RGA si particulier
+      // Chargement dossiers RGA si particulier
       if (profilClient.type_client === 'proprietaire') {
         const { data: dossiersData } = await supabase
           .from('dossiers_rga')
@@ -675,7 +672,7 @@ if (actifsData && actifsData.length > 0) {
   const etapesDone  = roadmap.filter(e => e.statut === "complete").length
   const etapesTotal = roadmap.length
   const pctRoadmap  = etapesTotal > 0 ? Math.round(etapesDone / etapesTotal * 100) : 0
-const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
+  const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
   const nbOrange = alertes.filter(a => a.niveau === "orange").length
   const alerteDot   = nbRouge > 0 ? "#B91C1C" : nbOrange > 0 ? "#D97706" : "#0369A1"
   const alerteTexte = nbRouge > 0 ? `· ${nbRouge} urgente${nbRouge > 1 ? "s" : ""} sur ${alertes.length}`
@@ -826,7 +823,7 @@ const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
         )}
       </div>
 
-    {/* KPIs */}
+      {/* KPIs */}
       {!loading && kpisAffiches.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
           {kpisAffiches.map((k, i) => (
@@ -844,7 +841,8 @@ const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
           ))}
         </div>
       )}
-{/* Dossiers RGA — particulier uniquement */}
+
+      {/* Dossiers RGA — particulier uniquement */}
       {profil === 'particulier' && !loading && dossiers.length > 0 && (
         <div>
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '12px' }}>
@@ -935,34 +933,35 @@ const nbRouge  = alertes.filter(a => a.niveau === "rouge").length
           </div>
         </div>
       )}
-         {/* Accès rapides */}
+
+      {/* Accès rapides */}
       {!loading && (
-      <div>
-        <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
-          Accès rapides
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-          {config.raccourcis.map((c, i) => (
-            <div key={i} onClick={() => navigate(c.route)} style={{
-              background: "#111C2E", borderLeft: "3px solid #1D9E75",
-              borderRadius: "10px", padding: "16px 18px 16px 15px",
-              cursor: "pointer", transition: "background 0.12s",
-              display: "flex", alignItems: "flex-start", gap: "12px",
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "#16233A" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "#111C2E" }}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: "8px", background: "rgba(29,158,117,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: "#5DCAA5" }} aria-hidden="true" />
+        <div>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
+            Accès rapides
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+            {config.raccourcis.map((c, i) => (
+              <div key={i} onClick={() => navigate(c.route)} style={{
+                background: "#111C2E", borderLeft: "3px solid #1D9E75",
+                borderRadius: "10px", padding: "16px 18px 16px 15px",
+                cursor: "pointer", transition: "background 0.12s",
+                display: "flex", alignItems: "flex-start", gap: "12px",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "#16233A" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "#111C2E" }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: "8px", background: "rgba(29,158,117,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className={`ti ${c.icon}`} style={{ fontSize: "18px", color: "#5DCAA5" }} aria-hidden="true" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 500, color: "#FFFFFF", fontSize: "13px", marginBottom: "3px" }}>{c.titre}</div>
+                  <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.5 }}>{c.desc}</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontWeight: 500, color: "#FFFFFF", fontSize: "13px", marginBottom: "3px" }}>{c.titre}</div>
-                <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.5 }}>{c.desc}</div>
-              </div>
-                    </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
       )}
 
       {/* État des lieux réglementaire : bascule Réalisé / Non réalisé, experts, actions (repliable) */}
