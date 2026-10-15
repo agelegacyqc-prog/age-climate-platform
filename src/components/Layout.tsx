@@ -9,6 +9,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/":                           "Accueil",
   "/sensibilisation":            "Sensibilisation",
   "/marketplace":                "Marketplace",
+    "/trajectoire":                "Trajectoire",
   "/client":                     "Mon compte",
   "/client/actifs":              "Mon Patrimoine",
   "/client/campagnes":           "Mes Campagnes",
@@ -847,6 +848,9 @@ if (role === "consultant") {
           <div className="nav-section">Plateforme</div>
           <NavItem to="/" icon="ti-home" label="Accueil" end />
           <NavItem to="/sensibilisation" icon="ti-plant-2" label="Sensibilisation" />
+                    {((espace === "client" && labelProfil !== "Particulier") || espace === "metier") && (
+            <NavItem to="/trajectoire" icon="ti-route" label="Trajectoire" />
+          )}
 
         {(espace === "client" || roleAGE === "admin_national") && (
             <NavItem to="/marketplace" icon="ti-building-store" label="Marketplace" />

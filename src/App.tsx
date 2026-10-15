@@ -25,6 +25,7 @@ import PriseRdv from "./pages/client/PriseRdv"
 import MonAgenda from "./pages/client/MonAgenda"
 import BiensCampagnes from "./pages/client/BiensCampagnes"
 import GestionUtilisateurs from "./pages/client/GestionUtilisateurs"
+import Trajectoire from "./pages/trajectoire/Trajectoire"
 import FicheCampagne from "./pages/metier/FicheCampagne"
 import FicheCampagneAGE from "./pages/metier/FicheCampagneAGE"
 import FicheBienCampagne from "./pages/metier/FicheBienCampagne"
@@ -83,6 +84,7 @@ import PrescripteursRecrutement from "./pages/metier/PrescripteursRecrutement"
 import PrescripteursDiagnostics from "./pages/metier/PrescripteursDiagnostics"
 import PrescripteurCommission from "./pages/prescripteur/PrescripteurCommission"
 
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -117,7 +119,7 @@ export default function App() {
           <Route path="client/biens-campagnes" element={<ProtectedRoute><BiensCampagnes /></ProtectedRoute>} />
           <Route path="client/messagerie" element={<ProtectedRoute><ClientMessagerie /></ProtectedRoute>} />
           <Route path="client/utilisateurs" element={<ProtectedRoute><GestionUtilisateurs /></ProtectedRoute>} />
-
+          <Route path="trajectoire" element={<ProtectedRoute><Trajectoire /></ProtectedRoute>} />
           {/* ── Routes métier ── */}
           <Route path="metier" element={<ProtectedRoute><DashboardMetier /></ProtectedRoute>} />
           <Route path="metier/portefeuille" element={<ProtectedRoute><Portefeuille /></ProtectedRoute>} />
