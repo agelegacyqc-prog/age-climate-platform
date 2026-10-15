@@ -6,21 +6,25 @@
 
 import React, { useMemo, useState } from "react"
 import { DOMAINES, fmtPct, maturite } from "../../lib/trajectoire"
+import OngletDocuments from "./OngletDocuments"
 import OngletMatrice from "./OngletMatrice"
+import { useDocuments } from "./useDocuments"
 import { useExigences } from "./useExigences"
 import { useTrajectoireContexte } from "./useTrajectoireContexte"
 import { Valeur, carte, selecteur } from "./ui"
 
-type OngletId = "matrice"
+type OngletId = "documents" | "matrice"
 
-// Les onglets Documents, À valider et Roadmap seront ajoutés dans les lots suivants.
+// Les onglets À valider et Roadmap seront ajoutés dans les lots suivants.
 const ONGLETS: ReadonlyArray<{ id: OngletId; label: string }> = [
+  { id: "documents", label: "Documents" },
   { id: "matrice", label: "Matrice" },
 ]
 
 export default function Trajectoire() {
   const ctx = useTrajectoireContexte()
-  const exig = useExigences(ctx.organisationId)
+    const exig = useExigences(ctx.organisationId)
+  const docs = useDocuments(ctx.organisationId, ctx.userId, ctx.mode)
   const [onglet, setOnglet] = useState<OngletId>("matrice")
 
   const kpis = useMemo(() => [
@@ -102,6 +106,19 @@ export default function Trajectoire() {
               </button>
             ))}
           </div>
+
+                    {onglet === "documents" && (
+            <OngletDocuments
+              documents={docs.documents}
+              chargement={docs.chargement}
+              erreur={docs.erreur}
+              estAdminClient={ctx.estAdminClient}
+              estPersonnelAGE={ctx.estPersonnelAGE}
+              deposer={docs.deposer}
+              ouvrir={docs.ouvrir}
+              archiver={docs.archiver}
+            />
+          )}
 
           {onglet === "matrice" && (
             <OngletMatrice
