@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import {
-    BUCKET_TRAJECTOIRE, cheminStockage, erreurFichier, typeFichierGed, typeMimeAutorise,
+  BUCKET_TRAJECTOIRE, cheminStockage, erreurFichier, typeFichierGed, typeMimeAutorise,
   type StatutAnalyse, type TypeDocument,
 } from "../../lib/trajectoireDocuments"
 
@@ -53,6 +53,10 @@ export interface UseDocuments {
   /** Ouvre le fichier dans un nouvel onglet (lien signé de 60 secondes). Renvoie null si OK. */
   ouvrir: (ligne: DocumentLigne) => Promise<string | null>
   archiver: (id: string) => Promise<string | null>
+  /** Relance de l'analyse IA d'un document (personnel AGE). Renvoie null si OK. */
+  relancer: (id: string) => Promise<string | null>
+  /** Rafraîchit la liste toutes les 4 s pendant `ms` millisecondes (après un dépôt, un consentement ou une relance). */
+  surveiller: (ms: number) => void
 }
 
 export function useDocuments(
@@ -63,6 +67,7 @@ export function useDocuments(
   const [documents, setDocuments] = useState<DocumentLigne[]>([])
   const [chargement, setChargement] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [surveillerJusqua, setSurveillerJusqua] = useState(0)
 
   const recharger = useCallback(async () => {
     if (!organisationId) { setDocuments([]); return }
@@ -85,6 +90,18 @@ export function useDocuments(
 
   useEffect(() => { void recharger() }, [recharger])
 
+  const surveiller = useCallback((ms: number) => setSurveillerJusqua(Date.now() + ms), [])
+
+  // Rafraîchissement automatique tant qu'un document est en analyse ou pendant la fenêtre de surveillance.
+  const enAnalyse = documents.some(d => d.statut_analyse === "en_analyse")
+  useEffect(() => {
+    if (!organisationId) return
+    const actif = () => enAnalyse || Date.now() < surveillerJusqua
+    if (!actif()) return
+    const minuteur = setInterval(() => { if (actif()) void recharger() }, 4000)
+    return () => clearInterval(minuteur)
+  }, [organisationId, enAnalyse, surveillerJusqua, recharger])
+
   const deposer = useCallback(async (depot: DepotDocument): Promise<string | null> => {
     if (!organisationId || !userId || !mode) return "Aucune organisation sélectionnée."
     const { fichier } = depot
@@ -104,7 +121,7 @@ export function useDocuments(
       .insert({
         nom: fichier.name,
         nom_fichier: fichier.name,
-                type_fichier: typeFichierGed(fichier.name),
+        type_fichier: typeFichierGed(fichier.name),
         taille_octets: fichier.size,
         storage_path: chemin,
         client_id: mode === "client" ? userId : null,
@@ -140,9 +157,10 @@ export function useDocuments(
     if (tjErr) { await annuler(); return tjErr.message }
     if (!tj || tj.length === 0) { await annuler(); return "Dépôt refusé : droits insuffisants." }
 
+    surveiller(60_000)
     await recharger()
     return null
-  }, [organisationId, userId, mode, recharger])
+  }, [organisationId, userId, mode, recharger, surveiller])
 
   const ouvrir = useCallback(async (ligne: DocumentLigne): Promise<string | null> => {
     const chemin = ligne.document?.storage_path
@@ -171,5 +189,25 @@ export function useDocuments(
     return null
   }, [recharger])
 
-  return { documents, chargement, erreur, recharger, deposer, ouvrir, archiver }
+  const relancer = useCallback(async (id: string): Promise<string | null> => {
+    const { error } = await supabase.functions.invoke("trajectoire-analyse", { body: { trajectoire_document_id: id } })
+    if (error) {
+      let detail = error.message
+      const contexte: unknown = (error as { context?: unknown }).context
+      if (contexte instanceof Response) {
+        try {
+          const corps: unknown = await contexte.json()
+          if (typeof corps === "object" && corps !== null && typeof (corps as { error?: unknown }).error === "string") {
+            detail = (corps as { error: string }).error
+          }
+        } catch { /* corps illisible : on garde le message générique */ }
+      }
+      return `Relance impossible : ${detail}`
+    }
+    surveiller(60_000)
+    await recharger()
+    return null
+  }, [recharger, surveiller])
+
+  return { documents, chargement, erreur, recharger, deposer, ouvrir, archiver, relancer, surveiller }
 }

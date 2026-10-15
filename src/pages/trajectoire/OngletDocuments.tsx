@@ -3,7 +3,8 @@
 // Documents de l'organisation : dépôt (audits, diagnostics, normes, études) et liste.
 // Droits : tout compte rattaché à l'organisation (admin_client, utilisateur_client, personnel AGE)
 // dépose et ouvre ; l'archivage est proposé à admin_client et au personnel AGE.
-// L'analyse automatique n'est pas encore activée : les documents restent au statut « Déposé ».
+// Analyse automatique par IA (PDF uniquement pour le moment) : activée par le consentement d'admin_client ;
+// relance possible par le personnel AGE.
 
 import React, { useState } from "react"
 import { aujourdhuiISO, fmtDateFR } from "../../lib/trajectoire"
@@ -11,6 +12,9 @@ import {
   STATUTS_ANALYSE_META, TYPES_DOCUMENT, erreurFichier, fmtTaille, libelleTypeDocument,
   type StatutAnalyse, type TypeDocument,
 } from "../../lib/trajectoireDocuments"
+import { peutRelancer } from "../../lib/trajectoireIA"
+import BlocConsentementIA from "./BlocConsentementIA"
+import type { ConsentementIA } from "./useConsentementIA"
 import type { DepotDocument, DocumentLigne } from "./useDocuments"
 import { Valeur, boutonPrimaire, boutonSecondaire, carte, selecteur } from "./ui"
 
@@ -23,6 +27,12 @@ interface Props {
   deposer: (depot: DepotDocument) => Promise<string | null>
   ouvrir: (ligne: DocumentLigne) => Promise<string | null>
   archiver: (id: string) => Promise<string | null>
+  relancer: (id: string) => Promise<string | null>
+  consentement: ConsentementIA | null
+  consentementChargement: boolean
+  consentementErreur: string | null
+  donnerConsentement: () => Promise<string | null>
+  retirerConsentement: () => Promise<string | null>
 }
 
 type Message = { type: "ok" | "erreur"; texte: string }
@@ -46,7 +56,10 @@ function PastilleAnalyse({ statut }: { statut: StatutAnalyse }) {
 }
 
 export default function OngletDocuments(props: Props) {
-  const { documents, chargement, erreur, estAdminClient, estPersonnelAGE, deposer, ouvrir, archiver } = props
+  const {
+    documents, chargement, erreur, estAdminClient, estPersonnelAGE, deposer, ouvrir, archiver, relancer,
+    consentement, consentementChargement, consentementErreur, donnerConsentement, retirerConsentement,
+  } = props
   const [fichier, setFichier] = useState<File | null>(null)
   const [cleFichier, setCleFichier] = useState(0)
   const [typeDocument, setTypeDocument] = useState<TypeDocument>("audit")
@@ -85,6 +98,15 @@ export default function OngletDocuments(props: Props) {
     if (err) setMessage({ type: "erreur", texte: err })
   }
 
+  async function lancerRelance(l: DocumentLigne) {
+    setOccupe(true)
+    setMessage(null)
+    const err = await relancer(l.id)
+    setOccupe(false)
+    if (err) setMessage({ type: "erreur", texte: err })
+    else setMessage({ type: "ok", texte: "Analyse relancée." })
+  }
+
   async function lancerArchivage(l: DocumentLigne) {
     if (!window.confirm("Archiver ce document ? Il ne sera plus affiché dans la liste.")) return
     setOccupe(true)
@@ -100,7 +122,7 @@ export default function OngletDocuments(props: Props) {
       <form onSubmit={e => void lancerDepot(e)} style={{ ...carte, display: "flex", flexDirection: "column", gap: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Déposer un document</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#57534E", lineHeight: 1.5, maxWidth: "70ch" }}>
-          Audits, diagnostics, normes et études. Formats acceptés : PDF, Word (.doc, .docx) et Excel (.xls, .xlsx), 50 Mo maximum.
+          Audits, diagnostics, normes et études. Formats acceptés : PDF, Word (.doc, .docx) et Excel (.xls, .xlsx), 50 Mo maximum. L'analyse automatique ne concerne que les PDF (10 Mo maximum).
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
           <label style={{ fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4, flex: "1 1 260px" }}>
@@ -139,10 +161,15 @@ export default function OngletDocuments(props: Props) {
         </div>
       )}
 
-      <div role="note" style={{ fontSize: 12, padding: "10px 14px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, background: "#E0F2FE", color: "#075985" }}>
-        <i className="ti ti-info-circle" style={{ color: "#0369A1" }} aria-hidden="true" />
-        L'analyse automatique n'est pas encore activée : les documents restent au statut « Déposé ».
-      </div>
+      <BlocConsentementIA
+        consentement={consentement}
+        chargement={consentementChargement}
+        erreur={consentementErreur}
+        estAdminClient={estAdminClient}
+        donner={donnerConsentement}
+        retirer={retirerConsentement}
+        onMessage={setMessage}
+      />
 
       {erreur && (
         <div role="alert" style={{ ...carte, borderColor: "#FCA5A5", display: "flex", gap: 10, alignItems: "center", color: "#991B1B" }}>
@@ -196,6 +223,9 @@ export default function OngletDocuments(props: Props) {
                   <PastilleAnalyse statut={l.statut_analyse} />
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button type="button" style={boutonSecondaire} onClick={() => void lancerOuverture(l)}>Ouvrir</button>
+                    {peutRelancer(l.statut_analyse, estPersonnelAGE, consentement !== null) && (
+                      <button type="button" style={boutonSecondaire} disabled={occupe} onClick={() => void lancerRelance(l)}>Relancer l'analyse</button>
+                    )}
                     {peutArchiver && (
                       <button type="button" style={boutonSecondaire} disabled={occupe} onClick={() => void lancerArchivage(l)}>Archiver</button>
                     )}

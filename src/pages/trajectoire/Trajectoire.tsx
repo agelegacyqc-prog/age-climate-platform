@@ -10,6 +10,7 @@ import OngletDocuments from "./OngletDocuments"
 import OngletAValider from "./OngletAValider"
 import OngletMatrice from "./OngletMatrice"
 import { useDocuments } from "./useDocuments"
+import { useConsentementIA } from "./useConsentementIA"
 import { useExigences } from "./useExigences"
 import { useExtractions } from "./useExtractions"
 import { useTrajectoireContexte } from "./useTrajectoireContexte"
@@ -26,9 +27,10 @@ const ONGLETS: ReadonlyArray<{ id: OngletId; label: string }> = [
 
 export default function Trajectoire() {
   const ctx = useTrajectoireContexte()
-    const exig = useExigences(ctx.organisationId)
+  const exig = useExigences(ctx.organisationId)
   const docs = useDocuments(ctx.organisationId, ctx.userId, ctx.mode)
-    const extr = useExtractions(ctx.organisationId)
+  const extr = useExtractions(ctx.organisationId)
+  const consent = useConsentementIA(ctx.organisationId)
   const [onglet, setOnglet] = useState<OngletId>("matrice")
 
   const kpis = useMemo(() => [
@@ -100,7 +102,7 @@ export default function Trajectoire() {
 
           <div role="tablist" aria-label="Sections de Trajectoire" style={{ display: "flex", flexWrap: "wrap", gap: 4, borderBottom: "1px solid #E2E8F0" }}>
             {ONGLETS.map(o => (
-              <button key={o.id} type="button" role="tab" aria-selected={onglet === o.id} onClick={() => setOnglet(o.id)}
+              <button key={o.id} type="button" role="tab" aria-selected={onglet === o.id} onClick={() => { setOnglet(o.id); if (o.id === "avalider") void extr.recharger() }}
                 style={{
                   minHeight: 44, padding: "0 16px", border: 0, background: "transparent", cursor: "pointer", fontSize: 14, marginBottom: -1,
                   borderBottom: `2px solid ${onglet === o.id ? "#4338CA" : "transparent"}`,
@@ -111,7 +113,7 @@ export default function Trajectoire() {
             ))}
           </div>
 
-                    {onglet === "documents" && (
+          {onglet === "documents" && (
             <OngletDocuments
               documents={docs.documents}
               chargement={docs.chargement}
@@ -121,6 +123,16 @@ export default function Trajectoire() {
               deposer={docs.deposer}
               ouvrir={docs.ouvrir}
               archiver={docs.archiver}
+              relancer={docs.relancer}
+              consentement={consent.consentement}
+              consentementChargement={consent.chargement}
+              consentementErreur={consent.erreur}
+              donnerConsentement={async () => {
+                const err = await consent.donner()
+                if (!err) docs.surveiller(60_000)
+                return err
+              }}
+              retirerConsentement={consent.retirer}
             />
           )}
 
