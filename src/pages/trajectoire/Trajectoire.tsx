@@ -7,24 +7,28 @@
 import React, { useMemo, useState } from "react"
 import { DOMAINES, fmtPct, maturite } from "../../lib/trajectoire"
 import OngletDocuments from "./OngletDocuments"
+import OngletAValider from "./OngletAValider"
 import OngletMatrice from "./OngletMatrice"
 import { useDocuments } from "./useDocuments"
 import { useExigences } from "./useExigences"
+import { useExtractions } from "./useExtractions"
 import { useTrajectoireContexte } from "./useTrajectoireContexte"
 import { Valeur, carte, selecteur } from "./ui"
 
-type OngletId = "documents" | "matrice"
+type OngletId = "documents" | "matrice" | "avalider"
 
-// Les onglets À valider et Roadmap seront ajoutés dans les lots suivants.
+// L'onglet Roadmap sera ajouté dans un lot suivant.
 const ONGLETS: ReadonlyArray<{ id: OngletId; label: string }> = [
   { id: "documents", label: "Documents" },
   { id: "matrice", label: "Matrice" },
+  { id: "avalider", label: "À valider" },
 ]
 
 export default function Trajectoire() {
   const ctx = useTrajectoireContexte()
     const exig = useExigences(ctx.organisationId)
   const docs = useDocuments(ctx.organisationId, ctx.userId, ctx.mode)
+    const extr = useExtractions(ctx.organisationId)
   const [onglet, setOnglet] = useState<OngletId>("matrice")
 
   const kpis = useMemo(() => [
@@ -129,6 +133,20 @@ export default function Trajectoire() {
               estPersonnelAGE={ctx.estPersonnelAGE}
               modifier={exig.modifier}
               initialiser={exig.initialiser}
+            />
+          )}
+
+          {onglet === "avalider" && (
+            <OngletAValider
+              extractions={extr.extractions}
+              documents={docs.documents}
+              exigences={exig.exigences}
+              chargement={extr.chargement}
+              erreur={extr.erreur}
+              estAdminClient={ctx.estAdminClient}
+              estPersonnelAGE={ctx.estPersonnelAGE}
+              changerStatut={extr.changerStatut}
+              creer={extr.creer}
             />
           )}
         </>
