@@ -203,7 +203,7 @@ async function appelerClaude(modele: string, pdfBase64: string, exigences: strin
       max_tokens: 8000,
       system: SYSTEME,
       tools: [OUTIL],
-      tool_choice: { type: "tool", name: OUTIL.name },
+            tool_choice: { type: "auto" },
       messages: [{
         role: "user",
         content: [
