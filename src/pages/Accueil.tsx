@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import CartePortefeuille from "../components/CartePortefeuille"
 import ConsultantsRecommandes from "../components/ConsultantsRecommandes"
+   import AccueilTrajectoire from "./trajectoire/AccueilTrajectoire"
 
 type Profil = "banque" | "assureur" | "particulier" | "collectivite" | "entreprise" | "expert" | null
 interface DossierRGA {
@@ -934,7 +935,9 @@ export default function Accueil() {
         </div>
       )}
 
-      {/* Accès rapides */}
+               {!loading && <AccueilTrajectoire />}
+
+         {/* Accès rapides */}
       {!loading && (
         <div>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "12px" }}>
