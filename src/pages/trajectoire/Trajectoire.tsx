@@ -9,27 +9,30 @@ import { DOMAINES, fmtPct, maturite } from "../../lib/trajectoire"
 import OngletDocuments from "./OngletDocuments"
 import OngletAValider from "./OngletAValider"
 import OngletMatrice from "./OngletMatrice"
+import OngletRoadmap from "./OngletRoadmap"
 import { useDocuments } from "./useDocuments"
 import { useConsentementIA } from "./useConsentementIA"
 import { useExigences } from "./useExigences"
 import { useExtractions } from "./useExtractions"
+import { useRoadmap } from "./useRoadmap"
 import { useTrajectoireContexte } from "./useTrajectoireContexte"
 import { Valeur, carte, selecteur } from "./ui"
 
-type OngletId = "documents" | "matrice" | "avalider"
+type OngletId = "documents" | "matrice" | "avalider" | "roadmap"
 
-// L'onglet Roadmap sera ajouté dans un lot suivant.
 const ONGLETS: ReadonlyArray<{ id: OngletId; label: string }> = [
   { id: "documents", label: "Documents" },
   { id: "matrice", label: "Matrice" },
   { id: "avalider", label: "À valider" },
+  { id: "roadmap", label: "Roadmap" },
 ]
 
 export default function Trajectoire() {
   const ctx = useTrajectoireContexte()
   const exig = useExigences(ctx.organisationId)
   const docs = useDocuments(ctx.organisationId, ctx.userId, ctx.mode)
-  const extr = useExtractions(ctx.organisationId)
+    const extr = useExtractions(ctx.organisationId)
+  const roadmap = useRoadmap(ctx.organisationId, exig.exigences, extr.extractions)
   const consent = useConsentementIA(ctx.organisationId)
   const [onglet, setOnglet] = useState<OngletId>("matrice")
 
@@ -158,7 +161,17 @@ export default function Trajectoire() {
               estAdminClient={ctx.estAdminClient}
               estPersonnelAGE={ctx.estPersonnelAGE}
               changerStatut={extr.changerStatut}
-              creer={extr.creer}
+                    creer={extr.creer}
+            />
+          )}
+
+          {onglet === "roadmap" && (
+            <OngletRoadmap
+              actions={roadmap.actions}
+              params={roadmap.params}
+              nbActifsScores={roadmap.nbActifsScores}
+              chargement={roadmap.chargement || exig.chargement || extr.chargement}
+              avertissement={roadmap.avertissement}
             />
           )}
         </>
