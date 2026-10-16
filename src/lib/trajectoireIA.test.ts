@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 import { TEXTE_CONSENTEMENT, TEXTE_CONSENTEMENT_VERSION, peutRelancer } from "./trajectoireIA"
 
 describe("peutRelancer", () => {
-  it("réservée au personnel AGE", () => {
+  it("réservée aux profils autorisés (admin_client, personnel AGE)", () => {
     expect(peutRelancer("echec", true, true)).toBe(true)
     expect(peutRelancer("echec", false, true)).toBe(false)
   })

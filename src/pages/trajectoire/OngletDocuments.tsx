@@ -4,7 +4,7 @@
 // Droits : tout compte rattaché à l'organisation (admin_client, utilisateur_client, personnel AGE)
 // dépose et ouvre ; l'archivage est proposé à admin_client et au personnel AGE.
 // Analyse automatique par IA (PDF uniquement pour le moment) : activée par le consentement d'admin_client ;
-// relance possible par le personnel AGE.
+// relance possible par admin_client et le personnel AGE (quota quotidien par organisation côté serveur).
 
 import React, { useState } from "react"
 import { aujourdhuiISO, fmtDateFR } from "../../lib/trajectoire"
@@ -223,7 +223,7 @@ export default function OngletDocuments(props: Props) {
                   <PastilleAnalyse statut={l.statut_analyse} />
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button type="button" style={boutonSecondaire} onClick={() => void lancerOuverture(l)}>Ouvrir</button>
-                    {peutRelancer(l.statut_analyse, estPersonnelAGE, consentement !== null) && (
+                                        {peutRelancer(l.statut_analyse, estPersonnelAGE || estAdminClient, consentement !== null) && (
                       <button type="button" style={boutonSecondaire} disabled={occupe} onClick={() => void lancerRelance(l)}>Relancer l'analyse</button>
                     )}
                     {peutArchiver && (

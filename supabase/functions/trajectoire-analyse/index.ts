@@ -412,7 +412,7 @@ serve(async (req) => {
       return reponseJson({ ignore: true })
     }
   } else {
-    // Relance par le personnel AGE (JWT utilisateur).
+        // Relance par le personnel AGE ou par admin_client de l'organisation (JWT utilisateur).
     const authorization = req.headers.get("Authorization")
     if (!authorization) return reponseJson({ error: "Non authentifié" }, 401)
     const sbUtilisateur = createClient(url, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
@@ -420,12 +420,18 @@ serve(async (req) => {
     })
     const { data: u } = await sbUtilisateur.auth.getUser()
     if (!u?.user) return reponseJson({ error: "Non authentifié" }, 401)
-    const { data: personnel } = await sbUtilisateur.rpc("trajectoire_est_personnel_age")
-    if (personnel !== true) return reponseJson({ error: "Relance réservée au personnel AGE" }, 403)
     const id = corps.trajectoire_document_id
     if (typeof id !== "string") return reponseJson({ error: "trajectoire_document_id requis" }, 400)
-    const { data: visible } = await sbUtilisateur.from("trajectoire_documents").select("id").eq("id", id).maybeSingle()
+    // Le document doit être visible par l'appelant (RLS) : un autre client ne peut pas relancer ce document.
+    const { data: visible } = await sbUtilisateur.from("trajectoire_documents").select("id, organisation_id").eq("id", id).maybeSingle()
     if (!visible) return reponseJson({ error: "Document introuvable" }, 404)
+    const { data: personnel } = await sbUtilisateur.rpc("trajectoire_est_personnel_age")
+    if (personnel !== true) {
+      const { data: adminClient } = await sbUtilisateur.rpc("trajectoire_est_admin_client", { org: visible.organisation_id })
+      if (adminClient !== true) {
+        return reponseJson({ error: "Relance réservée aux administrateurs de l'organisation et au personnel AGE" }, 403)
+      }
+    }
     ids = [id]
   }
 

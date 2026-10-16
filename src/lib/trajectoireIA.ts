@@ -38,7 +38,7 @@ export const TEXTE_CONSENTEMENT = {
 /** Statuts pour lesquels une relance de l'analyse a un sens. */
 const STATUTS_RELANCABLES: ReadonlySet<StatutAnalyse> = new Set<StatutAnalyse>(["depose", "echec", "partiel"])
 
-/** La relance est réservée au personnel AGE, et n'a de sens que si l'organisation a donné son consentement. */
-export function peutRelancer(statut: StatutAnalyse, estPersonnelAGE: boolean, consentementActif: boolean): boolean {
-  return estPersonnelAGE && consentementActif && STATUTS_RELANCABLES.has(statut)
+/** La relance est réservée à admin_client et au personnel AGE, et n'a de sens que si l'organisation a donné son consentement. */
+export function peutRelancer(statut: StatutAnalyse, estAutorise: boolean, consentementActif: boolean): boolean {
+  return estAutorise && consentementActif && STATUTS_RELANCABLES.has(statut)
 }
