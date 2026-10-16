@@ -15,6 +15,13 @@ import {
   scoreExposition,
   type CandidatAction,
   type ExtractionSource,
+  type LigneAction,
+  appliquerDatesPlanifiees,
+  cleDeLigne,
+  indexerLignes,
+  peutPlanifier,
+  sourceDeCle,
+  versNouvelleAction,
 } from "./trajectoireRoadmap"
 
 const AUJ = "2026-10-16"
@@ -312,5 +319,111 @@ describe("candidatsDepuisExtractions", () => {
     const org = exig({ id: "e-org", actif_id: null, qualification: "obligatoire" })
     const [a] = candidatsDepuisExtractions([extr({ referentiel_id: "R1" })], [parActif, org], { a: 90 })
     expect(a.qualification).toBe("obligatoire")
+  })
+})
+function lig(o: Partial<LigneAction> = {}): LigneAction {
+  return { id: "l1", exigence_id: "e1", extraction_id: null, statut: "a_lancer", responsable: null, date_cible: null, archivee: false, ...o }
+}
+
+describe("cleDeLigne / indexerLignes / sourceDeCle", () => {
+  it("clé de lien selon la source", () => {
+    expect(cleDeLigne(lig())).toBe("exigence:e1")
+    expect(cleDeLigne(lig({ exigence_id: null, extraction_id: "x1" }))).toBe("extraction:x1")
+    expect(cleDeLigne(lig({ exigence_id: null, extraction_id: null }))).toBeNull()
+  })
+
+  it("l'index ignore les lignes archivées", () => {
+    const index = indexerLignes([lig({ id: "a" }), lig({ id: "b", exigence_id: "e2", archivee: true }), lig({ id: "c", exigence_id: null, extraction_id: "x1" })])
+    expect([...index.keys()].sort()).toEqual(["exigence:e1", "extraction:x1"])
+    expect(index.get("exigence:e1")?.id).toBe("a")
+  })
+
+  it("sourceDeCle décode la clé et refuse les clés invalides", () => {
+    expect(sourceDeCle("exigence:abc")).toEqual({ origine: "exigence", id: "abc" })
+    expect(sourceDeCle("extraction:a:b")).toEqual({ origine: "extraction", id: "a:b" })
+    expect(sourceDeCle("inconnu:1")).toBeNull()
+    expect(sourceDeCle("exigence:")).toBeNull()
+    expect(sourceDeCle("sans-separateur")).toBeNull()
+  })
+})
+
+describe("appliquerDatesPlanifiees", () => {
+  it("utilise la date de l'action enregistrée quand la source n'a pas d'échéance", () => {
+    const r = appliquerDatesPlanifiees([cand({ cle: "exigence:e1" })], [lig({ date_cible: "2027-05-01" })])
+        expect(r[0].date_cible).toBe("2027-05-01")
+    expect(r[0].date_planifiee).toBe(true)
+  })
+
+  it("l'échéance de la source prime", () => {
+    const r = appliquerDatesPlanifiees([cand({ cle: "exigence:e1", date_cible: "2027-02-01" })], [lig({ date_cible: "2027-05-01" })])
+       expect(r[0].date_cible).toBe("2027-02-01")
+    expect(r[0].date_planifiee).toBeUndefined()
+  })
+
+  it("ignore les actions archivées et les candidats sans action enregistrée", () => {
+    const sans = cand({ cle: "exigence:e9" })
+    const r = appliquerDatesPlanifiees([cand({ cle: "exigence:e1" }), sans], [lig({ date_cible: "2027-05-01", archivee: true })])
+    expect(r[0].date_cible).toBeNull()
+    expect(r[1]).toBe(sans)
+  })
+
+  it("la date planifiée alimente l'horizon et le score", () => {
+    const [c] = appliquerDatesPlanifiees([cand({ cle: "exigence:e1", qualification: "obligatoire" })], [lig({ date_cible: "2027-10-16" })])
+    const [a] = calculerRoadmap([c], P, AUJ)
+    expect(a.horizon).toBe("3_12m")
+    expect(a.score).toBeCloseTo(42.5, 9) // 30 (légal) + 12,5 (échéance à 365 j)
+  })
+})
+
+describe("peutPlanifier", () => {
+  it("exige un domaine et une clé valide", () => {
+    expect(peutPlanifier({ cle: "exigence:e1", domaine: "energie" })).toBe(true)
+    expect(peutPlanifier({ cle: "exigence:e1", domaine: null })).toBe(false)
+    expect(peutPlanifier({ cle: "invalide", domaine: "energie" })).toBe(false)
+  })
+})
+
+describe("versNouvelleAction", () => {
+  const base = cand({
+    cle: "exigence:e1", titre: "Audit énergétique", domaine: "energie", qualification: "obligatoire",
+    date_cible: "2027-10-16", sanction_prevue: true,
+  })
+
+  it("construit la ligne à insérer avec l'instantané du score", () => {
+    const [a] = calculerRoadmap([base], P, AUJ)
+    const n = versNouvelleAction(a, "org1", P, AUJ)
+    expect(n).not.toBeNull()
+    if (n === null) return
+    expect(n.organisation_id).toBe("org1")
+    expect(n.exigence_id).toBe("e1")
+    expect(n.extraction_id).toBeNull()
+    expect(n.titre).toBe("Audit énergétique")
+    expect(n.domaine).toBe("energie")
+    expect(n.horizon).toBe("3_12m")
+    expect(n.date_cible).toBe("2027-10-16")
+    expect(n.score_priorite).toBeCloseTo(57.5, 9) // 30 + 12,5 + 15
+    expect(n.score_detail.poids).toEqual(P)
+    expect(n.score_detail.calcule_le).toBe(AUJ)
+    expect(n.score_detail.calcule_par).toBe("client")
+    expect(n.score_detail.contributions.sanc).toBeCloseTo(15, 9)
+    expect(n.gain_estime).toBeNull()
+    expect(n.gain_unite).toBeNull()
+  })
+
+  it("source extraction et gain en euros", () => {
+    const [a] = calculerRoadmap([{ ...base, cle: "extraction:x1", origine: "extraction", gain_estime: 100, cout_estime: 40 }], P, AUJ)
+    const n = versNouvelleAction(a, "org1", P, AUJ)
+    expect(n?.exigence_id).toBeNull()
+    expect(n?.extraction_id).toBe("x1")
+    expect(n?.gain_estime).toBe(100)
+    expect(n?.gain_unite).toBe("eur")
+    expect(n?.cout_estime).toBe(40)
+  })
+
+  it("refuse une action sans domaine ou sans clé valide", () => {
+    const [sansDomaine] = calculerRoadmap([{ ...base, domaine: null }], P, AUJ)
+    const [cleInvalide] = calculerRoadmap([{ ...base, cle: "invalide" }], P, AUJ)
+    expect(versNouvelleAction(sansDomaine, "org1", P, AUJ)).toBeNull()
+    expect(versNouvelleAction(cleInvalide, "org1", P, AUJ)).toBeNull()
   })
 })
