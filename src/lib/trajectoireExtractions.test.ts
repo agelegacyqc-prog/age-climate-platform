@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { actionsPossibles, analyserNombre, fmtMontant, fmtNombreFR, libelleTypeExtraction } from "./trajectoireExtractions"
+import { actionsPossibles, analyserNombre, estMasquee, fmtMontant, fmtNombreFR, libelleTypeExtraction } from "./trajectoireExtractions"
 
 const cibles = (statut: Parameters<typeof actionsPossibles>[0], vue: Parameters<typeof actionsPossibles>[1]) =>
   actionsPossibles(statut, vue).map(a => a.cible)
@@ -59,4 +59,12 @@ describe("formats", () => {
   it("valeur absente", () => expect(fmtMontant(null, "eur")).toBe("—"))
   it("sans unité", () => expect(fmtMontant(5, null)).toBe("5"))
   it("libellé du type", () => expect(libelleTypeExtraction("ecart")).toBe("Écart"))
+})
+
+describe("estMasquee", () => {
+  it("masque une proposition d'un document archivé", () => expect(estMasquee("propose", true)).toBe(true))
+  it("garde une proposition d'un document actif", () => expect(estMasquee("propose", false)).toBe(false))
+  it("garde les extractions déjà traitées d'un document archivé", () => {
+    for (const s of ["valide_client", "valide_age", "rejete"] as const) expect(estMasquee(s, true)).toBe(false)
+  })
 })

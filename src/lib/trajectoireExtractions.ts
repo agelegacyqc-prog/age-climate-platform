@@ -93,8 +93,15 @@ export function fmtMontant(n: number | null, unite: GainUnite | null): string {
   const u = UNITES_GAIN.find(x => x.id === unite)?.label ?? ""
   return u ? `${fmtNombreFR(n)}\u00A0${u}` : fmtNombreFR(n)
 }
-
 /** Libellé du type d'extraction. */
 export function libelleTypeExtraction(t: TypeExtraction): string {
   return TYPES_EXTRACTION.find(x => x.id === t)?.label ?? t
+}
+
+/**
+ * Une proposition non traitée d'un document archivé n'a plus rien à valider : elle est masquée de l'onglet À valider.
+ * Les extractions déjà validées ou rejetées restent visibles (historique).
+ */
+export function estMasquee(statut: StatutExtraction, documentArchive: boolean): boolean {
+  return documentArchive && statut === "propose"
 }

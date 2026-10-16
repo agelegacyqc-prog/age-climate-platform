@@ -9,7 +9,7 @@
 import React, { useState } from "react"
 import { aujourdhuiISO, fmtDateFR } from "../../lib/trajectoire"
 import {
-  STATUTS_ANALYSE_META, TYPES_DOCUMENT, erreurFichier, fmtTaille, libelleTypeDocument,
+  STATUTS_ANALYSE_META, TYPES_DOCUMENT, erreurFichier, estDoublonDeDepot, fmtTaille, libelleTypeDocument,
   type StatutAnalyse, type TypeDocument,
 } from "../../lib/trajectoireDocuments"
 import { peutRelancer } from "../../lib/trajectoireIA"
@@ -75,7 +75,13 @@ export default function OngletDocuments(props: Props) {
     setMessage(null)
     if (!fichier) { setMessage({ type: "erreur", texte: "Choisissez un fichier à déposer." }); return }
     const refus = erreurFichier(fichier)
-    if (refus) { setMessage({ type: "erreur", texte: refus }); return }
+     if (refus) { setMessage({ type: "erreur", texte: refus }); return }
+    const documentsExistants = documents.map(d => ({
+      nom_fichier: d.document?.nom_fichier ?? d.document?.nom ?? null,
+      taille_octets: d.document?.taille_octets ?? null,
+    }))
+    if (estDoublonDeDepot(fichier, documentsExistants) &&
+      !window.confirm("Un document de même nom et de même taille est déjà déposé. Le déposer quand même ? Il sera analysé une seconde fois et consommera une analyse du quota quotidien.")) return
     setOccupe(true)
     const err = await deposer({
       fichier,

@@ -107,3 +107,15 @@ export function fmtTaille(octets: number | null): string {
 export function libelleTypeDocument(t: TypeDocument): string {
   return TYPES_DOCUMENT.find(x => x.id === t)?.label ?? t
 }
+
+/**
+ * Le fichier ressemble-t-il à un document déjà déposé ? Même nom (sans tenir compte de la casse) et même taille.
+ * `existants` : les documents actifs de l'organisation (les documents archivés n'en font pas partie).
+ */
+export function estDoublonDeDepot(
+  fichier: Pick<FichierDecrit, "name" | "size">,
+  existants: ReadonlyArray<{ nom_fichier: string | null; taille_octets: number | null }>,
+): boolean {
+  const nom = fichier.name.trim().toLowerCase()
+  return existants.some(e => (e.nom_fichier ?? "").trim().toLowerCase() === nom && e.taille_octets === fichier.size)
+}

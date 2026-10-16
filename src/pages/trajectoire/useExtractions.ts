@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import type { DomaineTrajectoire } from "../../lib/trajectoire"
-import type { GainUnite, StatutExtraction, TypeExtraction } from "../../lib/trajectoireExtractions"
+import { estMasquee, type GainUnite, type StatutExtraction, type TypeExtraction } from "../../lib/trajectoireExtractions"
 import type { TypeDocument } from "../../lib/trajectoireDocuments"
 
 export interface ExtractionLigne {
@@ -33,6 +33,7 @@ export interface ExtractionLigne {
   created_at: string
   trajectoire_document: {
     type_document: TypeDocument
+    archivee: boolean
     document: { nom: string; nom_fichier: string | null } | null
   } | null
   referentiel: { code: string; libelle: string } | null
@@ -74,14 +75,16 @@ export function useExtractions(organisationId: string | null): UseExtractions {
     setErreur(null)
     const { data, error } = await supabase
       .from("trajectoire_extractions")
-      .select("*, trajectoire_document:trajectoire_documents(type_document, document:documents(nom, nom_fichier)), referentiel:trajectoire_referentiel(code, libelle)")
+      .select("*, trajectoire_document:trajectoire_documents(type_document, archivee, document:documents(nom, nom_fichier)), referentiel:trajectoire_referentiel(code, libelle)")
       .eq("organisation_id", organisationId)
       .order("created_at", { ascending: false })
     if (error) {
       setErreur(error.message)
       setExtractions([])
     } else {
-      setExtractions((data ?? []) as unknown as ExtractionLigne[])
+      const lignes = (data ?? []) as unknown as ExtractionLigne[]
+      // Les propositions non traitées d'un document archivé sont masquées ; les extractions déjà traitées restent visibles.
+      setExtractions(lignes.filter(l => !estMasquee(l.statut, l.trajectoire_document?.archivee === true)))
     }
     setChargement(false)
   }, [organisationId])

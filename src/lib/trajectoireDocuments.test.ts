@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
-  TAILLE_MAX_OCTETS, cheminStockage, erreurFichier, extensionDe, fmtTaille, libelleTypeDocument, nomSur, typeFichierGed, typeMimeAutorise,
+  TAILLE_MAX_OCTETS, cheminStockage, erreurFichier, estDoublonDeDepot, extensionDe, fmtTaille, libelleTypeDocument, nomSur, typeFichierGed, typeMimeAutorise,
 } from "./trajectoireDocuments"
 
 describe("extensionDe", () => {
@@ -69,5 +69,21 @@ describe("typeFichierGed", () => {
     expect(typeFichierGed("a.docx")).toBe("autre")
     expect(typeFichierGed("a.doc")).toBe("autre")
     expect(typeFichierGed("a.xls")).toBe("autre")
+  })
+})
+
+describe("estDoublonDeDepot", () => {
+  const existants = [{ nom_fichier: "Audit.pdf", taille_octets: 1000 }, { nom_fichier: null, taille_octets: null }]
+  it("détecte le même nom et la même taille, sans tenir compte de la casse", () => {
+    expect(estDoublonDeDepot({ name: "audit.PDF", size: 1000 }, existants)).toBe(true)
+  })
+  it("ne signale pas un fichier de même nom mais de taille différente", () => {
+    expect(estDoublonDeDepot({ name: "Audit.pdf", size: 1200 }, existants)).toBe(false)
+  })
+  it("ne signale pas un fichier de nom différent", () => {
+    expect(estDoublonDeDepot({ name: "Autre.pdf", size: 1000 }, existants)).toBe(false)
+  })
+  it("ne signale rien quand il n'y a aucun document", () => {
+    expect(estDoublonDeDepot({ name: "Audit.pdf", size: 1000 }, [])).toBe(false)
   })
 })
