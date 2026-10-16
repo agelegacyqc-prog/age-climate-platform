@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest"
-import { actionsPossibles, analyserNombre, estMasquee, fmtMontant, fmtNombreFR, libelleTypeExtraction } from "./trajectoireExtractions"
+import {
+  actionsPossibles, analyserNombre, estMasquee, filtrerExtractions, fmtMontant, fmtNombreFR, libelleTypeExtraction,
+  type StatutExtraction,
+} from "./trajectoireExtractions"
 
 const cibles = (statut: Parameters<typeof actionsPossibles>[0], vue: Parameters<typeof actionsPossibles>[1]) =>
   actionsPossibles(statut, vue).map(a => a.cible)
@@ -66,5 +69,38 @@ describe("estMasquee", () => {
   it("garde une proposition d'un document actif", () => expect(estMasquee("propose", false)).toBe(false))
   it("garde les extractions déjà traitées d'un document archivé", () => {
     for (const s of ["valide_client", "valide_age", "rejete"] as const) expect(estMasquee(s, true)).toBe(false)
+  })
+})
+describe("filtrerExtractions", () => {
+  interface L { id: number; statut: StatutExtraction; domaine: string | null }
+  const lignes: L[] = [
+    { id: 1, statut: "propose", domaine: "energie" },
+    { id: 2, statut: "valide_client", domaine: "energie" },
+    { id: 3, statut: "propose", domaine: "it" },
+    { id: 4, statut: "propose", domaine: null },
+    { id: 5, statut: "rejete", domaine: "environnement" },
+  ]
+  const ids = (r: L[]) => r.map(x => x.id)
+
+  it("sans filtre : toutes les extractions", () => expect(ids(filtrerExtractions(lignes, "tous", "tous"))).toEqual([1, 2, 3, 4, 5]))
+  it("filtre par statut seul", () => expect(ids(filtrerExtractions(lignes, "propose", "tous"))).toEqual([1, 3, 4]))
+  it("filtre par domaine seul", () => expect(ids(filtrerExtractions(lignes, "tous", "energie"))).toEqual([1, 2]))
+  it("combine statut et domaine", () => expect(ids(filtrerExtractions(lignes, "propose", "energie"))).toEqual([1]))
+  it("« non précisé » retient les extractions sans domaine", () => {
+    expect(ids(filtrerExtractions(lignes, "tous", "non_precise"))).toEqual([4])
+    expect(ids(filtrerExtractions(lignes, "propose", "non_precise"))).toEqual([4])
+  })
+  it("une combinaison sans résultat renvoie une liste vide", () => {
+    expect(filtrerExtractions(lignes, "rejete", "non_precise")).toEqual([])
+    expect(filtrerExtractions(lignes, "valide_age", "it")).toEqual([])
+  })
+  it("les domaines et « non précisé » se partagent exactement le total", () => {
+    const somme = (["energie", "environnement", "it", "non_precise"] as const)
+      .reduce((n, d) => n + filtrerExtractions(lignes, "tous", d).length, 0)
+    expect(somme).toBe(lignes.length)
+  })
+  it("ne modifie pas la liste d'origine", () => {
+    filtrerExtractions(lignes, "rejete", "environnement")
+    expect(lignes).toHaveLength(5)
   })
 })

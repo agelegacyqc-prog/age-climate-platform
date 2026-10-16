@@ -7,8 +7,8 @@
 import React, { useMemo, useState } from "react"
 import { DOMAINES, fmtDateFR, fmtPct, type DomaineTrajectoire, type ExigenceLigne } from "../../lib/trajectoire"
 import {
-  STATUTS_EXTRACTION_META, TYPES_EXTRACTION, UNITES_GAIN, actionsPossibles, analyserNombre, fmtMontant,
-  libelleTypeExtraction, type GainUnite, type StatutExtraction, type TypeExtraction, type VueExtraction,
+  STATUTS_EXTRACTION_META, TYPES_EXTRACTION, UNITES_GAIN, actionsPossibles, analyserNombre, filtrerExtractions, fmtMontant,
+  libelleTypeExtraction, type FiltreDomaine, type GainUnite, type StatutExtraction, type TypeExtraction, type VueExtraction,
 } from "../../lib/trajectoireExtractions"
 import type { DocumentLigne } from "./useDocuments"
 import type { ExtractionLigne, NouvelleExtraction } from "./useExtractions"
@@ -36,6 +36,19 @@ const FILTRES: ReadonlyArray<{ id: Filtre; label: string }> = [
   { id: "valide_age", label: "Confirmées" },
   { id: "rejete", label: "Rejetées" },
 ]
+
+const FILTRES_DOMAINE: ReadonlyArray<{ id: FiltreDomaine; label: string; icone: string | null }> = [
+  { id: "tous", label: "Tous", icone: null },
+  ...DOMAINES.map(d => ({ id: d.id as FiltreDomaine, label: d.label, icone: d.icone as string | null })),
+  { id: "non_precise", label: "Non précisé", icone: "ti-help-circle" },
+]
+
+/** Pastille de filtre : même style pour le statut et le domaine. */
+const pastille = (actif: boolean): React.CSSProperties => ({
+  minHeight: 44, padding: "0 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  display: "inline-flex", alignItems: "center", gap: 6,
+  ...(actif ? { background: "#4338CA", color: "#FFFFFF", border: "1px solid #4338CA" } : { background: "#FFFFFF", color: "#3730A3", border: "1px solid #C7D2FE" }),
+})
 
 const champ: React.CSSProperties = {
   minHeight: 44, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#FFFFFF",
@@ -321,13 +334,16 @@ function FormulaireSaisie(props: {
 
 export default function OngletAValider(props: Props) {
   const { extractions, documents, exigences, chargement, erreur, estAdminClient, estPersonnelAGE, changerStatut, creer } = props
-  const [filtre, setFiltre] = useState<Filtre>("tous")
+    const [filtre, setFiltre] = useState<Filtre>("tous")
+  const [filtreDomaine, setFiltreDomaine] = useState<FiltreDomaine>("tous")
   const [occupe, setOccupe] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
   const vue: VueExtraction = estPersonnelAGE ? "personnel" : estAdminClient ? "admin_client" : "lecture"
 
-  const compte = (f: Filtre) => (f === "tous" ? extractions.length : extractions.filter(x => x.statut === f).length)
-  const visibles = filtre === "tous" ? extractions : extractions.filter(x => x.statut === filtre)
+    // Chaque compteur indique le résultat d'un clic, l'autre filtre restant actif.
+  const compte = (f: Filtre) => filtrerExtractions(extractions, f, filtreDomaine).length
+  const compteDomaine = (d: FiltreDomaine) => filtrerExtractions(extractions, filtre, d).length
+  const visibles = filtrerExtractions(extractions, filtre, filtreDomaine)
 
   async function appliquer(id: string, cible: StatutExtraction, motif: string | null) {
     setOccupe(true)
@@ -372,20 +388,32 @@ export default function OngletAValider(props: Props) {
 
       {extractions.length > 0 && (
         <>
-          <div role="group" aria-label="Filtrer par statut" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {FILTRES.map(f => (
-              <button key={f.id} type="button" aria-pressed={filtre === f.id} onClick={() => setFiltre(f.id)}
-                style={{
-                  minHeight: 44, padding: "0 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  ...(filtre === f.id ? { background: "#4338CA", color: "#FFFFFF", border: "1px solid #4338CA" } : { background: "#FFFFFF", color: "#3730A3", border: "1px solid #C7D2FE" }),
-                }}>
-                {f.label} ({compte(f.id)})
-              </button>
-            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Statut</span>
+              <div role="group" aria-label="Filtrer par statut" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {FILTRES.map(f => (
+                  <button key={f.id} type="button" aria-pressed={filtre === f.id} onClick={() => setFiltre(f.id)} style={pastille(filtre === f.id)}>
+                    {f.label} ({compte(f.id)})
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Domaine</span>
+              <div role="group" aria-label="Filtrer par domaine" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {FILTRES_DOMAINE.map(d => (
+                  <button key={d.id} type="button" aria-pressed={filtreDomaine === d.id} onClick={() => setFiltreDomaine(d.id)} style={pastille(filtreDomaine === d.id)}>
+                    {d.icone && <i className={`ti ${d.icone}`} aria-hidden="true" />}
+                    {d.label} ({compteDomaine(d.id)})
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ ...carte, display: "flex", flexDirection: "column", gap: 10 }}>
-            {visibles.length === 0 && <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>Aucune extraction dans cette catégorie.</p>}
+            {visibles.length === 0 && <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>Aucune extraction pour ces filtres.</p>}
             {visibles.map(e => <CarteExtraction key={e.id} e={e} vue={vue} occupe={occupe} onAction={(id, cible, motif) => void appliquer(id, cible, motif)} />)}
           </div>
         </>

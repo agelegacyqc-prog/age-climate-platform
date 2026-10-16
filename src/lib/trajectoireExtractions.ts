@@ -105,3 +105,19 @@ export function libelleTypeExtraction(t: TypeExtraction): string {
 export function estMasquee(statut: StatutExtraction, documentArchive: boolean): boolean {
   return documentArchive && statut === "propose"
 }
+// ---------------------------------------------------------------------------
+// Onglet À valider : filtres combinés par statut et par domaine.
+
+export type FiltreStatut = "tous" | StatutExtraction
+/** « non_precise » : extractions dont le domaine n'est pas renseigné. */
+export type FiltreDomaine = "tous" | "non_precise" | "energie" | "environnement" | "it"
+
+export function filtrerExtractions<T extends { statut: StatutExtraction; domaine: string | null }>(
+  lignes: ReadonlyArray<T>,
+  statut: FiltreStatut,
+  domaine: FiltreDomaine,
+): T[] {
+  return lignes.filter(l =>
+    (statut === "tous" || l.statut === statut) &&
+    (domaine === "tous" || (domaine === "non_precise" ? l.domaine === null : l.domaine === domaine)))
+}
