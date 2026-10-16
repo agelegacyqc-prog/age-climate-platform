@@ -9,8 +9,8 @@ import { useEffect, useMemo, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { aujourdhuiISO, type ExigenceLigne } from "../../lib/trajectoire"
 import {
-  PARAMETRES_PAR_DEFAUT, calculerRoadmap, candidatsDepuisExigences, candidatsDepuisExtractions,
-  type ActionRoadmap, type ExtractionSource, type ParametresPriorite,
+  PARAMETRES_PAR_DEFAUT, appliquerDatesPlanifiees, calculerRoadmap, candidatsDepuisExigences, candidatsDepuisExtractions,
+  type ActionRoadmap, type ExtractionSource, type LigneAction, type ParametresPriorite,
 } from "../../lib/trajectoireRoadmap"
 
 export interface UseRoadmap {
@@ -45,7 +45,8 @@ function enParametres(l: LigneParametres): ParametresPriorite {
 export function useRoadmap(
   organisationId: string | null,
   exigences: ReadonlyArray<ExigenceLigne>,
-  extractions: ReadonlyArray<ExtractionSource>,
+   extractions: ReadonlyArray<ExtractionSource>,
+  lignes: ReadonlyArray<LigneAction>,
 ): UseRoadmap {
   const [params, setParams] = useState<ParametresPriorite>(PARAMETRES_PAR_DEFAUT)
   const [scoresParActif, setScoresParActif] = useState<Record<string, number>>({})
@@ -103,12 +104,15 @@ export function useRoadmap(
   }, [organisationId])
 
   const actions = useMemo(() => {
-    const candidats = [
-      ...candidatsDepuisExigences(exigences, scoresParActif),
-      ...candidatsDepuisExtractions(extractions, exigences, scoresParActif),
-    ]
+    const candidats = appliquerDatesPlanifiees(
+      [
+        ...candidatsDepuisExigences(exigences, scoresParActif),
+        ...candidatsDepuisExtractions(extractions, exigences, scoresParActif),
+      ],
+      lignes,
+    )
     return calculerRoadmap(candidats, params, aujourdhuiISO())
-  }, [exigences, extractions, params, scoresParActif])
+  }, [exigences, extractions, lignes, params, scoresParActif])
 
   return { actions, params, nbActifsScores: Object.keys(scoresParActif).length, chargement, avertissement }
 }

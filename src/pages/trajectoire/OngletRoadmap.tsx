@@ -1,21 +1,35 @@
 // src/pages/trajectoire/OngletRoadmap.tsx
 //
-// Roadmap priorisée de l'organisation (lecture seule, calculée à la volée : rien n'est enregistré).
-// Actions = exigences à traiter + recommandations validées au moins par le client.
-// Ordre : horizon, puis score de priorité S décroissant (FICHE_MODULE_Trajectoire §4.2 et §4.3).
+// Roadmap priorisée de l'organisation. Le classement est calculé à la volée ; une action peut être
+// « planifiée » (enregistrée dans trajectoire_actions avec un instantané de son score) puis suivie :
+// statut, responsable, date cible (seulement si la source n'a pas d'échéance).
+// Droits (contrôlés par trigger en base, reflétés ici) : admin_client et personnel AGE écrivent ;
+// utilisateur_client consulte. Le statut d'une action n'agit pas sur l'exigence liée.
 // Couleur du module : #4338CA (accent uniquement). Alertes doublées d'une icône (daltonisme).
 
 import React, { useMemo, useState } from "react"
-import { DOMAINES, QUALIFICATIONS_LABEL, fmtDateFR, type DomaineTrajectoire } from "../../lib/trajectoire"
-import { HORIZONS, type ActionRoadmap, type CritereId, type ParametresPriorite } from "../../lib/trajectoireRoadmap"
-import { Valeur, carte, selecteur } from "./ui"
+import { DOMAINES, QUALIFICATIONS_LABEL, aujourdhuiISO, fmtDateFR, type DomaineTrajectoire } from "../../lib/trajectoire"
+import {
+  HORIZONS, STATUTS_ACTION, indexerLignes, peutPlanifier, versNouvelleAction,
+  type ActionRoadmap, type CritereId, type LigneAction, type NouvelleAction, type ParametresPriorite, type StatutAction,
+} from "../../lib/trajectoireRoadmap"
+import type { PatchAction } from "./useActions"
+import { Valeur, boutonPrimaire, boutonSecondaire, carte, selecteur } from "./ui"
 
 interface Props {
+  organisationId: string
   actions: ActionRoadmap[]
+  lignes: LigneAction[]
   params: ParametresPriorite
   nbActifsScores: number
   chargement: boolean
   avertissement: string | null
+  erreurActions: string | null
+  /** admin_client ou personnel AGE. */
+  peutGerer: boolean
+  planifier: (nouvelle: NouvelleAction) => Promise<string | null>
+  modifier: (id: string, patch: PatchAction) => Promise<string | null>
+  retirer: (id: string) => Promise<string | null>
 }
 
 const CRITERES: ReadonlyArray<{ id: CritereId; label: string }> = [
@@ -52,6 +66,8 @@ const badge: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 12, fontWeight: 600,
 }
 
+const champ: React.CSSProperties = { fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4 }
+
 function styleQualification(q: NonNullable<ActionRoadmap["qualification"]>): React.CSSProperties {
   const base: React.CSSProperties = { ...badge, padding: "3px 10px" }
   if (q === "obligatoire") return { ...base, background: "#EEF2FF", color: "#3730A3" }
@@ -59,11 +75,28 @@ function styleQualification(q: NonNullable<ActionRoadmap["qualification"]>): Rea
   return { ...base, background: "#FFFFFF", color: "#475569", border: "1px solid #CBD5E1" }
 }
 
-function CarteAction(props: { key?: string; a: ActionRoadmap; params: ParametresPriorite }) {
-  const { a, params } = props
+function libelleStatut(s: StatutAction): string {
+  return STATUTS_ACTION.find(x => x.id === s)?.label ?? s
+}
+
+function CarteAction(props: {
+  key?: string
+  a: ActionRoadmap
+  params: ParametresPriorite
+  ligne: LigneAction | null
+  peutGerer: boolean
+  occupe: boolean
+  onPlanifier: (a: ActionRoadmap) => void
+  onModifier: (id: string, patch: PatchAction) => void
+  onRetirer: (id: string) => void
+}) {
+  const { a, params, ligne, peutGerer, occupe, onPlanifier, onModifier, onRetirer } = props
   const domaine = DOMAINES.find(d => d.id === a.domaine)
+  const dateModifiable = ligne !== null && (a.date_cible === null || a.date_planifiee === true)
+  const terminee = ligne !== null && (ligne.statut === "realise" || ligne.statut === "abandonne")
+
   return (
-    <li style={{ listStyle: "none", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 16px", background: "#FFFFFF" }}>
+    <li style={{ listStyle: "none", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 16px", background: "#FFFFFF", opacity: terminee ? 0.75 : 1 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between" }}>
         <div style={{ flex: "1 1 320px", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -80,6 +113,12 @@ function CarteAction(props: { key?: string; a: ActionRoadmap; params: Parametres
               <span style={{ ...badge, background: "#F1F5F9", color: "#475569" }}>
                 <i className={`ti ${domaine.icone}`} aria-hidden="true" />
                 {domaine.label}
+              </span>
+            )}
+            {ligne && (
+              <span style={{ ...badge, background: "#DCFCE7", color: "#166534" }}>
+                <i className="ti ti-circle-check" style={{ color: "#2F7D5C" }} aria-hidden="true" />
+                Planifiée
               </span>
             )}
             {a.en_retard && (
@@ -116,6 +155,63 @@ function CarteAction(props: { key?: string; a: ActionRoadmap; params: Parametres
         </div>
       </div>
 
+      {/* Suivi de l'action */}
+      {ligne === null && peutGerer && (
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {peutPlanifier(a) ? (
+            <button type="button" style={boutonPrimaire} disabled={occupe} onClick={() => onPlanifier(a)}>
+              Planifier
+            </button>
+          ) : (
+            <span style={{ fontSize: 12, color: "#475569", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-info-circle" style={{ color: "#0369A1" }} aria-hidden="true" />
+              Le domaine de cette recommandation doit être précisé avant de la planifier.
+            </span>
+          )}
+        </div>
+      )}
+
+      {ligne !== null && (
+        <div style={{ marginTop: 12, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+          {peutGerer ? (
+            <>
+              <label style={champ}>
+                Statut
+                <select aria-label={`Statut de l'action ${a.titre}`} style={selecteur} disabled={occupe} value={ligne.statut}
+                  onChange={e => onModifier(ligne.id, { statut: e.target.value as StatutAction })}>
+                  {STATUTS_ACTION.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+              </label>
+              <label style={champ}>
+                Responsable
+                <input key={`${ligne.id}:${ligne.responsable ?? ""}`} type="text" aria-label={`Responsable de l'action ${a.titre}`}
+                  style={{ ...selecteur, minWidth: 200 }} disabled={occupe} maxLength={120} defaultValue={ligne.responsable ?? ""}
+                  onBlur={e => {
+                    const v = e.target.value.trim()
+                    if (v !== (ligne.responsable ?? "")) onModifier(ligne.id, { responsable: v === "" ? null : v })
+                  }} />
+              </label>
+              {dateModifiable && (
+                <label style={champ}>
+                  Date cible
+                  <input type="date" aria-label={`Date cible de l'action ${a.titre}`} style={selecteur} disabled={occupe}
+                    value={ligne.date_cible ?? ""}
+                    onChange={e => onModifier(ligne.id, { date_cible: e.target.value === "" ? null : e.target.value })} />
+                </label>
+              )}
+              <button type="button" style={boutonSecondaire} disabled={occupe} onClick={() => onRetirer(ligne.id)}>
+                Retirer de la roadmap
+              </button>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: "#57534E", display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <span>Statut : <strong style={{ color: "#0F172A" }}>{libelleStatut(ligne.statut)}</strong></span>
+              <span>Responsable : <strong style={{ color: "#0F172A" }}>{ligne.responsable ?? "—"}</strong></span>
+            </div>
+          )}
+        </div>
+      )}
+
       <details style={{ marginTop: 10 }}>
         <summary style={{ fontSize: 12, color: "#3730A3", cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
           Voir le détail du score
@@ -149,9 +245,13 @@ function CarteAction(props: { key?: string; a: ActionRoadmap; params: Parametres
   )
 }
 
-export default function OngletRoadmap({ actions, params, nbActifsScores, chargement, avertissement }: Props) {
+export default function OngletRoadmap(props: Props) {
+  const { organisationId, actions, lignes, params, nbActifsScores, chargement, avertissement, erreurActions, peutGerer, planifier, modifier, retirer } = props
   const [domaine, setDomaine] = useState<"tous" | DomaineTrajectoire>("tous")
+  const [occupe, setOccupe] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
+  const index = useMemo(() => indexerLignes(lignes), [lignes])
   const visibles = useMemo(
     () => (domaine === "tous" ? actions : actions.filter(a => a.domaine === domaine)),
     [actions, domaine],
@@ -163,6 +263,29 @@ export default function OngletRoadmap({ actions, params, nbActifsScores, chargem
     return m
   }, [visibles])
 
+  async function executer(cle: string, operation: () => Promise<string | null>) {
+    setOccupe(cle)
+    setMessage(null)
+    const erreur = await operation()
+    if (erreur) setMessage(erreur)
+    setOccupe(null)
+  }
+
+  function onPlanifier(a: ActionRoadmap) {
+    const nouvelle = versNouvelleAction(a, organisationId, params, aujourdhuiISO())
+    if (nouvelle === null) { setMessage("Cette action ne peut pas être planifiée : domaine ou source manquant."); return }
+    void executer(a.cle, () => planifier(nouvelle))
+  }
+
+  function onModifier(cle: string, id: string, patch: PatchAction) {
+    void executer(cle, () => modifier(id, patch))
+  }
+
+  function onRetirer(cle: string, id: string) {
+    if (!window.confirm("Retirer cette action de la roadmap ? Elle ne sera plus suivie ; l'exigence ou la recommandation d'origine reste inchangée.")) return
+    void executer(cle, () => retirer(id))
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ ...carte, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", justifyContent: "space-between" }}>
@@ -170,10 +293,14 @@ export default function OngletRoadmap({ actions, params, nbActifsScores, chargem
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F172A" }}>Roadmap</h2>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#57534E", lineHeight: 1.5 }}>
             Actions à mener, classées par horizon puis par score de priorité. Le score pondère l'obligation légale, l'échéance, la sanction,
-            le gain, le coût et l'exposition climatique. Il est recalculé à chaque affichage, rien n'est enregistré à ce stade.
+            le gain, le coût et l'exposition climatique, et il est recalculé à chaque affichage. Planifier une action l'enregistre pour la suivre
+            (statut, responsable, date cible) avec le score du moment.
+          </p>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: "#57534E" }}>
+            <Valeur>{index.size}</Valeur> action{index.size > 1 ? "s" : ""} planifiée{index.size > 1 ? "s" : ""} sur <Valeur>{actions.length}</Valeur>
           </p>
         </div>
-        <label style={{ fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={champ}>
           Domaine
           <select aria-label="Filtrer la roadmap par domaine" style={{ ...selecteur, minWidth: 200 }} value={domaine}
             onChange={e => setDomaine(e.target.value as "tous" | DomaineTrajectoire)}>
@@ -183,6 +310,18 @@ export default function OngletRoadmap({ actions, params, nbActifsScores, chargem
         </label>
       </div>
 
+      {message && (
+        <div role="alert" style={{ ...carte, padding: "12px 16px", borderColor: "#FCA5A5", display: "flex", gap: 10, alignItems: "center", color: "#991B1B", fontSize: 13 }}>
+          <i className="ti ti-alert-octagon" style={{ color: "#B91C1C" }} aria-hidden="true" />
+          {message}
+        </div>
+      )}
+      {erreurActions && (
+        <div role="alert" style={{ ...carte, padding: "12px 16px", borderColor: "#FCA5A5", display: "flex", gap: 10, alignItems: "center", color: "#991B1B", fontSize: 13 }}>
+          <i className="ti ti-alert-octagon" style={{ color: "#B91C1C" }} aria-hidden="true" />
+          Actions planifiées indisponibles : {erreurActions}
+        </div>
+      )}
       {avertissement && (
         <div role="status" style={{ ...carte, padding: "12px 16px", borderColor: "#FCD34D", display: "flex", gap: 10, alignItems: "center", color: "#92400E", fontSize: 13 }}>
           <i className="ti ti-alert-triangle" style={{ color: "#D97706" }} aria-hidden="true" />
@@ -218,7 +357,15 @@ export default function OngletRoadmap({ actions, params, nbActifsScores, chargem
                 </span>
               </h3>
               <ul style={{ margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                {liste.map(a => <CarteAction key={a.cle} a={a} params={params} />)}
+                {liste.map(a => {
+                  const ligne = index.get(a.cle) ?? null
+                  return (
+                    <CarteAction key={a.cle} a={a} params={params} ligne={ligne} peutGerer={peutGerer} occupe={occupe === a.cle}
+                      onPlanifier={onPlanifier}
+                      onModifier={(id, patch) => onModifier(a.cle, id, patch)}
+                      onRetirer={id => onRetirer(a.cle, id)} />
+                  )
+                })}
               </ul>
             </section>
           )

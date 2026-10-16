@@ -59,6 +59,10 @@ export interface CandidatAction {
   score_expo: number | null
   /** Validée par le client, en attente de confirmation AGE. */
   en_attente_age: boolean
+  /** Actif de l'exigence ou de la preuve ; absent ou null au niveau organisation. */
+  actif_id?: string | null
+  /** Vrai si date_cible vient de l'action enregistrée (la source n'a pas d'échéance). */
+  date_planifiee?: boolean
 }
 
 export interface DetailScore {
@@ -88,7 +92,9 @@ export interface ExtractionSource {
   cout_estime: number | null
   gain_estime: number | null
   gain_unite: "eur" | "kwh" | "tco2e" | null
-  statut: StatutExtraction
+    statut: StatutExtraction
+  /** Actif du document source (null : niveau organisation). Renseigné au lot 2, avec le sélecteur de dépôt. */
+  actif_id?: string | null
 }
 
 const borner = (x: number): number => Math.min(1, Math.max(0, x))
@@ -198,7 +204,8 @@ export function candidatsDepuisExigences(
       cle: `exigence:${e.id}`,
       origine: "exigence",
       titre: e.referentiel.libelle,
-      domaine: e.referentiel.domaine,
+            domaine: e.referentiel.domaine,
+      actif_id: e.actif_id,
       qualification: e.qualification,
       sanction_prevue: e.referentiel.sanction_prevue,
       date_cible: echeanceEffective(e),
@@ -209,11 +216,52 @@ export function candidatsDepuisExigences(
     }))
 }
 
-/** Exigence liée à une extraction (même référentiel) : celle de l'organisation, sinon la première. */
-function exigenceLiee(referentielId: string | null, exigences: ReadonlyArray<ExigenceLigne>): ExigenceLigne | null {
-  if (referentielId === null) return null
-  const liees = exigences.filter(e => !e.archivee && e.referentiel_id === referentielId)
-  return liees.find(e => e.actif_id === null) ?? liees[0] ?? null
+const RANG_QUALIFICATION: Readonly<Record<Qualification, number>> = { obligatoire: 2, potentielle: 1, volontaire: 0 }
+
+/**
+ * Exigences liées à une preuve (même référentiel), option C du 16/10/2026 :
+ * avec actif, l'exigence de cet actif seulement ; sans actif, toutes celles du référentiel.
+ */
+export function exigencesLiees(
+  referentielId: string | null,
+  actifId: string | null,
+  exigences: ReadonlyArray<ExigenceLigne>,
+): ExigenceLigne[] {
+  if (referentielId === null) return []
+  return exigences.filter(e => !e.archivee && e.referentiel_id === referentielId && (actifId === null || e.actif_id === actifId))
+}
+
+export interface ExigenceAgregee {
+  qualification: Qualification
+  sanction_prevue: boolean
+  domaine: DomaineTrajectoire
+  date_cible: string | null
+  score_expo: number | null
+}
+
+/**
+ * Agrège des exigences liées : qualification la plus forte, échéance la plus proche,
+ * exposition = moyenne (non arrondie) des scores des actifs concernés ; null si aucune exigence.
+ */
+export function agregerLiees(
+  liees: ReadonlyArray<ExigenceLigne>,
+  scoresParActif: Readonly<Record<string, number>>,
+): ExigenceAgregee | null {
+  if (liees.length === 0) return null
+  let qualification = liees[0].qualification
+  for (const e of liees) {
+    if (RANG_QUALIFICATION[e.qualification] > RANG_QUALIFICATION[qualification]) qualification = e.qualification
+  }
+  const dates = liees.map(e => echeanceEffective(e)).filter((d): d is string => d !== null)
+  const dateCible = dates.length === 0 ? null : dates.reduce((a, b) => (b.slice(0, 10) < a.slice(0, 10) ? b : a))
+  const scores = liees.map(e => scoreExposition(e.actif_id, scoresParActif)).filter((s): s is number => s !== null)
+  return {
+    qualification,
+    sanction_prevue: liees.some(e => e.referentiel.sanction_prevue),
+    domaine: liees[0].referentiel.domaine,
+    date_cible: dateCible,
+    score_expo: moyenne(scores),
+  }
 }
 
 /** Une action par recommandation extraite et validée au moins par le client. */
@@ -225,19 +273,150 @@ export function candidatsDepuisExtractions(
   return extractions
     .filter(x => x.type_extraction === "recommandation" && (x.statut === "valide_client" || x.statut === "valide_age"))
     .map((x): CandidatAction => {
-      const e = exigenceLiee(x.referentiel_id, exigences)
+      const actifId = x.actif_id ?? null
+      const lie = agregerLiees(exigencesLiees(x.referentiel_id, actifId, exigences), scoresParActif)
       return {
         cle: `extraction:${x.id}`,
         origine: "extraction",
         titre: x.contenu,
-        domaine: x.domaine ?? e?.referentiel.domaine ?? null,
-        qualification: e?.qualification ?? null,
-        sanction_prevue: e?.referentiel.sanction_prevue ?? false,
-        date_cible: x.echeance ?? (e ? echeanceEffective(e) : null),
+        domaine: x.domaine ?? lie?.domaine ?? null,
+        actif_id: actifId,
+        qualification: lie?.qualification ?? null,
+        sanction_prevue: lie?.sanction_prevue ?? false,
+        date_cible: x.echeance ?? lie?.date_cible ?? null,
         cout_estime: x.cout_estime,
         gain_estime: x.gain_unite === "eur" ? x.gain_estime : null,
-        score_expo: scoreExposition(e?.actif_id ?? null, scoresParActif),
+        score_expo: lie !== null ? lie.score_expo : scoreExposition(actifId, scoresParActif),
         en_attente_age: x.statut === "valide_client",
       }
     })
+}
+// ---------------------------------------------------------------------------
+// Lot C : actions enregistrées (table trajectoire_actions).
+// Décisions du PO (16/10/2026) : adoption action par action ; score enregistré = instantané calculé côté
+// client ; le statut d'une action n'agit pas sur l'exigence liée.
+// Date cible (fiche §4.3) : l'échéance de la source prime ; la date saisie sur l'action ne sert que sans échéance.
+
+export type StatutAction = "a_lancer" | "en_cours" | "realise" | "abandonne"
+
+export const STATUTS_ACTION: ReadonlyArray<{ id: StatutAction; label: string }> = [
+  { id: "a_lancer", label: "À lancer" },
+  { id: "en_cours", label: "En cours" },
+  { id: "realise", label: "Réalisée" },
+  { id: "abandonne", label: "Abandonnée" },
+]
+
+/** Champs de trajectoire_actions utiles à l'affichage et au suivi. */
+export interface LigneAction {
+  id: string
+  exigence_id: string | null
+  extraction_id: string | null
+  statut: StatutAction
+  responsable: string | null
+  date_cible: string | null
+  archivee: boolean
+}
+
+/** Clé de lien avec une action calculée ; null si la ligne n'a aucune source (cas exclu par la base). */
+export function cleDeLigne(l: Pick<LigneAction, "exigence_id" | "extraction_id">): string | null {
+  if (l.exigence_id !== null) return `exigence:${l.exigence_id}`
+  if (l.extraction_id !== null) return `extraction:${l.extraction_id}`
+  return null
+}
+
+/** Lignes non archivées, indexées par clé de lien. */
+export function indexerLignes(lignes: ReadonlyArray<LigneAction>): Map<string, LigneAction> {
+  const m = new Map<string, LigneAction>()
+  for (const l of lignes) {
+    if (l.archivee) continue
+    const cle = cleDeLigne(l)
+    if (cle !== null) m.set(cle, l)
+  }
+  return m
+}
+
+export function sourceDeCle(cle: string): { origine: "exigence" | "extraction"; id: string } | null {
+  const i = cle.indexOf(":")
+  if (i < 0) return null
+  const origine = cle.slice(0, i)
+  const id = cle.slice(i + 1)
+  if ((origine !== "exigence" && origine !== "extraction") || id === "") return null
+  return { origine, id }
+}
+
+/** Sans échéance de source, la date cible saisie sur l'action enregistrée est utilisée (score et horizon compris). */
+export function appliquerDatesPlanifiees(
+  candidats: ReadonlyArray<CandidatAction>,
+  lignes: ReadonlyArray<LigneAction>,
+): CandidatAction[] {
+  const index = indexerLignes(lignes)
+  return candidats.map(c => {
+    if (c.date_cible !== null) return c
+    const planifiee = index.get(c.cle)?.date_cible ?? null
+       return planifiee === null ? c : { ...c, date_cible: planifiee, date_planifiee: true }
+  })
+}
+
+/** Le domaine est obligatoire en base : une action sans domaine ne peut pas être planifiée. */
+export function peutPlanifier(a: Pick<ActionRoadmap, "cle" | "domaine">): boolean {
+  return a.domaine !== null && sourceDeCle(a.cle) !== null
+}
+
+/** Instantané du score à l'adoption (colonne jsonb score_detail). */
+export interface InstantaneScore {
+  criteres: Record<CritereId, number>
+  contributions: Record<CritereId, number>
+  poids: ParametresPriorite
+  calcule_le: string
+  calcule_par: "client"
+}
+
+/** Ligne à insérer dans trajectoire_actions. Le statut, l'archivage et les liens missions sont fixés par la base. */
+export interface NouvelleAction {
+  organisation_id: string
+  exigence_id: string | null
+  extraction_id: string | null
+  titre: string
+  domaine: DomaineTrajectoire
+  horizon: HorizonId | null
+  date_cible: string | null
+  score_priorite: number
+  score_detail: InstantaneScore
+  cout_estime: number | null
+  gain_estime: number | null
+    gain_unite: "eur" | null
+  /** Actif de l'exigence ou de la preuve ; absent au niveau organisation. */
+  actif_id?: string | null
+}
+
+/** null si l'action ne peut pas être planifiée (voir peutPlanifier). */
+export function versNouvelleAction(
+  a: ActionRoadmap,
+  organisationId: string,
+  params: ParametresPriorite,
+  aujourdhui: string,
+): NouvelleAction | null {
+  const source = sourceDeCle(a.cle)
+  if (source === null || a.domaine === null) return null
+  return {
+    organisation_id: organisationId,
+    exigence_id: source.origine === "exigence" ? source.id : null,
+    extraction_id: source.origine === "extraction" ? source.id : null,
+    titre: a.titre,
+    domaine: a.domaine,
+    horizon: a.horizon,
+    date_cible: a.date_cible,
+    score_priorite: a.score,
+    score_detail: {
+      criteres: a.detail.criteres,
+      contributions: a.detail.contributions,
+      poids: params,
+      calcule_le: aujourdhui,
+      calcule_par: "client",
+    },
+    cout_estime: a.cout_estime,
+    gain_estime: a.gain_estime,
+       gain_unite: a.gain_estime !== null ? "eur" : null,
+    ...(a.actif_id ? { actif_id: a.actif_id } : {}),
+  }
 }

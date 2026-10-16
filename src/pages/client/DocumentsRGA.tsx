@@ -151,7 +151,7 @@ export default function DocumentsRGA() {
         continue
       }
 
-      const storagePath = `${id}/${uploadCategorie}/${Date.now()}_${file.name}`
+      const storagePath = `dossiers/${id}/${uploadCategorie}/${Date.now()}_${file.name}`
 
       const { error: storageError } = await supabase.storage
         .from("documents-rga")

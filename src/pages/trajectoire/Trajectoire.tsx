@@ -13,6 +13,7 @@ import OngletRoadmap from "./OngletRoadmap"
 import { useDocuments } from "./useDocuments"
 import { useConsentementIA } from "./useConsentementIA"
 import { useExigences } from "./useExigences"
+import { useActions } from "./useActions"
 import { useExtractions } from "./useExtractions"
 import { useRoadmap } from "./useRoadmap"
 import { useTrajectoireContexte } from "./useTrajectoireContexte"
@@ -32,7 +33,8 @@ export default function Trajectoire() {
   const exig = useExigences(ctx.organisationId)
   const docs = useDocuments(ctx.organisationId, ctx.userId, ctx.mode)
     const extr = useExtractions(ctx.organisationId)
-  const roadmap = useRoadmap(ctx.organisationId, exig.exigences, extr.extractions)
+    const suivi = useActions(ctx.organisationId)
+  const roadmap = useRoadmap(ctx.organisationId, exig.exigences, extr.extractions, suivi.lignes)
   const consent = useConsentementIA(ctx.organisationId)
   const [onglet, setOnglet] = useState<OngletId>("matrice")
 
@@ -165,13 +167,20 @@ export default function Trajectoire() {
             />
           )}
 
-          {onglet === "roadmap" && (
+             {onglet === "roadmap" && ctx.organisationId !== null && (
             <OngletRoadmap
+              organisationId={ctx.organisationId}
               actions={roadmap.actions}
+              lignes={suivi.lignes}
               params={roadmap.params}
               nbActifsScores={roadmap.nbActifsScores}
-              chargement={roadmap.chargement || exig.chargement || extr.chargement}
+              chargement={roadmap.chargement || exig.chargement || extr.chargement || suivi.chargement}
               avertissement={roadmap.avertissement}
+              erreurActions={suivi.erreur}
+              peutGerer={ctx.estAdminClient || ctx.estPersonnelAGE}
+              planifier={suivi.planifier}
+              modifier={suivi.modifier}
+              retirer={suivi.retirer}
             />
           )}
         </>
